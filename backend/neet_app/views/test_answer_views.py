@@ -1,0 +1,57 @@
+from rest_framework import status, viewsets
+from rest_framework.response import Response
+
+from ..models import TestAnswer
+from ..serializers import TestAnswerCreateSerializer, TestAnswerSerializer
+
+
+class TestAnswerViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing individual test answers.
+    Corresponds to /api/test-answers in Node.js.
+    """
+    queryset = TestAnswer.objects.all()
+    serializer_class = TestAnswerSerializer
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return TestAnswerCreateSerializer
+        return TestAnswerSerializer
+
+    def create(self, request, *args, **kwargs):
+        """
+        Submits or updates a single test answer (upsert logic).
+        Replicates POST /api/test-answers logic.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+
+        session = validated_data.pop('session')
+        question = validated_data.pop('question')
+
+        answer, created = TestAnswer.objects.update_or_create(
+            session=session,
+            question=question,
+            defaults={
+                'selected_answer': validated_data.get('selected_answer'),
+                'marked_for_review': validated_data.get('marked_for_review', False),
+                'time_taken': validated_data.get('time_taken', 0)
+            }
+        )
+
+        return Response(
+            TestAnswerSerializer(answer).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        """
+        Partially updates an existing test answer.
+        Replicates PATCH /api/test-answers/:id logic.
+        """
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
