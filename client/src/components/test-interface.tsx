@@ -27,6 +27,8 @@ import { Timer } from "@/components/timer";
 import { useToast } from "@/hooks/use-toast";
 import { API_CONFIG } from "@/config/api";
 import { apiRequest } from "@/lib/queryClient";
+import { authenticatedFetch } from "@/lib/auth";
+import { debugAuthentication, testAuthenticatedRequest } from "@/lib/debug-auth";
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -105,13 +107,21 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const { data: testData, isLoading } = useQuery<TestSessionData>({
     queryKey: [`testSession-${sessionId}`], // Changed key for clarity, but old one also works if no clash
     queryFn: async () => {
-      // CORRECTED: Explicitly use BASE_URL for the initial fetch
-      const url = `${API_CONFIG.BASE_URL}/api/test-sessions/${sessionId}/`; 
-      const response = await fetch(url);
+      // Debug authentication before making request
+      debugAuthentication();
+      
+      // CORRECTED: Use authenticatedFetch for authenticated requests
+      const url = `/api/test-sessions/${sessionId}/`; 
+      console.log('🔄 Fetching test session:', url);
+      
+      const response = await authenticatedFetch(`${API_CONFIG.BASE_URL}${url}`);
 
       if (!response.ok) {
+        console.error('❌ Test session fetch failed:', response.status, response.statusText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
+      console.log('✅ Test session fetch successful');
       return response.json();
     },
     enabled: !!sessionId, // Only fetch if sessionId is available

@@ -32,6 +32,7 @@ import { ListCheck, Atom, FlaskConical, Dna, Clock, Play, Leaf, ChevronDown, Che
 import { ChapterSelector } from "./chapter-selector";
 import { SearchBar } from "./search-bar";
 import { Topic, CreateTestSessionRequest, CreateTestSessionResponse } from '../types/api'; // Adjust path as needed
+import { useAuth } from "@/hooks/use-auth";
 
 interface PaginatedTopicsResponse {
   count: number;
@@ -105,10 +106,15 @@ export function ChapterSelection() {
 
   // === TEST SESSION CREATION ===
   // This mutation handles creating a new test session when user clicks "Start Test"
+  const { student } = useAuth();
   const createTestMutation = useMutation({
     mutationFn: async (data: { selected_topics: string[], time_limit?: number, question_count?: number }) => {
-      // Call the backend API to create a test session
-      const response = await apiRequest(API_CONFIG.ENDPOINTS.TEST_SESSIONS, "POST", data);
+      // Add studentId to the payload if available
+      const payload = {
+        ...data,
+        studentId: student?.studentId,
+      };
+      const response = await apiRequest(API_CONFIG.ENDPOINTS.TEST_SESSIONS, "POST", payload);
       return response as CreateTestSessionResponse;
     },
     onSuccess: (data) => {

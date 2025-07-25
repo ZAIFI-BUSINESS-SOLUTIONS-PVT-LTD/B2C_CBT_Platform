@@ -1,116 +1,157 @@
 from django.http import JsonResponse
-from django.db import transaction
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from neomodel import db
 from ..models import Topic, Question, TestSession, TestAnswer, StudentProfile
 import logging
+from django.db import transaction, IntegrityError
+import random
 
 logger = logging.getLogger(__name__)
 
 
-def _extract_subject_from_topic(topic_name):
-    """Extract subject from topic name using keywords"""
-    topic_lower = topic_name.lower()
-    
-    if any(keyword in topic_lower for keyword in ['physics', 'mechanics', 'thermodynamics', 'electromagnetism', 'optics', 'modern physics']):
-        return 'Physics'
-    elif any(keyword in topic_lower for keyword in ['chemistry', 'organic', 'inorganic', 'physical chemistry', 'chemical']):
-        return 'Chemistry'
-    elif any(keyword in topic_lower for keyword in ['botany', 'plant', 'photosynthesis', 'respiration', 'morphology']):
-        return 'Botany'
-    elif any(keyword in topic_lower for keyword in ['zoology', 'animal', 'human', 'anatomy', 'physiology', 'evolution']):
-        return 'Zoology'
-    else:
-        return 'General'
-
-
-def _extract_chapter_from_topic(topic_name):
-    """Extract chapter from topic name - use the topic name as chapter"""
-    return topic_name if topic_name else 'General'
-
-
-def sync_neo4j_to_postgresql(request=None):
+def generate_questions_for_topics(selected_topics, question_count=None):
     """
-    Synchronizes data from Neo4j to PostgreSQL database.
-    Replicates the functionality from the original views.py sync utility.
+    Generate questions for the selected topics.
+    
+    Args:
+        selected_topics: List of topic IDs
+        question_count: Maximum number of questions to return (optional)
+    
+    Returns:
+        QuerySet of Question objects
     """
     try:
-        query = """
-        MATCH (t:Topic)-[:HAS_QUESTION]->(q:Question)
-        RETURN t.id AS topic_id, t.subject AS subject, t.chapter AS chapter, t.name AS topic_name,
-               q.id AS question_id, q.content AS question_content, q.correct_answer AS correct_answer,
-               q.option_a AS option_a, q.option_b AS option_b, q.option_c AS option_c, q.option_d AS option_d
-        """
-        results, meta = db.cypher_query(query)
+        # Get all questions for the selected topics
+        questions = Question.objects.filter(topic_id__in=selected_topics)
+        
+        # If question_count is specified and we have more questions than needed,
+        # randomly select the specified number
+        if question_count and questions.count() > question_count:
+            # Convert to list, shuffle, and take the first N
+            questions_list = list(questions)
+            random.shuffle(questions_list)
+            # Return a queryset-like structure
+            question_ids = [q.id for q in questions_list[:question_count]]
+            questions = Question.objects.filter(id__in=question_ids)
+        
+        logger.info(f"Generated {questions.count()} questions for topics {selected_topics}")
+        return questions
+        
+    except Exception as e:
+        logger.error(f"Error generating questions for topics {selected_topics}: {str(e)}")
+        # Return empty queryset if there's an error
+        return Question.objects.none()
 
-        synced_topics = set()
-        synced_questions = 0
 
-        for row in results:
-            topic_id = row[0]
-            subject = row[1]
-            chapter = row[2]
-            topic_name = row[3]
-            question_id = row[4]
-            question_content = row[5]
-            correct_answer = row[6]
-            option_a = row[7]
-            option_b = row[8]
-            option_c = row[9]
-            option_d = row[10]
 
-            # Create or update topic
-            topic, created = Topic.objects.get_or_create(
-                id=topic_id,
-                defaults={
-                    'subject': subject,
-                    'chapter': chapter,
-                    'name': topic_name
-                }
+def sync_neo4j_to_postgresql(request):
+    """
+    Fetches data from Neo4j (Subjects, Chapters, Topics) and
+    stores it into the PostgreSQL 'topics' table.
+    """
+    if request.method != 'GET':
+        return JsonResponse({"error": "This endpoint only supports GET requests."}, status=405)
+
+    # Your provided Cypher query
+    cypher_query = """
+    MATCH (s:Subject)-[:CONTAINS]->(c:Chapter)-[:CONTAINS]->(t:Topic)
+    RETURN DISTINCT s.name AS Subject, c.name AS Chapter, t.name AS Topic
+    ORDER BY Subject, Chapter, Topic
+    """
+    
+    topics_synced_count = 0
+    topics_skipped_count = 0 # Will count skipped duplicates if unique_together is set
+    topics_failed_count = 0
+    errors = []
+
+    # Define a default icon value since your Neo4j query doesn't return one,
+    # and your PostgreSQL 'icon' field is not nullable.
+    DEFAULT_ICON = "📚" # You can change this to a more meaningful default like "default_icon.png" or ""
+
+    try:
+        # Execute the Cypher query
+        results, columns = db.cypher_query(cypher_query)
+        
+        # Verify the columns returned by the query
+        expected_columns = ['Subject', 'Chapter', 'Topic']
+        if not all(col in columns for col in expected_columns):
+            raise ValueError(
+                f"Neo4j query did not return all expected columns. "
+                f"Expected: {expected_columns}, Got: {columns}"
             )
 
-            if created:
-                synced_topics.add(topic_id)
+        subject_idx = columns.index('Subject')
+        chapter_idx = columns.index('Chapter')
+        topic_idx = columns.index('Topic')
 
-            # Create or update question
-            question, created = Question.objects.get_or_create(
-                id=question_id,
-                defaults={
-                    'topic': topic,
-                    'content': question_content,
-                    'correct_answer': correct_answer,
-                    'option_a': option_a,
-                    'option_b': option_b,
-                    'option_c': option_c,
-                    'option_d': option_d
-                }
-            )
+        # Use a Django database transaction for atomicity when saving to PostgreSQL
+        with transaction.atomic():
+            for row in results:
+                subject_name = row[subject_idx]
+                chapter_name = row[chapter_idx]
+                topic_name = row[topic_idx]
 
-            if created:
-                synced_questions += 1
+                try:
+                    # Attempt to get an existing topic to avoid duplicates if unique_together is used,
+                    # or if you prefer `update_or_create`.
+                    # Without `unique_together` on the Topic model, `create` will always insert.
+                    
+                    # If you have `unique_together = ('subject', 'chapter', 'name')` uncomment this:
+                    # topic_obj, created = Topic.objects.get_or_create(
+                    #     subject=subject_name,
+                    #     chapter=chapter_name,
+                    #     name=topic_name,
+                    #     defaults={
+                    #         'icon': DEFAULT_ICON # Provide icon for new creation
+                    #     }
+                    # )
+                    # if created:
+                    #     topics_synced_count += 1
+                    # else:
+                    #     # If it was already there, you might want to update other fields, or just skip
+                    #     # topic_obj.icon = DEFAULT_ICON # Example update
+                    #     # topic_obj.save()
+                    #     topics_skipped_count += 1
+                    #     logger.info(f"Existing topic updated/skipped: {subject_name} - {chapter_name} - {topic_name}")
 
-        response_data = {
-            'status': 'success',
-            'synced_topics': len(synced_topics),
-            'synced_questions': synced_questions,
-            'message': f'Successfully synced {len(synced_topics)} topics and {synced_questions} questions from Neo4j to PostgreSQL'
-        }
+                    # If you DO NOT have `unique_together`, then every run will create new entries:
+                    Topic.objects.create(
+                        name=topic_name,
+                        subject=subject_name,
+                        icon=DEFAULT_ICON, # Using the default icon value
+                        chapter=chapter_name if chapter_name is not None else "" # Ensure chapter is not None if TextField expects non-null when not blank/null
+                    )
+                    topics_synced_count += 1
 
-        if request:
-            return JsonResponse(response_data)
-        return response_data
+                except IntegrityError as e:
+                    # This block will ONLY be triggered if you have `unique_together`
+                    # set on your Topic model and a duplicate is attempted.
+                    logger.info(f"Skipping duplicate due to IntegrityError: Subject='{subject_name}', Chapter='{chapter_name}', Topic='{topic_name}' - Error: {e}")
+                    topics_skipped_count += 1
+                except Exception as e:
+                    error_msg = f"Error saving topic '{topic_name}' (Subject: '{subject_name}', Chapter: '{chapter_name}') to PostgreSQL: {e}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
+                    topics_failed_count += 1
 
     except Exception as e:
-        error_response = {
-            'status': 'error',
-            'message': f'Error syncing data: {str(e)}'
-        }
-        
-        if request:
-            return JsonResponse(error_response, status=500)
-        return error_response
+        error_msg = f"Overall error fetching data from Neo4j or during transaction: {e}"
+        logger.error(error_msg)
+        errors.append(error_msg)
+        return JsonResponse({"status": "failed", "message": "An error occurred during synchronization.", "details": errors}, status=500)
+
+    response_data = {
+        "status": "success",
+        "message": "Neo4j data synchronization to PostgreSQL completed.",
+        "topics_synced": topics_synced_count,
+        "topics_skipped_duplicates": topics_skipped_count, # Only effective if unique_together is set
+        "topics_failed_to_save": topics_failed_count,
+        "errors": errors
+    }
+    return JsonResponse(response_data)
+
 
 
 def reset_chapter_structure():
@@ -137,6 +178,9 @@ def sync_questions_from_neo4j(request=None):
     """
     Syncs questions from Neo4j to PostgreSQL Question model.
     Fetches questions with their options, correct answers, and topics.
+    
+    IMPORTANT: This function assumes topics are already populated by sync_neo4j_to_postgresql.
+    It will NOT create new topics, only reference existing ones.
     """
     try:
         # Cypher query to fetch questions from Neo4j
@@ -164,7 +208,7 @@ def sync_questions_from_neo4j(request=None):
         
         questions_created = 0
         errors = []
-        topics_created = 0
+        topics_not_found = set()  # Track missing topics
         
         for row in results:
             try:
@@ -174,97 +218,74 @@ def sync_questions_from_neo4j(request=None):
                 topic_name = row[3]
                 
                 # Validate required fields
-                if not question_text or not isinstance(question_text, str):
-                    errors.append(f"Skipping question with invalid/empty question text")
+                if not question_text or not question_text.strip():
+                    errors.append(f"Skipping question with empty text")
                     continue
                 
-                if not topic_name or not isinstance(topic_name, str):
-                    errors.append(f"Skipping question '{question_text[:50]}...' - invalid/empty topic name")
+                if not topic_name or not topic_name.strip():
+                    errors.append(f"Skipping question '{question_text[:50]}...' - no topic name")
                     continue
                 
-                # Handle options list - ensure it's exactly 4 non-empty strings
-                if not options or not isinstance(options, list):
-                    errors.append(f"Skipping question '{question_text[:50]}...' - options is not a list")
-                    continue
-                    
-                if len(options) != 4:
-                    errors.append(f"Skipping question '{question_text[:50]}...' - expected 4 options, got {len(options)}")
+                # Handle options list validation
+                if not options or not isinstance(options, list) or len(options) != 4:
+                    errors.append(f"Skipping question '{question_text[:50]}...' - invalid options format (expected list of 4)")
                     continue
                 
-                # Validate all options are non-empty strings
-                valid_options = []
-                for i, option in enumerate(options):
-                    if not option or not isinstance(option, str):
-                        errors.append(f"Skipping question '{question_text[:50]}...' - option {i+1} is invalid")
-                        break
-                    valid_options.append(option.strip())
-                
-                if len(valid_options) != 4:
+                # Validate all options are non-empty
+                if not all(option and option.strip() for option in options):
+                    errors.append(f"Skipping question '{question_text[:50]}...' - one or more options are empty")
                     continue
                 
                 # Extract and normalize correct_option
-                # Handle formats like "(c) limbic system", "(a)", "c", "C", "2", etc.
-                correct_answer = None
-                
-                if isinstance(correct_option, str):
-                    # Clean the correct_option string
-                    clean_option = correct_option.strip().lower()
-                    
-                    # Extract letter from patterns like "(c)" or "(c) some text"
-                    if clean_option.startswith('(') and ')' in clean_option:
-                        # Extract letter between parentheses
-                        letter_part = clean_option.split(')')[0].replace('(', '').strip()
+                if correct_option and isinstance(correct_option, str):
+                    # Handle format like "(c) some text" or "(c)"
+                    if correct_option.startswith('(') and ')' in correct_option:
+                        correct_letter = correct_option[1:correct_option.index(')')].strip().lower()
                     else:
-                        letter_part = clean_option
+                        correct_letter = correct_option.strip().lower()
                     
-                    # Normalize to A, B, C, D
-                    if letter_part in ['a', '0']:
+                    # Normalize to uppercase A, B, C, D
+                    if correct_letter in ['a', '0']:
                         correct_answer = 'A'
-                    elif letter_part in ['b', '1']:
+                    elif correct_letter in ['b', '1']:
                         correct_answer = 'B'
-                    elif letter_part in ['c', '2']:
+                    elif correct_letter in ['c', '2']:
                         correct_answer = 'C'
-                    elif letter_part in ['d', '3']:
+                    elif correct_letter in ['d', '3']:
                         correct_answer = 'D'
-                    elif letter_part.upper() in ['A', 'B', 'C', 'D']:
-                        correct_answer = letter_part.upper()
-                
-                # Validate that we got a valid answer
-                if correct_answer not in ['A', 'B', 'C', 'D']:
-                    errors.append(f"Skipping question '{question_text[:50]}...' - could not parse correct_option: {correct_option}")
+                    else:
+                        errors.append(f"Skipping question '{question_text[:50]}...' - invalid correct_option: {correct_option}")
+                        continue
+                else:
+                    errors.append(f"Skipping question '{question_text[:50]}...' - missing correct_option")
                     continue
                 
-                # Get or create topic - use first match if duplicates exist
-                topic = Topic.objects.filter(name=topic_name).first()
+                # ✅ FIXED: Only look for existing topics, don't create new ones
+                topic = Topic.objects.filter(name=topic_name.strip()).first()
                 
                 if not topic:
-                    # Create new topic if none exists
-                    topic = Topic.objects.create(
-                        name=topic_name,
-                        chapter=_extract_chapter_from_topic(topic_name),
-                        subject=_extract_subject_from_topic(topic_name)
-                    )
-                    topics_created += 1
+                    # Track missing topics but don't create them
+                    topics_not_found.add(topic_name.strip())
+                    errors.append(f"Skipping question '{question_text[:50]}...' - topic '{topic_name}' not found in database. Run sync_neo4j_to_postgresql first.")
+                    continue
                 
-                # Always create new question - don't check for duplicates
-                # This allows multiple questions per topic and handles any duplicates from Neo4j
+                # Clean and prepare question data
+                question_text_clean = question_text.strip()
+                
                 question_data = {
                     'topic': topic,
-                    'question': question_text.strip(),
-                    'option_a': valid_options[0],
-                    'option_b': valid_options[1],
-                    'option_c': valid_options[2],
-                    'option_d': valid_options[3],
+                    'question': question_text_clean,
+                    'option_a': options[0].strip(),
+                    'option_b': options[1].strip(),
+                    'option_c': options[2].strip(),
+                    'option_d': options[3].strip(),
                     'correct_answer': correct_answer,
-                    'explanation': 'Explanation not available'
+                    'explanation': 'Explanation not available'  # Default explanation
                 }
                 
-                try:
-                    Question.objects.create(**question_data)
-                    questions_created += 1
-                except Exception as create_error:
-                    errors.append(f"Failed to create question '{question_text[:50]}...': {str(create_error)}")
-                    continue
+                # Create new question (no duplicate checking as per requirement)
+                Question.objects.create(**question_data)
+                questions_created += 1
                     
             except Exception as e:
                 error_msg = f"Error processing question: {str(e)}"
@@ -276,10 +297,14 @@ def sync_questions_from_neo4j(request=None):
             'status': 'success',
             'message': f'Successfully created {questions_created} questions from Neo4j',
             'questions_created': questions_created,
-            'topics_created': topics_created,
             'total_processed': questions_created,
             'errors_count': len(errors)
         }
+        
+        if topics_not_found:
+            response_data['missing_topics'] = list(topics_not_found)
+            response_data['missing_topics_count'] = len(topics_not_found)
+            response_data['recommendation'] = 'Run sync_neo4j_to_postgresql first to populate topics'
         
         if errors:
             response_data['errors'] = errors[:10]  # Limit errors to first 10

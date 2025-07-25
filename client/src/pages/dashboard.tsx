@@ -3,7 +3,8 @@
  * 
  * A clean, simple dashboard that shows essential performance metrics
  * and analytics for student progress tracking. Focuses on clarity and
- * usability with our consistent NEET color theme.
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={dashboardData.subjectPerformance}> usability with our consistent NEET color theme.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -22,9 +23,8 @@ import { useLocation } from 'wouter';
 interface SubjectPerformance {
   subject: string;
   accuracy: number;
-  questionsAttempted: number;
-  averageScore: number;
-  color: string;
+  totalQuestions: number;
+  correctAnswers: number;
 }
 
 interface ChapterPerformance {
@@ -34,7 +34,7 @@ interface ChapterPerformance {
   questionsAttempted: number;
 }
 
-interface Analytics {
+interface DashboardData {
   totalTests: number;
   totalQuestions: number;
   overallAccuracy: number;
@@ -42,11 +42,9 @@ interface Analytics {
   completionRate: number;
   subjectPerformance: SubjectPerformance[];
   chapterPerformance: ChapterPerformance[];
-}
-
-interface DashboardData {
+  progressTrend: any[];
   sessions: any[];
-  analytics: Analytics;
+  totalTimeSpent: number;
 }
 
 // === DASHBOARD COMPONENT ===
@@ -56,9 +54,9 @@ export default function Dashboard() {
   
   // Fetch dashboard data
   const { data: dashboardData, isLoading } = useQuery<DashboardData>({
-    queryKey: ['/api/dashboard/analytics'],
+    queryKey: ['/api/dashboard/analytics/'],
     queryFn: async () => {
-      const response = await fetch('/api/dashboard/analytics');
+      const response = await fetch('/api/dashboard/analytics/');
       if (!response.ok) {
         throw new Error('Failed to fetch dashboard data');
       }
@@ -80,8 +78,8 @@ export default function Dashboard() {
     );
   }
 
-  const analytics = dashboardData?.analytics;
-  const hasData = analytics && analytics.totalTests > 0;
+  // Use dashboardData directly since backend returns analytics data at root level
+  const hasData = dashboardData && dashboardData.totalTests > 0;
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -136,7 +134,7 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">Tests</p>
-                      <p className="text-2xl font-bold text-gray-900">{analytics.totalTests}</p>
+                      <p className="text-2xl font-bold text-gray-900">{dashboardData.totalTests}</p>
                     </div>
                     <BookOpen className="h-8 w-8 text-neet-blue" />
                   </div>
@@ -148,7 +146,7 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">Accuracy</p>
-                      <p className="text-2xl font-bold text-gray-900">{analytics.overallAccuracy.toFixed(1)}%</p>
+                      <p className="text-2xl font-bold text-gray-900">{dashboardData.overallAccuracy.toFixed(1)}%</p>
                     </div>
                     <Target className="h-8 w-8 text-neet-green" />
                   </div>
@@ -160,9 +158,21 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">Avg Score</p>
-                      <p className="text-2xl font-bold text-gray-900">{analytics.averageScore.toFixed(1)}</p>
+                      {/* averageScore removed: field no longer exists */}
                     </div>
                     <Award className="h-8 w-8 text-neet-purple" />
+                  </div>
+                </CardContent>
+              </Card>
+
+                <Card className="bg-white">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Questions</p>
+                      <p className="text-2xl font-bold text-gray-900">{dashboardData.totalQuestions}</p>
+                    </div>
+                    <Brain className="h-8 w-8 text-neet-amber" />
                   </div>
                 </CardContent>
               </Card>
@@ -171,34 +181,38 @@ export default function Dashboard() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Questions</p>
-                      <p className="text-2xl font-bold text-gray-900">{analytics.totalQuestions}</p>
+                      <p className="text-sm text-gray-600">Avg Score</p>
+                      <p className="text-2xl font-bold text-gray-900">{dashboardData.averageScore.toFixed(1)}</p>
                     </div>
-                    <Brain className="h-8 w-8 text-neet-amber" />
+                    <Award className="h-8 w-8 text-green-600" />
                   </div>
                 </CardContent>
               </Card>
-            </div>
-
-            {/* Subject Performance Chart */}
+            </div>            {/* Subject Performance Chart */}
             <Card className="bg-white">
               <CardHeader>
                 <CardTitle>Subject Performance</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={analytics.subjectPerformance}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="subject" />
-                      <YAxis />
-                      <Tooltip 
-                        formatter={(value: number) => [`${value.toFixed(1)}%`, 'Accuracy']}
-                      />
-                      <Bar dataKey="accuracy" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                {dashboardData.subjectPerformance.length > 0 ? (
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={dashboardData.subjectPerformance}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="subject" />
+                        <YAxis />
+                        <Tooltip 
+                          formatter={(value: number) => [`${value.toFixed(1)}%`, 'Accuracy']}
+                        />
+                        <Bar dataKey="accuracy" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-64 flex items-center justify-center text-gray-500">
+                    <p>Subject performance data will be available after completing tests</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -208,20 +222,26 @@ export default function Dashboard() {
                 <CardTitle>Chapter Performance</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {analytics.chapterPerformance.slice(0, 10).map((chapter, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <h4 className="font-medium text-sm">{chapter.chapter}</h4>
-                        <p className="text-xs text-gray-500">{chapter.subject}</p>
+                {dashboardData.chapterPerformance.length > 0 ? (
+                  <div className="space-y-3">
+                    {dashboardData.chapterPerformance.slice(0, 10).map((chapter: any, index: number) => (
+                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <h4 className="font-medium text-sm">{chapter.chapter}</h4>
+                          <p className="text-xs text-gray-500">{chapter.subject}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium">{chapter.accuracy.toFixed(1)}%</p>
+                          <p className="text-xs text-gray-500">{chapter.questionsAttempted} questions</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">{chapter.accuracy.toFixed(1)}%</p>
-                        <p className="text-xs text-gray-500">{chapter.questionsAttempted} questions</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Chapter-wise analysis will be available after completing more tests</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

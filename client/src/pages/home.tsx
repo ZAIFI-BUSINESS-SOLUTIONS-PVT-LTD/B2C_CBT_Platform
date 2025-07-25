@@ -17,6 +17,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { LoginForm } from "@/components/LoginForm";
 import { Link } from "wouter";
 import { StudentProfile } from "@/components/student-profile";
 import { 
@@ -54,7 +56,6 @@ interface AnalyticsData {
   totalTests: number;
   totalQuestions: number;
   overallAccuracy: number;
-  averageScore: number;
   totalTimeSpent: number;
   averageTimePerQuestion: number;
   speedVsAccuracy: {
@@ -81,7 +82,7 @@ interface AnalyticsData {
   }>;
   timeBasedTrends: Array<{
     date: string; // ISO format date string
-    averageScore: number;
+    // averageScore removed: field no longer exists
   }>;
   studyRecommendations: string[]; // Or Array<{ priority: string; subject: string; reason: string; actionTip: string; }> if detailed
   message?: string; // For the "Take more tests" message
@@ -92,12 +93,29 @@ interface AnalyticsData {
  */
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  
-  // Fetch comprehensive analytics data
+  const { isAuthenticated } = useAuth();
+
+  // Debug: Log authentication state
+  console.log("Home component - isAuthenticated:", isAuthenticated);
+
+  // Dashboard and analytics logic (only when authenticated)
   const { data: analytics, isLoading, error } = useQuery<AnalyticsData>({
-    queryKey: ['/api/dashboard/comprehensive-analytics'],
+    queryKey: ['/api/dashboard/comprehensive-analytics/'],
     retry: false,
+    enabled: isAuthenticated, // Only run this query when user is authenticated
   });
+
+  // Show login form if not authenticated
+  if (!isAuthenticated) {
+    console.log("Showing login form - user not authenticated");
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <LoginForm />
+      </div>
+    );
+  }
+
+  console.log("Showing dashboard - user is authenticated");
 
   // Check if user has previous test data
   const hasData = analytics && analytics.totalTests > 0;
@@ -114,7 +132,6 @@ export default function Home() {
               </div>
               <h1 className="text-2xl font-bold text-gray-900">NEET Practice Platform</h1>
             </div>
-            
             {/* Right side with profile */}
             <div className="flex items-center space-x-4">
               <Link href="/topics">
@@ -387,7 +404,6 @@ export default function Home() {
                     <p className="text-sm text-gray-600">Get detailed analytics and improvement suggestions</p>
                   </div>
                 </div>
-                
                 <div className="flex justify-center">
                   <Link href="/topics">
                     <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white">
@@ -404,6 +420,8 @@ export default function Home() {
     </div>
   );
 }
+
+
 
 /**
  * Metric Card Component

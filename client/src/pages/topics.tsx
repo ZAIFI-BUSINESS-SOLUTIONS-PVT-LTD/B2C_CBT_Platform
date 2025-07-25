@@ -21,7 +21,7 @@ export default function Topics() {
   // will transform it into a boolean. So, the 'data' variable (aliased to 'hasData')
   // will directly be that boolean.
   const { data: hasData } = useQuery<AnalyticsData, Error, boolean>({ // <--- CHANGE THIS LINE
-    queryKey: ['/api/dashboard/analytics'],
+    queryKey: ['/api/dashboard/analytics/'],
     // The 'response_data' parameter here is of type AnalyticsData
     select: (response_data) => response_data?.totalTests > 0, // <--- CHANGE 'totalSessions' to 'totalTests'
     retry: false
