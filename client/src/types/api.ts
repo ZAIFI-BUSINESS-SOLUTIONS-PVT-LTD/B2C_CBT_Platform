@@ -5,6 +5,58 @@
 // convert snake_case model fields to camelCase in JSON responses.
 
 /**
+ * Type representing a StudentProfile record as it will be returned by your Django API.
+ * Directly corresponds to the 'StudentProfile' model in your models.py.
+ */
+export interface StudentProfile {
+  studentId: string; // models.CharField(max_length=20, primary_key=True) -> string (camelCase from student_id)
+  fullName: string; // models.TextField(null=False) -> string (camelCase from full_name)
+  email: string; // models.EmailField(unique=True, null=False) -> string
+  phoneNumber: string | null; // models.CharField(max_length=20, null=True, blank=True) -> string or null (camelCase from phone_number)
+  dateOfBirth: string; // models.DateField(null=False) -> string (YYYY-MM-DD format, camelCase from date_of_birth)
+  schoolName: string | null; // models.TextField(null=True, blank=True) -> string or null (camelCase from school_name)
+  targetExamYear: number | null; // models.IntegerField(null=True, blank=True) -> number or null (camelCase from target_exam_year)
+  isActive: boolean; // models.BooleanField(default=True) -> boolean (camelCase from is_active)
+  isVerified: boolean; // models.BooleanField(default=False) -> boolean (camelCase from is_verified)
+  lastLogin: string | null; // models.DateTimeField(null=True, blank=True) -> string or null (camelCase from last_login)
+  createdAt: string; // models.DateTimeField(auto_now_add=True) -> string (camelCase from created_at)
+  updatedAt: string; // models.DateTimeField(auto_now=True) -> string (camelCase from updated_at)
+}
+
+/**
+ * Authentication state for the application
+ */
+export interface AuthState {
+  isAuthenticated: boolean;
+  student: StudentProfile | null;
+}
+
+/**
+ * Login credentials for student authentication
+ */
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+/**
+ * Login response from the API (JWT)
+ */
+export interface LoginResponse {
+  access: string;
+  refresh: string;
+  student: StudentProfile;
+}
+
+/**
+ * Basic login response (session-based)
+ */
+export interface BasicLoginResponse {
+  message: string;
+  student: StudentProfile;
+}
+
+/**
  * Type representing a Topic record as it will be returned by your Django API.
  * Directly corresponds to the 'Topic' model in your models.py.
  */
@@ -39,13 +91,36 @@ export interface Question {
  */
 export interface TestSession {
   id: number; // models.AutoField(primary_key=True) -> number
+  studentId: string; // models.CharField(max_length=20, null=False) -> string (camelCase from student_id)
   selectedTopics: string[]; // models.JSONField(null=False) storing string IDs -> string[] (camelCase from selected_topics)
+  physicsTopics: string[]; // models.JSONField(default=list, blank=True) -> string[] (camelCase from physics_topics)
+  chemistryTopics: string[]; // models.JSONField(default=list, blank=True) -> string[] (camelCase from chemistry_topics)
+  botanyTopics: string[]; // models.JSONField(default=list, blank=True) -> string[] (camelCase from botany_topics)
+  zoologyTopics: string[]; // models.JSONField(default=list, blank=True) -> string[] (camelCase from zoology_topics)
   timeLimit: number | null; // models.IntegerField(null=True, blank=True) -> number or null (camelCase from time_limit)
   questionCount: number | null; // models.IntegerField(null=True, blank=True) -> number or null (camelCase from question_count)
   startTime: string; // models.DateTimeField(null=False) -> string (ISO 8601 format, camelCase from start_time)
   endTime: string | null; // models.DateTimeField(null=True, blank=True) -> string or null (camelCase from end_time)
   isCompleted: boolean; // models.BooleanField(default=False, null=False) -> boolean (camelCase from is_completed)
   totalQuestions: number; // models.IntegerField(null=False) -> number (camelCase from total_questions)
+  correctAnswers: number; // models.IntegerField(default=0) -> number (camelCase from correct_answers)
+  incorrectAnswers: number; // models.IntegerField(default=0) -> number (camelCase from incorrect_answers)
+  unanswered: number; // models.IntegerField(default=0) -> number
+  totalTimeTaken: number | null; // models.IntegerField(null=True, blank=True) -> number or null (camelCase from total_time_taken)
+  physicsScore: number | null; // models.FloatField(null=True, blank=True) -> number or null (camelCase from physics_score)
+  chemistryScore: number | null; // models.FloatField(null=True, blank=True) -> number or null (camelCase from chemistry_score)
+  botanyScore: number | null; // models.FloatField(null=True, blank=True) -> number or null (camelCase from botany_score)
+  zoologyScore: number | null; // models.FloatField(null=True, blank=True) -> number or null (camelCase from zoology_score)
+}
+
+/**
+ * Type for creating a new test session
+ */
+export interface CreateTestSessionRequest {
+  studentId: string; // Required: Student ID for authentication
+  selectedTopics: string[]; // Required: Array of topic IDs
+  timeLimit?: number; // Optional: Time limit in minutes
+  questionCount?: number; // Optional: Number of questions
 }
 
 /**
@@ -81,28 +156,9 @@ export interface ReviewComment {
  * Type representing a StudentProfile record as it will be returned by your Django API.
  * Directly corresponds to the 'StudentProfile' model in your models.py.
  */
-export interface StudentProfile {
-  id: number; // models.AutoField(primary_key=True) -> number
-  fullName: string; // models.TextField(null=False) -> string (camelCase from full_name)
-  email: string; // models.EmailField(unique=True, null=False) -> string
-  phoneNumber: string | null; // models.CharField(max_length=20, null=True, blank=True) -> string or null (camelCase from phone_number)
-  dateOfBirth: string | null; // models.DateField(null=True, blank=True) -> string (YYYY-MM-DD) or null (camelCase from date_of_birth)
-  schoolName: string | null; // models.TextField(null=True, blank=True) -> string or null (camelCase from school_name)
-  targetExamYear: number | null; // models.IntegerField(null=True, blank=True) -> number or null (camelCase from target_exam_year)
-  profilePicture: string | null; // models.URLField(null=True, blank=True) -> string or null (camelCase from profile_picture)
-  createdAt: string; // models.DateTimeField(auto_now_add=True, null=False) -> string (camelCase from created_at)
-  updatedAt: string; // models.DateTimeField(auto_now=True, null=False) -> string (camelCase from updated_at)
-}
 
 // You will also need an interface for the request payload when creating a test session
 // This must also use camelCase keys, as the parser will convert them to snake_case for Django.
-export interface CreateTestSessionRequest {
-  selectedTopics: string[]; // Frontend will send string IDs
-  timeLimit: number | null;
-  questionCount: number | null;
-  // If you are sending totalQuestions from the frontend, include it here:
-  // totalQuestions: number;
-}
 
 
 // Assuming the response for a test session creation endpoint might look like this

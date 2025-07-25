@@ -1,6 +1,9 @@
 # your_app_name/models.py
 from django.db import models
-from django.utils import timezone # Used for default values for DateTimeField
+from django.utils import timezone
+from django.contrib.auth.hashers import make_password, check_password
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
 
 class Topic(models.Model):
     """
@@ -48,32 +51,93 @@ class Question(models.Model):
 
 class TestSession(models.Model):
     """
-    Replicates the 'test_sessions' table from the Drizzle ORM schema.
-    Manages individual test attempts.
+    Enhanced TestSession model with student tracking and subject-wise classification.
+    Manages individual test attempts with proper student authentication.
     """
-    id = models.AutoField(primary_key=True) # serial("id").primaryKey()
-    # Stores an array of topic IDs as strings, using JSONField for Drizzle's text().array()
-    selected_topics = models.JSONField(null=False) # text("selected_topics").array().notNull()
-    # Time limit in minutes, nullable for question-based tests
-    time_limit = models.IntegerField(null=True, blank=True) # integer("time_limit")
-    # Number of questions, nullable for time-based tests
-    question_count = models.IntegerField(null=True, blank=True) # integer("question_count")
-    # When the test session was created and started
-    start_time = models.DateTimeField(null=False) # timestamp("start_time").notNull()
-    # When the test was completed, nullable if still in progress
-    end_time = models.DateTimeField(null=True, blank=True) # timestamp("end_time")
-    # Whether the test has been submitted and completed
-    is_completed = models.BooleanField(default=False, null=False) # boolean("is_completed").default(false)
-    # Total number of questions generated for this session
-    total_questions = models.IntegerField(null=False) # integer("total_questions").notNull()
+    id = models.AutoField(primary_key=True)
+    # Link to StudentProfile using student_id
+    student_id = models.CharField(max_length=20, null=False, db_index=True)  # STU + YY + DDMM + ABC123
+    # Stores an array of topic IDs as strings
+    selected_topics = models.JSONField(null=False)
+    # Subject-wise topic classification for analytics
+    physics_topics = models.JSONField(default=list, blank=True)  # Topics classified as Physics
+    chemistry_topics = models.JSONField(default=list, blank=True)  # Topics classified as Chemistry
+    botany_topics = models.JSONField(default=list, blank=True)  # Topics classified as Botany
+    zoology_topics = models.JSONField(default=list, blank=True)  # Topics classified as Zoology
+    # Test configuration
+    time_limit = models.IntegerField(null=True, blank=True)  # Time limit in minutes
+    question_count = models.IntegerField(null=True, blank=True)  # Number of questions
+    # Test tracking
+    start_time = models.DateTimeField(null=False)  # When test started
+    end_time = models.DateTimeField(null=True, blank=True)  # When test completed
+    is_completed = models.BooleanField(default=False, null=False)
+    total_questions = models.IntegerField(null=False)  # Total questions in session
+    # Performance metrics
+    correct_answers = models.IntegerField(default=0)  # Number of correct answers
+    incorrect_answers = models.IntegerField(default=0)  # Number of incorrect answers
+    unanswered = models.IntegerField(default=0)  # Number of unanswered questions
+    total_time_taken = models.IntegerField(null=True, blank=True)  # Total time in seconds
+    # Subject-wise performance
+    physics_score = models.FloatField(null=True, blank=True)  # Physics percentage
+    chemistry_score = models.FloatField(null=True, blank=True)  # Chemistry percentage
+    botany_score = models.FloatField(null=True, blank=True)  # Botany percentage
+    zoology_score = models.FloatField(null=True, blank=True)  # Zoology percentage
 
     class Meta:
-        db_table = 'test_sessions' # Ensures the table name in DB is 'test_sessions'
+        db_table = 'test_sessions'
         verbose_name = 'Test Session'
         verbose_name_plural = 'Test Sessions'
+        indexes = [
+            models.Index(fields=['student_id', 'start_time']),
+            models.Index(fields=['is_completed', 'start_time']),
+        ]
 
     def __str__(self):
-        return f"Session {self.id} - {'Completed' if self.is_completed else 'In Progress'}"
+        return f"Session {self.id} - {self.student_id} - {'Completed' if self.is_completed else 'In Progress'}"
+
+    def get_student_profile(self):
+        """Get the associated StudentProfile"""
+        try:
+            return StudentProfile.objects.get(student_id=self.student_id)
+        except StudentProfile.DoesNotExist:
+            return None
+
+    def calculate_score_percentage(self):
+        """Calculate overall score percentage"""
+        if self.total_questions == 0:
+            return 0
+        return (self.correct_answers / self.total_questions) * 100
+
+    def update_subject_classification(self):
+        """Classify selected topics by subjects and update respective fields"""
+        from .utils.topic_utils import classify_topics_by_subject
+        
+        if not self.selected_topics:
+            return
+        
+        # Get all topics and their classification
+        classification = classify_topics_by_subject()
+        
+        # Reset subject topic lists
+        self.physics_topics = []
+        self.chemistry_topics = []
+        self.botany_topics = []
+        self.zoology_topics = []
+        
+        # Get topic names for selected topic IDs
+        selected_topic_objects = Topic.objects.filter(id__in=self.selected_topics)
+        selected_topic_names = [topic.name for topic in selected_topic_objects]
+        
+        # Classify selected topics
+        for topic_name in selected_topic_names:
+            if topic_name in classification.get('Physics', []):
+                self.physics_topics.append(topic_name)
+            elif topic_name in classification.get('Chemistry', []):
+                self.chemistry_topics.append(topic_name)
+            elif topic_name in classification.get('Botany', []):
+                self.botany_topics.append(topic_name)
+            elif topic_name in classification.get('Zoology', []):
+                self.zoology_topics.append(topic_name)
 
 class TestAnswer(models.Model):
     """
@@ -134,24 +198,115 @@ class ReviewComment(models.Model):
 
 class StudentProfile(models.Model):
     """
-    Replicates the 'student_profiles' table from the Drizzle ORM schema.
-    Stores student profile information.
+    Enhanced StudentProfile model with custom student_id primary key and auto-generated passwords.
+    Serves as the authentication foundation for the NEET testing platform.
     """
-    id = models.AutoField(primary_key=True) # serial("id").primaryKey()
-    full_name = models.TextField(null=False) # text("full_name").notNull()
-    email = models.EmailField(unique=True, null=False) # text("email").notNull().unique()
-    phone_number = models.CharField(max_length=20, null=True, blank=True) # text("phone_number")
-    date_of_birth = models.DateField(null=True, blank=True) # date("date_of_birth")
-    school_name = models.TextField(null=True, blank=True) # text("school_name")
-    target_exam_year = models.IntegerField(null=True, blank=True) # integer("target_exam_year")
-    profile_picture = models.URLField(null=True, blank=True) # text("profile_picture")
-    created_at = models.DateTimeField(auto_now_add=True, null=False) # timestamp("created_at").defaultNow()
-    updated_at = models.DateTimeField(auto_now=True, null=False) # timestamp("updated_at").defaultNow()
+    # Custom student ID as primary key (STU + YY + DDMM + ABC123)
+    student_id = models.CharField(max_length=20, primary_key=True, unique=True)
+    # Auto-generated password (FIRSTFOUR + DDMM)
+    password_hash = models.CharField(max_length=128)  # Hashed password storage
+    generated_password = models.CharField(max_length=20, blank=True)  # Plain text for display (temporary)
+    
+    # Basic profile information
+    full_name = models.TextField(null=False)
+    email = models.EmailField(unique=True, null=False)
+    phone_number = models.CharField(max_length=20, null=True, blank=True)
+    date_of_birth = models.DateField(null=False)  # Required for ID and password generation
+    
+    # Educational information
+    school_name = models.TextField(null=True, blank=True)
+    target_exam_year = models.IntegerField(null=True, blank=True)
+    # Account status
+    is_active = models.BooleanField(default=True)
+    is_verified = models.BooleanField(default=False)  # Email/phone verification
+    last_login = models.DateTimeField(null=True, blank=True)
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, null=False)
+    updated_at = models.DateTimeField(auto_now=True, null=False)
 
     class Meta:
-        db_table = 'student_profiles' # Ensures the table name in DB is 'student_profiles'
+        db_table = 'student_profiles'
         verbose_name = 'Student Profile'
         verbose_name_plural = 'Student Profiles'
+        indexes = [
+            models.Index(fields=['email']),
+            models.Index(fields=['date_of_birth']),
+            models.Index(fields=['is_active', 'created_at']),
+        ]
 
     def __str__(self):
-        return self.full_name
+        return f"{self.student_id} - {self.full_name}"
+
+    def set_password(self, raw_password):
+        """Set password using Django's password hashing"""
+        from django.contrib.auth.hashers import make_password
+        self.password_hash = make_password(raw_password)
+
+    def check_password(self, raw_password):
+        """Check password using Django's password verification"""
+        from django.contrib.auth.hashers import check_password
+        return check_password(raw_password, self.password_hash)
+
+    # Authentication properties required by Django's permission system
+    @property
+    def is_authenticated(self):
+        """Always return True for authenticated students"""
+        return True
+    
+    @property
+    def is_anonymous(self):
+        """Always return False for authenticated students"""
+        return False
+    
+    @property
+    def is_staff(self):
+        """Students are not staff by default"""
+        return False
+    
+    @property
+    def is_superuser(self):
+        """Students are not superusers by default"""
+        return False
+    
+    def has_perm(self, perm, obj=None):
+        """Students have basic permissions"""
+        return True
+    
+    def has_perms(self, perm_list, obj=None):
+        """Students have basic permissions"""
+        return True
+    
+    def has_module_perms(self, app_label):
+        """Students have basic permissions"""
+        return True
+    
+    def get_username(self):
+        """Return student_id as username"""
+        return self.student_id
+
+    def generate_credentials(self):
+        """Generate student_id and password based on profile data"""
+        from .utils.student_utils import ensure_unique_student_id, generate_password
+        
+        if not self.student_id and self.full_name and self.date_of_birth:
+            # Generate unique student ID
+            self.student_id = ensure_unique_student_id(self.full_name, self.date_of_birth)
+            
+            # Generate and set password
+            generated_password = generate_password(self.full_name, self.date_of_birth)
+            self.generated_password = generated_password  # Store for display
+            self.set_password(generated_password)  # Hash for security
+
+    def get_test_sessions(self):
+        """Get all test sessions for this student"""
+        return TestSession.objects.filter(student_id=self.student_id).order_by('-start_time')
+
+    def update_statistics(self):
+        """Update test statistics based on completed sessions (fields removed, so now does nothing)"""
+        pass
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate credentials if needed"""
+        if not self.student_id:
+            self.generate_credentials()
+        super().save(*args, **kwargs)

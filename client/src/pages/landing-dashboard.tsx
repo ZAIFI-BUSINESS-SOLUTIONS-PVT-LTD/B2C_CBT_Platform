@@ -83,7 +83,6 @@ interface AnalyticsData {
   totalTests: number;
   totalQuestions: number;
   overallAccuracy: number;
-  averageScore: number;
   totalTimeSpent: number;
   averageTimePerQuestion: number;
   speedVsAccuracy: {
@@ -110,7 +109,7 @@ interface AnalyticsData {
   }>;
   timeBasedTrends: Array<{
     date: string; // ISO format date string
-    averageScore: number;
+    // averageScore removed: field no longer exists
   }>;
   studyRecommendations: string[]; // Or Array<{ priority: string; subject: string; reason: string; actionTip: string; }> if detailed
   message?: string; // For the "Take more tests" message
@@ -125,7 +124,7 @@ export default function LandingDashboard() {
 
   // Fetch comprehensive analytics data
   const { data: analytics, isLoading, error } = useQuery<AnalyticsData>({
-    queryKey: ['/api/dashboard/comprehensive-analytics'],
+    queryKey: ['/api/dashboard/comprehensive-analytics/'],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 

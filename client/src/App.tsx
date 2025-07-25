@@ -13,6 +13,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/contexts/AuthContext";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Test from "@/pages/test";
@@ -46,10 +47,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>  {/* React Query for server state management */}
-      <TooltipProvider>                          {/* Tooltip context for UI components */}
-        <Toaster />                              {/* Toast notification system */}
-        <Router />                               {/* Application routing */}
-      </TooltipProvider>
+      <AuthProvider>                             {/* Authentication context provider */}
+        <TooltipProvider>                        {/* Tooltip context for UI components */}
+          <Toaster />                            {/* Toast notification system */}
+          <Router />                             {/* Application routing */}
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

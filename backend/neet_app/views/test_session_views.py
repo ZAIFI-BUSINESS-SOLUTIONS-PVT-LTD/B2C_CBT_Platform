@@ -5,6 +5,7 @@ from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 
 from ..models import Question, TestSession, TestAnswer
 from ..serializers import (
@@ -19,9 +20,28 @@ class TestSessionViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing test sessions.
     Corresponds to /api/test-sessions in Node.js.
+    Only returns sessions for the authenticated user.
     """
-    queryset = TestSession.objects.all().order_by('-start_time')
     serializer_class = TestSessionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """Filter test sessions by authenticated user"""
+        logger.info(f"get_queryset - User: {self.request.user}")
+        logger.info(f"User type: {type(self.request.user)}")
+        logger.info(f"User authenticated: {self.request.user.is_authenticated}")
+        
+        if not hasattr(self.request.user, 'student_id'):
+            logger.warning(f"User has no student_id attribute: {self.request.user}")
+            return TestSession.objects.none()
+            
+        logger.info(f"Filtering by student_id: {self.request.user.student_id}")
+        queryset = TestSession.objects.filter(
+            student_id=self.request.user.student_id
+        ).order_by('-start_time')
+        
+        logger.info(f"Queryset count: {queryset.count()}")
+        return queryset
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -30,47 +50,22 @@ class TestSessionViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """
-        Creates a new test session and provides questions.
-        Replicates POST /api/test-sessions logic.
+        Creates a new test session with student authentication.
+        Enhanced version with automatic topic classification.
         """
         try:
-            serializer = self.get_serializer(data=request.data)
+            # Pass request context to serializer for authenticated user access
+            serializer = self.get_serializer(data=request.data, context={'request': request})
             serializer.is_valid(raise_exception=True)
-            validated_data = serializer.validated_data
-
-            selected_topic_ids_str = validated_data.get('selected_topics')
-            time_limit = validated_data.get('time_limit')
-            requested_question_count = validated_data.get('question_count')
-
-            try:
-                topic_ids = [int(topic_id) for topic_id in selected_topic_ids_str]
-            except (ValueError, TypeError):
-                return Response(
-                    {"error": "Selected topic IDs must be integers."}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            all_questions = list(Question.objects.filter(topic_id__in=topic_ids))
-            random.shuffle(all_questions)
-
-            if requested_question_count is not None:
-                selected_questions = all_questions[:requested_question_count]
-            else:
-                selected_questions = all_questions
-
-            if not selected_questions:
-                return Response(
-                    {"error": "No questions found for the selected topics."}, 
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            session = TestSession.objects.create(
-                selected_topics=selected_topic_ids_str,
-                time_limit=time_limit,
-                question_count=requested_question_count,
-                total_questions=len(selected_questions),
-                start_time=timezone.now(),
-                is_completed=False,
+            
+            # The serializer now handles session creation with student validation
+            session = serializer.save()
+            
+            # Get questions for the session
+            from .utils import generate_questions_for_topics
+            selected_questions = generate_questions_for_topics(
+                session.selected_topics, 
+                session.question_count
             )
 
             session_data = TestSessionSerializer(session).data
@@ -78,7 +73,8 @@ class TestSessionViewSet(viewsets.ModelViewSet):
 
             return Response({
                 'session': session_data,
-                'questions': questions_data
+                'questions': questions_data,
+                'message': f'Test session created for student {session.student_id}'
             }, status=status.HTTP_201_CREATED)
             
         except Exception as e:
@@ -92,8 +88,23 @@ class TestSessionViewSet(viewsets.ModelViewSet):
         """
         Retrieves a test session and its questions.
         Replicates GET /api/test-sessions/:id logic.
+        Only allows access to user's own sessions.
         """
-        session = get_object_or_404(TestSession, pk=pk)
+        # Debug logging
+        logger.info(f"Retrieve request - User: {request.user}, Session ID: {pk}")
+        logger.info(f"User authenticated: {request.user.is_authenticated}")
+        logger.info(f"User student_id: {getattr(request.user, 'student_id', 'No student_id')}")
+        
+        # Ensure only authenticated user's sessions are accessible
+        try:
+            session = get_object_or_404(
+                self.get_queryset(), 
+                pk=pk
+            )
+            logger.info(f"Session found: {session.id}, belongs to: {session.student_id}")
+        except Exception as e:
+            logger.error(f"Session retrieval failed: {e}")
+            raise
 
         try:
             topic_ids = [int(topic_id) for topic_id in session.selected_topics]
@@ -121,9 +132,13 @@ class TestSessionViewSet(viewsets.ModelViewSet):
         """
         Submits a test session, marks it as complete, calculates results,
         and updates individual answer correctness.
-        Replicates POST /api/test-sessions/:id/submit logic.
+        Only allows access to user's own sessions.
         """
-        session = get_object_or_404(TestSession.objects.select_related(), pk=pk)
+        # Ensure only authenticated user's sessions are accessible
+        session = get_object_or_404(
+            self.get_queryset().select_related(), 
+            pk=pk
+        )
 
         session.is_completed = True
         session.end_time = timezone.now()
@@ -228,9 +243,13 @@ class TestSessionViewSet(viewsets.ModelViewSet):
     def results(self, request, pk=None):
         """
         Retrieves the results for a completed test session.
-        Replicates GET /api/test-sessions/:id/results logic.
+        Only allows access to user's own sessions.
         """
-        session = get_object_or_404(TestSession.objects.select_related(), pk=pk)
+        # Ensure only authenticated user's sessions are accessible
+        session = get_object_or_404(
+            self.get_queryset().select_related(), 
+            pk=pk
+        )
 
         answers = TestAnswer.objects.filter(session=session).select_related('question').prefetch_related('question__topic')
 

@@ -1,5 +1,6 @@
 from rest_framework import status, viewsets
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 
 from ..models import TestAnswer
 from ..serializers import TestAnswerCreateSerializer, TestAnswerSerializer
@@ -9,9 +10,18 @@ class TestAnswerViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing individual test answers.
     Corresponds to /api/test-answers in Node.js.
+    Only allows access to answers from user's own test sessions.
     """
-    queryset = TestAnswer.objects.all()
     serializer_class = TestAnswerSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """Filter test answers by authenticated user's sessions"""
+        if not hasattr(self.request.user, 'student_id'):
+            return TestAnswer.objects.none()
+        return TestAnswer.objects.filter(
+            session__student_id=self.request.user.student_id
+        )
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -23,7 +33,8 @@ class TestAnswerViewSet(viewsets.ModelViewSet):
         Submits or updates a single test answer (upsert logic).
         Replicates POST /api/test-answers logic.
         """
-        serializer = self.get_serializer(data=request.data)
+        # Pass request context to serializer for authentication validation
+        serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
 

@@ -1,0 +1,7 @@
+# Enforce LF line endings
+* text eol=lf
+
+# Optionally keep binary files untouched
+*.png binary
+*.jpg binary
+*.pdf binary

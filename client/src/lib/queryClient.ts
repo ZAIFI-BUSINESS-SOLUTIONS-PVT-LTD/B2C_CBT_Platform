@@ -1,5 +1,6 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { API_CONFIG } from "@/config/api"; // <--- Crucial: Import your API_CONFIG
+import { getAccessToken, authenticatedFetch } from "@/lib/auth"; // Import JWT utilities
 
 // Helper function to throw an error if the response is not OK
 async function throwIfResNotOk(res: Response) {
@@ -28,15 +29,42 @@ export async function apiRequest(
   // Construct the full URL by prepending the BASE_URL
   const fullUrl = `${API_CONFIG.BASE_URL}${endpoint}`;
 
-  const res = await fetch(fullUrl, {
-    method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include", // Include cookies, authorization headers etc.
-  });
+  // Check if we have an access token for authenticated requests
+  const accessToken = getAccessToken();
+  
+  const headers: Record<string, string> = {};
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
 
-  await throwIfResNotOk(res);
-  return method === "DELETE" ? null : await res.json();
+  try {
+    // For authenticated requests, use the authenticatedFetch utility
+    if (accessToken) {
+      const res = await authenticatedFetch(fullUrl, {
+        method,
+        headers: data ? { "Content-Type": "application/json" } : {},
+        body: data ? JSON.stringify(data) : undefined,
+      });
+      await throwIfResNotOk(res);
+      return method === "DELETE" ? null : await res.json();
+    } else {
+      // For non-authenticated requests (like login), use regular fetch
+      const res = await fetch(fullUrl, {
+        method,
+        headers,
+        body: data ? JSON.stringify(data) : undefined,
+        credentials: "include", // Include cookies for session-based fallback
+      });
+      await throwIfResNotOk(res);
+      return method === "DELETE" ? null : await res.json();
+    }
+  } catch (error) {
+    console.error(`API Request failed: ${method} ${fullUrl}`, error);
+    throw error;
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -60,16 +88,37 @@ export const getQueryFn: <T>(options: {
     // Construct the full URL for use by the default query function
     const fullUrl = `${API_CONFIG.BASE_URL}${endpoint}`;
 
-    const res = await fetch(fullUrl, {
-      credentials: "include",
-    });
+    // Check if we have an access token for authenticated requests
+    const accessToken = getAccessToken();
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    try {
+      let res: Response;
+      
+      if (accessToken) {
+        // Use authenticated fetch for requests with JWT token
+        res = await authenticatedFetch(fullUrl, {
+          method: 'GET',
+        });
+      } else {
+        // Use regular fetch for non-authenticated requests
+        res = await fetch(fullUrl, {
+          credentials: "include",
+        });
+      }
+
+      if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+        return null;
+      }
+
+      await throwIfResNotOk(res);
+      return await res.json();
+    } catch (error) {
+      console.error(`Query failed: GET ${fullUrl}`, error);
+      if (unauthorizedBehavior === "returnNull" && error instanceof Error && error.message.includes('401')) {
+        return null;
+      }
+      throw error;
     }
-
-    await throwIfResNotOk(res);
-    return await res.json();
   };
 
 // Initialize the React Query client with default options

@@ -43,6 +43,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -64,7 +65,8 @@ import {
   Calendar,
   GraduationCap,
   Plus,
-  Edit
+  Edit,
+  LogOut
 } from "lucide-react";
 
 // Student profile form schema
@@ -87,7 +89,6 @@ interface StudentProfile {
   dateOfBirth?: string;
   schoolName?: string;
   targetExamYear?: number;
-  profilePicture?: string;
 }
 
 /**
@@ -124,16 +125,13 @@ export function StudentProfile() {
   const [currentProfile, setCurrentProfile] = useState<StudentProfile | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isAuthenticated, student, logout } = useAuth();
 
-  // Demo profile (simulating logged-in student)
-  // TODO: Replace with actual authentication integration
-  const demoEmail = "student@example.com";
-
-  // Fetch student profile
+  // Fetch student profile (only when authenticated)
   const { data: profile, isLoading } = useQuery<StudentProfile>({
-    queryKey: [`/api/student-profile/email/${encodeURIComponent(demoEmail)}/`],
+    queryKey: ['/api/students/me/'],
     retry: false,
-    enabled: true,
+    enabled: isAuthenticated && !!student, // Only run this query when user is authenticated and student data exists
   });
 
   // Create/Update profile mutation
@@ -149,7 +147,7 @@ export function StudentProfile() {
       setCurrentProfile(data);
       setShowProfileDialog(false);
       setIsEditing(false);
-      queryClient.invalidateQueries({ queryKey: [`/api/student-profile/email/${demoEmail}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/students/me/'] });
       toast({
         title: "Profile saved successfully",
         description: "Your profile information has been updated.",
@@ -169,7 +167,7 @@ export function StudentProfile() {
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
       fullName: "",
-      email: demoEmail,
+      email: student?.email || "",
       phoneNumber: "",
       dateOfBirth: "",
       schoolName: "",
@@ -252,7 +250,7 @@ export function StudentProfile() {
       {/* Profile Avatar and Info */}
       <div className="flex items-center space-x-3">
         <Avatar className="h-10 w-10">
-          <AvatarImage src={profile?.profilePicture} alt={profile?.fullName} />
+          {/* AvatarImage removed: profilePicture field no longer exists */}
           <AvatarFallback className="bg-blue-600 text-white">
             {profile?.fullName ? getInitials(profile.fullName) : "ST"}
           </AvatarFallback>
@@ -284,6 +282,10 @@ export function StudentProfile() {
             <ProfileView 
               profile={profile!} 
               onEdit={() => setIsEditing(true)}
+              onLogout={async () => {
+                await logout();
+                setShowProfileDialog(false);
+              }}
             />
           ) : (
             <ProfileForm 
@@ -306,15 +308,16 @@ export function StudentProfile() {
 interface ProfileViewProps {
   profile: StudentProfile;
   onEdit: () => void;
+  onLogout: () => void;
 }
 
-function ProfileView({ profile, onEdit }: ProfileViewProps) {
+function ProfileView({ profile, onEdit, onLogout }: ProfileViewProps) {
   return (
     <div className="space-y-6">
       {/* Profile Header */}
       <div className="flex items-center space-x-4">
         <Avatar className="h-16 w-16">
-          <AvatarImage src={profile.profilePicture} alt={profile.fullName} />
+          {/* AvatarImage removed: profilePicture field no longer exists */}
           <AvatarFallback className="bg-blue-600 text-white text-lg">
             {profile.fullName
               .split(" ")
@@ -374,7 +377,15 @@ function ProfileView({ profile, onEdit }: ProfileViewProps) {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex justify-end space-x-2 pt-4">
+      <div className="flex justify-between pt-4">
+        <Button 
+          variant="outline" 
+          onClick={onLogout} 
+          className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </Button>
         <Button onClick={onEdit} className="flex items-center gap-2">
           <Edit className="h-4 w-4" />
           Edit Profile

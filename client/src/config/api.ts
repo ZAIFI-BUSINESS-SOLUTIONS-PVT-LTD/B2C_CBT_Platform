@@ -25,7 +25,8 @@ export const API_CONFIG = {
     STUDENT_PROFILE_BY_EMAIL: (email: string) => `/api/student-profile/email/${encodeURIComponent(email)}/`, // Use encodeURIComponent for email
 
     // Add other custom endpoints here if you have them, e.g.:
-    // DASHBOARD_ANALYTICS: '/api/dashboard/analytics/',
+    DASHBOARD_ANALYTICS: '/api/dashboard/analytics/',
+    DASHBOARD_COMPREHENSIVE_ANALYTICS: '/api/dashboard/comprehensive-analytics/',
   },
 };
 
@@ -34,3 +35,27 @@ export const buildApiUrl = (endpoint: string, id?: number | string) => {
   const baseUrl = API_CONFIG.BASE_URL + endpoint;
   return id ? `${baseUrl}${id}/` : baseUrl;
 };
+
+// --- API Utility Functions for Auth and Test Session Creation ---
+import { LoginCredentials, LoginResponse, CreateTestSessionRequest, CreateTestSessionResponse } from "@/types/api";
+import { apiRequest } from "@/lib/queryClient";
+
+/**
+ * Login a student using studentId and password
+ * @param credentials LoginCredentials
+ * @returns LoginResponse
+ */
+export async function loginStudent(credentials: LoginCredentials): Promise<LoginResponse> {
+  // Use the correct backend endpoint for login
+  return await apiRequest("/api/test/login/", "POST", credentials);
+}
+
+/**
+ * Create a new test session for a student
+ * @param data CreateTestSessionRequest
+ * @returns CreateTestSessionResponse
+ */
+export async function createTestSession(data: CreateTestSessionRequest): Promise<CreateTestSessionResponse> {
+  // Assumes backend endpoint: /api/test-sessions/ (POST)
+  return await apiRequest(API_CONFIG.ENDPOINTS.TEST_SESSIONS, "POST", data);
+}
