@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { StudentProfile, LoginCredentials, LoginResponse } from "@/types/api";
 import { 
   loginWithJWT, 
@@ -26,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true); // Start with loading true to check for existing tokens
   const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   // Check for existing authentication on mount
   useEffect(() => {
@@ -111,6 +113,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStudent(null);
       setIsAuthenticated(false);
       setError(null);
+      
+      // Clear all React Query cache to prevent stale requests
+      queryClient.clear();
+      
       console.log('User logged out successfully');
     }
   };

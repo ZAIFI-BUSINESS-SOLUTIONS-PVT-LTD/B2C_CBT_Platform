@@ -44,6 +44,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -126,6 +127,7 @@ export function StudentProfile() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isAuthenticated, student, logout } = useAuth();
+  const [, navigate] = useLocation();
 
   // Fetch student profile (only when authenticated)
   const { data: profile, isLoading } = useQuery<StudentProfile>({
@@ -285,6 +287,7 @@ export function StudentProfile() {
               onLogout={async () => {
                 await logout();
                 setShowProfileDialog(false);
+                navigate('/'); // Redirect to home page after logout
               }}
             />
           ) : (

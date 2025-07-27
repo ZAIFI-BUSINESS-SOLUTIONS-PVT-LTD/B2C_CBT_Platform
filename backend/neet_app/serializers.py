@@ -62,6 +62,14 @@ class TestSessionCreateSerializer(serializers.Serializer):
     )
     time_limit = serializers.IntegerField(required=False, default=None, allow_null=True)
     question_count = serializers.IntegerField(required=False, default=None, allow_null=True)
+    
+    # New fields for time-based question selection
+    selection_mode = serializers.ChoiceField(
+        choices=[('question_count', 'Question Count'), ('time_limit', 'Time Limit')],
+        required=False,  # Optional for backward compatibility
+        default='question_count',  # Default to existing behavior
+        help_text="How to determine test length"
+    )
 
     def validate_selected_topics(self, value):
         # Ensure all topic IDs exist
@@ -74,6 +82,23 @@ class TestSessionCreateSerializer(serializers.Serializer):
         except (ValueError, TypeError) as e:
             raise serializers.ValidationError(f"Invalid topic ID format: {str(e)}")
         return value
+
+    def validate(self, data):
+        """Enhanced validation to handle both question count and time-based selection"""
+        selection_mode = data.get('selection_mode', 'question_count')
+        
+        if selection_mode == 'time_limit':
+            time_limit = data.get('time_limit')
+            if not time_limit:
+                raise serializers.ValidationError("Time limit is required when using time-based selection")
+            # Calculate question count: 1 question per minute
+            data['question_count'] = time_limit
+        elif selection_mode == 'question_count':
+            # Existing behavior - ensure question_count is provided
+            if not data.get('question_count'):
+                raise serializers.ValidationError("Question count is required when using count-based selection")
+        
+        return data
 
     def create(self, validated_data):
         """Create test session with automatic topic classification"""

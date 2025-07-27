@@ -91,7 +91,7 @@ export function ResultsDisplay({ results }: ResultsDisplayProps) {
       case "incorrect":
         return results.detailedAnswers.filter(answer => !answer.isCorrect && answer.selectedAnswer);
       case "unanswered":
-        return results.detailedAnswers.filter(answer => !answer.selectedAnswer);
+        return results.detailedAnswers.filter(answer => answer.selectedAnswer === null || answer.selectedAnswer === undefined || answer.selectedAnswer === "");
       default:
         return results.detailedAnswers;
     }
