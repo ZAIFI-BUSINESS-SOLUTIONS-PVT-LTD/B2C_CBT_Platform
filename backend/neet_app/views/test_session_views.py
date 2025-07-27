@@ -51,22 +51,40 @@ class TestSessionViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """
         Creates a new test session with student authentication.
-        Enhanced version with automatic topic classification.
+        Enhanced version with time-based or count-based question selection.
+        Backward compatible with existing question_count requests.
         """
         try:
             # Pass request context to serializer for authenticated user access
             serializer = self.get_serializer(data=request.data, context={'request': request})
             serializer.is_valid(raise_exception=True)
             
-            # The serializer now handles session creation with student validation
+            # The serializer handles session creation with student validation
+            # and question count calculation (either from direct input or time calculation)
             session = serializer.save()
             
             # Get questions for the session
+            # session.question_count is now either:
+            # 1. Direct question count (existing behavior)
+            # 2. Calculated from time limit (new behavior - 1 question per minute)
             from .utils import generate_questions_for_topics
             selected_questions = generate_questions_for_topics(
                 session.selected_topics, 
                 session.question_count
             )
+
+            # Create TestAnswer records for all assigned questions (initially unanswered)
+            test_answers = []
+            for question in selected_questions:
+                test_answers.append(TestAnswer(
+                    session=session,
+                    question=question,
+                    selected_answer=None,
+                    is_correct=False,
+                    marked_for_review=False,
+                    time_taken=0
+                ))
+            TestAnswer.objects.bulk_create(test_answers)
 
             session_data = TestSessionSerializer(session).data
             questions_data = QuestionForTestSerializer(selected_questions, many=True).data
@@ -114,10 +132,9 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        all_questions_for_topics = list(Question.objects.filter(topic_id__in=topic_ids))
-        random.shuffle(all_questions_for_topics)
-
-        selected_questions = all_questions_for_topics[:session.total_questions]
+        # Get questions from TestAnswer table (the exact questions assigned to this session)
+        test_answers = TestAnswer.objects.filter(session=session).select_related('question')
+        selected_questions = [answer.question for answer in test_answers]
 
         session_data = TestSessionSerializer(session).data
         questions_data = QuestionForTestSerializer(selected_questions, many=True).data
@@ -166,14 +183,11 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             q.id: q for q in Question.objects.filter(topic_id__in=session_topic_ids).select_related('topic')
         }
 
+        # Process all TestAnswer objects (now includes all assigned questions)
         for answer in answers:
-            question = question_map.get(answer.question.id)
-            if not question:
-                logger.warning(f"Question ID {answer.question.id} not found for answer {answer.id} in session {session.id}")
-                continue
-
+            question = answer.question
             is_correct = False
-            if answer.selected_answer is not None:
+            if answer.selected_answer is not None and str(answer.selected_answer).strip() != '':
                 if str(answer.selected_answer) == str(question.correct_answer):
                     correct_answers_count += 1
                     is_correct = True
@@ -186,18 +200,18 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             answer.save(update_fields=['is_correct'])
 
             detailed_answers.append({
-                'question_id': question.id,
+                'questionId': question.id,
                 'question': question.question,
-                'selected_answer': answer.selected_answer,
-                'correct_answer': question.correct_answer,
-                'is_correct': is_correct,
+                'selectedAnswer': answer.selected_answer,
+                'correctAnswer': question.correct_answer,
+                'isCorrect': is_correct,
                 'explanation': question.explanation,
-                'option_a': question.option_a,
-                'option_b': question.option_b,
-                'option_c': question.option_c,
-                'option_d': question.option_d,
-                'marked_for_review': answer.marked_for_review,
-                'time_taken': answer.time_taken
+                'optionA': question.option_a,
+                'optionB': question.option_b,
+                'optionC': question.option_c,
+                'optionD': question.option_d,
+                'markedForReview': answer.marked_for_review,
+                'timeTaken': answer.time_taken
             })
 
             subject_name = question.topic.subject
@@ -208,7 +222,6 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 subject_performance[subject_name]['correct'] += 1
 
         answered_questions_count = len(answers)
-        unanswered_questions_count += total_questions_in_session - answered_questions_count
 
         score_percentage = (correct_answers_count / total_questions_in_session) * 100 if total_questions_in_session > 0 else 0
 
@@ -269,24 +282,16 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        question_map = {
-            q.id: q for q in Question.objects.filter(topic_id__in=session_topic_ids).select_related('topic')
-        }
-
+        # Process all TestAnswer objects (now includes all assigned questions)
         for answer in answers:
-            question = question_map.get(answer.question.id)
-            if not question:
-                logger.warning(f"Question ID {answer.question.id} not found for answer {answer.id} in session {session.id}")
-                continue
-
+            question = answer.question
             is_correct = answer.is_correct
-
-            if is_correct:
-                correct_answers_count += 1
-            elif answer.selected_answer is not None:
-                incorrect_answers_count += 1
-            else:
+            if answer.selected_answer is None or str(answer.selected_answer).strip() == '':
                 unanswered_questions_count += 1
+            elif is_correct:
+                correct_answers_count += 1
+            else:
+                incorrect_answers_count += 1
 
             detailed_answers.append({
                 'question_id': question.id,
@@ -311,7 +316,6 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 subject_performance[subject_name]['correct'] += 1
 
         answered_questions_count = len(answers)
-        unanswered_questions_count += total_questions_in_session - answered_questions_count
 
         score_percentage = (correct_answers_count / total_questions_in_session) * 100 if total_questions_in_session > 0 else 0
 

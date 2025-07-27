@@ -27,6 +27,7 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent event bubbling to parent forms
     setError(null);
     setSuccess(null);
     setLoading(true);

@@ -16,6 +16,14 @@ export function LoginForm() {
     e.preventDefault();
     setFormError(null);
     console.log("Login form submitted with:", { email, password });
+    
+    // Add validation to prevent empty submissions
+    if (!email || !password) {
+      console.log("Login attempted with empty credentials, blocking submission");
+      setFormError("Email and password are required");
+      return;
+    }
+    
     try {
       console.log("Calling login function...");
       const result = await login({ email, password });
@@ -61,7 +69,11 @@ export function LoginForm() {
               <DialogHeader>
                 <DialogTitle>Create Student Profile</DialogTitle>
               </DialogHeader>
-              <RegisterForm onSuccess={() => setShowRegister(false)} />
+              <RegisterForm onSuccess={(profile) => {
+                console.log("Profile created successfully:", profile);
+                // Small delay to ensure registration completes before closing dialog
+                setTimeout(() => setShowRegister(false), 100);
+              }} />
             </DialogContent>
           </Dialog>
         </div>

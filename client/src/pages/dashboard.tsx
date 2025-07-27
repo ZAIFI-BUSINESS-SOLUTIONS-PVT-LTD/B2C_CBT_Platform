@@ -8,6 +8,9 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { authenticatedFetch } from "@/lib/auth";
+import { API_CONFIG } from "@/config/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -51,20 +54,26 @@ interface DashboardData {
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
-  
+  const { isAuthenticated, loading } = useAuth();
+
+  // Redirect to home if not authenticated
+  if (!loading && !isAuthenticated) {
+    navigate('/');
+    return null;
+  }
+
   // Fetch dashboard data
   const { data: dashboardData, isLoading } = useQuery<DashboardData>({
     queryKey: ['/api/dashboard/analytics/'],
     queryFn: async () => {
-      const response = await fetch('/api/dashboard/analytics/');
+      const response = await authenticatedFetch(`${API_CONFIG.BASE_URL}/api/dashboard/analytics/`);
       if (!response.ok) {
         throw new Error('Failed to fetch dashboard data');
       }
       return response.json();
     },
-  });
-
-  // Loading state
+    enabled: isAuthenticated && !loading, // Only run when authenticated
+  });  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">

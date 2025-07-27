@@ -14,6 +14,8 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -121,11 +123,20 @@ const CHART_COLORS = [COLORS.primary, COLORS.success, COLORS.warning, COLORS.pur
  */
 export default function LandingDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const { isAuthenticated, loading } = useAuth();
+  const [, navigate] = useLocation();
+
+  // Redirect to home if not authenticated
+  if (!loading && !isAuthenticated) {
+    navigate('/');
+    return null;
+  }
 
   // Fetch comprehensive analytics data
   const { data: analytics, isLoading, error } = useQuery<AnalyticsData>({
     queryKey: ['/api/dashboard/comprehensive-analytics/'],
     refetchInterval: 30000, // Refresh every 30 seconds
+    enabled: isAuthenticated && !loading, // Only run when authenticated
   });
 
   if (isLoading) {

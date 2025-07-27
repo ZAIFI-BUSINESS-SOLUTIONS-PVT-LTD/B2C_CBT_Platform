@@ -3,12 +3,14 @@ Django settings for neet_backend project.
 """
 
 import os
+from dotenv import load_dotenv
 from pathlib import Path
 from neomodel import config
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(os.path.join(BASE_DIR.parent, '.env'))
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-key-change-in-production')
@@ -16,7 +18,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-key-change-in-pro
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # Application definition
 INSTALLED_APPS = [
@@ -69,14 +71,14 @@ WSGI_APPLICATION = 'neet_backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'b2c',       
-        'USER': 'inzightedb2c',  
-        'PASSWORD': 'b2c', 
-        'HOST': 'localhost',          
-        'PORT': '5433', 
+        'NAME': os.environ.get('DB_NAME', 'b2c'),
+        'USER': os.environ.get('DB_USER', 'inzightedb2c'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'b2c'),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '5433'),
     }
 }
-NEO4J_BOLT_URL = 'bolt://neo4j:vishal4j@localhost:7687/neo4j'
+NEO4J_BOLT_URL = os.environ.get('NEO4J_BOLT_URL', 'bolt://neo4j:vishal4j@localhost:7687/neo4j')
 config.DATABASE_URL = NEO4J_BOLT_URL
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -171,39 +173,34 @@ CORS_ALLOW_HEADERS = [
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': True,
-    
-    'ALGORITHM': 'HS256',
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(os.environ.get('JWT_ACCESS_MINUTES', '60'))),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=int(os.environ.get('JWT_REFRESH_DAYS', '7'))),
+    'ROTATE_REFRESH_TOKENS': os.environ.get('JWT_ROTATE_REFRESH', 'True') == 'True',
+    'BLACKLIST_AFTER_ROTATION': os.environ.get('JWT_BLACKLIST_AFTER_ROTATION', 'True') == 'True',
+    'UPDATE_LAST_LOGIN': os.environ.get('JWT_UPDATE_LAST_LOGIN', 'True') == 'True',
+    'ALGORITHM': os.environ.get('JWT_ALGORITHM', 'HS256'),
     'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': None,
-    'AUDIENCE': None,
-    'ISSUER': None,
-    
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-    'USER_ID_FIELD': 'id',  # Keep as 'id' for compatibility
-    'USER_ID_CLAIM': 'user_id',
-    
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-    
-    'JTI_CLAIM': 'jti',
-    
-    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
-    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=60),
-    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=7),
+    'VERIFYING_KEY': os.environ.get('JWT_VERIFYING_KEY', None),
+    'AUDIENCE': os.environ.get('JWT_AUDIENCE', None),
+    'ISSUER': os.environ.get('JWT_ISSUER', None),
+    'AUTH_HEADER_TYPES': tuple(os.environ.get('JWT_HEADER_TYPES', 'Bearer').split(',')),
+    'AUTH_HEADER_NAME': os.environ.get('JWT_HEADER_NAME', 'HTTP_AUTHORIZATION'),
+    'USER_ID_FIELD': os.environ.get('JWT_USER_ID_FIELD', 'id'),
+    'USER_ID_CLAIM': os.environ.get('JWT_USER_ID_CLAIM', 'user_id'),
+    'AUTH_TOKEN_CLASSES': tuple(os.environ.get('JWT_TOKEN_CLASSES', 'rest_framework_simplejwt.tokens.AccessToken').split(',')),
+    'TOKEN_TYPE_CLAIM': os.environ.get('JWT_TOKEN_TYPE_CLAIM', 'token_type'),
+    'JTI_CLAIM': os.environ.get('JWT_JTI_CLAIM', 'jti'),
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': os.environ.get('JWT_SLIDING_REFRESH_EXP_CLAIM', 'refresh_exp'),
+    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=int(os.environ.get('JWT_SLIDING_MINUTES', '60'))),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=int(os.environ.get('JWT_SLIDING_REFRESH_DAYS', '7'))),
 }
 
 # Session configuration
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_ENGINE = os.environ.get('SESSION_ENGINE', 'django.contrib.sessions.backends.db')
+SESSION_COOKIE_AGE = int(os.environ.get('SESSION_COOKIE_AGE', '86400'))  # 24 hours
 
 # URL Configuration
-APPEND_SLASH = False  # Disable automatic trailing slash redirect for API consistency
+APPEND_SLASH = os.environ.get('APPEND_SLASH', 'False') == 'True'  # Disable automatic trailing slash redirect for API consistency
 
 # Logging configuration
 LOGGING = {

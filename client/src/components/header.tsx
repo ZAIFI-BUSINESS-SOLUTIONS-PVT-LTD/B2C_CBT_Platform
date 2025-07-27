@@ -1,6 +1,7 @@
 import { GraduationCap, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,12 +13,13 @@ import {
 
 export function Header() {
   const { isAuthenticated, student, logout } = useAuth();
+  const [, navigate] = useLocation();
 
   const handleLogout = async () => {
     try {
       await logout();
-      // Optionally redirect to login page or refresh
-      window.location.href = '/';
+      // Redirect to home page immediately after logout
+      navigate('/');
     } catch (error) {
       console.error('Logout failed:', error);
     }

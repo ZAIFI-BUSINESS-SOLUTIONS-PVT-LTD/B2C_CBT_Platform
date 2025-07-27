@@ -3,7 +3,9 @@
  * 
  * This is the main component for the NEET Practice Platform's topic selection interface.
  * It provides a hierarchical selection system where users can:
- * - Browse topics organized by subject (Physics, Chemistry, Botany, Zoology)
+ * - Bro   * BACKEND API PAYLOAD STRUCTURE:
+   * - Time-based: { selection_mode: 'time_limit', time_limit: userSpecifiedMinutes }
+   * - Question-based: { selection_mode: 'question_count', question_count: N }e topics organized by subject (Physics, Chemistry, Botany, Zoology)
  * - Expand chapters to view individual topics
  * - Search for specific topics across all subjects
  * - Select multiple topics for their test session
@@ -108,7 +110,12 @@ export function ChapterSelection() {
   // This mutation handles creating a new test session when user clicks "Start Test"
   const { student } = useAuth();
   const createTestMutation = useMutation({
-    mutationFn: async (data: { selected_topics: string[], time_limit?: number, question_count?: number }) => {
+    mutationFn: async (data: { 
+      selected_topics: string[], 
+      selection_mode: 'question_count' | 'time_limit',
+      time_limit?: number, 
+      question_count?: number 
+    }) => {
       // Add studentId to the payload if available
       const payload = {
         ...data,
@@ -228,7 +235,8 @@ export function ChapterSelection() {
       // User chooses how many minutes they want for the test
       createTestMutation.mutate({
         selected_topics: selectedTopics,
-        time_limit: parseInt(timeLimit), // Use exact time limit specified by user
+        selection_mode: 'time_limit',
+        time_limit: parseInt(timeLimit), // Backend will calculate question_count = time_limit
       });
     } else {
       // QUESTION-BASED TEST VALIDATION AND TIMING LOGIC
@@ -241,13 +249,13 @@ export function ChapterSelection() {
         return; // Exit early if validation fails
       }
       
-      // Question-based test: automatically set time limit to 1 minute per question
-      // This implements the core business rule: "1 minute per question"
+      // Question-based test: send question count, backend won't calculate time limit
+      // This implements the core business rule: user specifies exact question count
       const questionCountValue = parseInt(questionCount);
       createTestMutation.mutate({
         selected_topics: selectedTopics,
+        selection_mode: 'question_count',
         question_count: questionCountValue,
-        time_limit: questionCountValue, // TIMING RULE: 1 minute per question
       });
     }
   };
