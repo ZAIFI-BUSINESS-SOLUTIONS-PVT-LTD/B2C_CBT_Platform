@@ -1,7 +1,9 @@
 // API Configuration for NEET Practice Platform
 export const API_CONFIG = {
-  // Use relative URLs for same-origin requests
-  BASE_URL: 'http://127.0.0.1:8000',
+  // Use environment-based URLs for proper dev/production switching
+  BASE_URL: import.meta.env.DEV 
+    ? 'http://localhost:8000' 
+    : 'https://cbtapi.inzighted.com',
   
   // API endpoints
   ENDPOINTS: {

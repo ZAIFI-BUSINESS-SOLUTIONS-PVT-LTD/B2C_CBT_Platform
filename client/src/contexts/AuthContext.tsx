@@ -7,7 +7,8 @@ import {
   getAccessToken, 
   setTokens, 
   clearTokens,
-  type JWTLoginResponse 
+  type JWTLoginResponse,
+  API_BASE_URL
 } from "@/lib/auth";
 
 interface AuthContextType {
@@ -93,7 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // If we have a refresh token, try to blacklist it on the server
       if (refreshToken) {
         try {
-          await fetch('http://127.0.0.1:8000/api/auth/logout/', {
+          // Use dynamic API base URL instead of hardcoded production URL
+          await fetch(`${API_BASE_URL}/auth/logout/`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

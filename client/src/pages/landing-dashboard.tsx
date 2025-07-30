@@ -16,6 +16,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
+import { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -125,6 +126,24 @@ export default function LandingDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const { isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
+
+  // === NAVIGATION GUARD ===
+  // Redirect to home page when user tries to navigate back from landing dashboard
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      console.log('🔄 Back navigation detected from Landing Dashboard page, redirecting to home...');
+      navigate('/', { replace: true });
+    };
+
+    // Push current state and listen for back navigation
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [navigate]);
 
   // Redirect to home if not authenticated
   if (!loading && !isAuthenticated) {

@@ -198,14 +198,15 @@ class ReviewComment(models.Model):
 
 class StudentProfile(models.Model):
     """
-    Enhanced StudentProfile model with custom student_id primary key and auto-generated passwords.
+    Enhanced StudentProfile model with custom student_id primary key and user-defined passwords.
     Serves as the authentication foundation for the NEET testing platform.
+    Uses full_name as username with case-insensitive uniqueness enforcement.
     """
     # Custom student ID as primary key (STU + YY + DDMM + ABC123)
     student_id = models.CharField(max_length=20, primary_key=True, unique=True)
-    # Auto-generated password (FIRSTFOUR + DDMM)
+    # User-defined password storage (changed from auto-generated to user-defined)
     password_hash = models.CharField(max_length=128)  # Hashed password storage
-    generated_password = models.CharField(max_length=20, blank=True)  # Plain text for display (temporary)
+    generated_password = models.CharField(max_length=64, blank=True)  # User-defined password (plain text for transition)
     
     # Basic profile information
     full_name = models.TextField(null=False)
@@ -247,6 +248,13 @@ class StudentProfile(models.Model):
         from django.contrib.auth.hashers import check_password
         return check_password(raw_password, self.password_hash)
 
+    def set_user_password(self, raw_password):
+        """Set user-defined password and store both plain text and hashed versions"""
+        # Store plain text password in generated_password field (for transition period)
+        self.generated_password = raw_password
+        # Store hashed password for security
+        self.set_password(raw_password)
+
     # Authentication properties required by Django's permission system
     @property
     def is_authenticated(self):
@@ -285,17 +293,18 @@ class StudentProfile(models.Model):
         return self.student_id
 
     def generate_credentials(self):
-        """Generate student_id and password based on profile data"""
-        from .utils.student_utils import ensure_unique_student_id, generate_password
+        """Generate student_id based on profile data (password now user-defined)"""
+        from .utils.student_utils import ensure_unique_student_id
         
         if not self.student_id and self.full_name and self.date_of_birth:
-            # Generate unique student ID
+            # Generate unique student ID (keep this functionality)
             self.student_id = ensure_unique_student_id(self.full_name, self.date_of_birth)
             
-            # Generate and set password
-            generated_password = generate_password(self.full_name, self.date_of_birth)
-            self.generated_password = generated_password  # Store for display
-            self.set_password(generated_password)  # Hash for security
+            # COMMENTED OUT: Auto password generation - now user provides password
+            # from .utils.student_utils import generate_password
+            # generated_password = generate_password(self.full_name, self.date_of_birth)
+            # self.generated_password = generated_password  # Store for display
+            # self.set_password(generated_password)  # Hash for security
 
     def get_test_sessions(self):
         """Get all test sessions for this student"""

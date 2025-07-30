@@ -83,7 +83,7 @@ const profileFormSchema = z.object({
 type ProfileFormData = z.infer<typeof profileFormSchema>;
 
 interface StudentProfile {
-  id: number;
+  studentId: string;
   fullName: string;
   email: string;
   phoneNumber?: string;
@@ -140,7 +140,7 @@ export function StudentProfile() {
   const profileMutation = useMutation({
     mutationFn: async (data: ProfileFormData) => {
       if (currentProfile) {
-        return await apiRequest(`/api/student-profile/${currentProfile.id}`, "PUT", data);
+        return await apiRequest(`/api/student-profile/update/${currentProfile.studentId}/`, "PUT", data);
       } else {
         return await apiRequest("/api/student-profile", "POST", data);
       }

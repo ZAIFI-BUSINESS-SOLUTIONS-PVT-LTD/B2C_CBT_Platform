@@ -26,8 +26,8 @@ export default function Test() {
   
   // Fetch test session data from the server
   const { data: session, isLoading, error } = useQuery({
-    queryKey: [`/api/test-sessions/${sessionId}/`],  // Added trailing slash for consistency
-    enabled: !!sessionId && !isNaN(Number(sessionId)),  // Only fetch if sessionId exists and is a valid number
+    queryKey: [`/api/test-sessions/${sessionId}/`],
+    enabled: !!sessionId && !isNaN(Number(sessionId)),
   });
 
   // Loading state with skeleton placeholders
@@ -35,9 +35,9 @@ export default function Test() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="space-y-4">
-          <Skeleton className="h-8 w-64" />    {/* Title skeleton */}
-          <Skeleton className="h-32 w-96" />   {/* Question skeleton */}
-          <Skeleton className="h-8 w-48" />    {/* Timer skeleton */}
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-32 w-96" />
+          <Skeleton className="h-8 w-48" />
         </div>
       </div>
     );
@@ -49,11 +49,13 @@ export default function Test() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Test</h1>
-          <p className="text-gray-600 mb-4">
-            Failed to load test session {sessionId}: {error.message}
+          <h2 className="text-2xl font-bold text-slate-900 mb-4">
+            Error Loading Test
+          </h2>
+          <p className="text-slate-600 mb-4">
+            There was an error loading your test session. Please try again.
           </p>
-          <button 
+          <button
             onClick={() => window.location.href = '/topics'}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
@@ -83,7 +85,7 @@ export default function Test() {
   // Main test interface
   return (
     <div className="min-h-screen bg-slate-50">
-      <TestInterface sessionId={parseInt(sessionId!)} />  {/* Main test interface component */}
+      <TestInterface sessionId={parseInt(sessionId!)} />
     </div>
   );
 }

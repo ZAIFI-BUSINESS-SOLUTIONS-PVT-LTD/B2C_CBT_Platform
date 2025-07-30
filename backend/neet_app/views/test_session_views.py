@@ -179,9 +179,26 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        question_map = {
-            q.id: q for q in Question.objects.filter(topic_id__in=session_topic_ids).select_related('topic')
-        }
+        # Get questions and ensure they are cleaned
+        questions = Question.objects.filter(topic_id__in=session_topic_ids).select_related('topic')
+        question_map = {}
+        for q in questions:
+            # Apply cleaning if LaTeX patterns or simple chemical notations are found
+            needs_cleaning = any(pattern in q.question for pattern in ['\\', '$', '^{', '_{', '\\frac', '^ -', '^ +', '^-', '^+', 'x 10^'])
+            if not needs_cleaning:
+                # Also check options for patterns
+                all_options = q.option_a + q.option_b + q.option_c + q.option_d
+                needs_cleaning = any(pattern in all_options for pattern in ['\\', '$', '^{', '_{', '\\frac', '^ -', '^ +', '^-', '^+', 'x 10^'])
+            
+            if needs_cleaning:
+                from .utils import clean_mathematical_text
+                q.question = clean_mathematical_text(q.question)
+                q.option_a = clean_mathematical_text(q.option_a)
+                q.option_b = clean_mathematical_text(q.option_b)
+                q.option_c = clean_mathematical_text(q.option_c)
+                q.option_d = clean_mathematical_text(q.option_d)
+                q.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d'])
+            question_map[q.id] = q
 
         # Process all TestAnswer objects (now includes all assigned questions)
         for answer in answers:
@@ -251,6 +268,38 @@ class TestSessionViewSet(viewsets.ModelViewSet):
         }
 
         return Response(results)
+
+    @action(detail=True, methods=['post'])
+    def quit(self, request, pk=None):
+        """
+        Quits a test session and marks it as incomplete.
+        Only allows access to user's own sessions.
+        """
+        # Ensure only authenticated user's sessions are accessible
+        session = get_object_or_404(
+            self.get_queryset().select_related(), 
+            pk=pk
+        )
+
+        # Check if the test is already completed
+        if session.is_completed:
+            return Response(
+                {"error": "Cannot quit a completed test session."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Mark the session as incomplete and set end time
+        session.is_completed = False  # Explicitly mark as incomplete
+        session.end_time = timezone.now()
+        session.save(update_fields=['is_completed', 'end_time'])
+
+        logger.info(f"Test session {session.id} marked as incomplete (quit by user)")
+
+        return Response({
+            "message": "Test session has been marked as incomplete.",
+            "session_id": session.id,
+            "status": "incomplete"
+        }, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def results(self, request, pk=None):

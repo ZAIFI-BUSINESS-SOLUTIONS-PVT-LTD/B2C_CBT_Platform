@@ -1,9 +1,10 @@
 // In Results.tsx
 
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ResultsDisplay } from "@/components/results-display"; // <--- Ensure this import path is correct
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEffect } from "react";
 
 // --- START NEW/MODIFIED CODE ---
 // Import the ResultsDisplayProps interface and extract the type of its 'results' property.
@@ -16,6 +17,25 @@ type QueryResultsType = ResultsDisplayProps['results']; // Extract the 'results'
 
 export default function Results() {
   const { sessionId } = useParams<{ sessionId: string }>();
+  const [, navigate] = useLocation();
+
+  // === NAVIGATION GUARD ===
+  // Redirect to landing page when user tries to navigate back from results
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      console.log('🔄 Back navigation detected from Results page, redirecting to landing...');
+      navigate('/', { replace: true });
+    };
+
+    // Push current state and listen for back navigation
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [navigate]);
 
   // Specify the type of data that useQuery will return (QueryResultsType)
   const { data: results, isLoading } = useQuery<QueryResultsType, Error>({ // <--- CHANGE THIS LINE

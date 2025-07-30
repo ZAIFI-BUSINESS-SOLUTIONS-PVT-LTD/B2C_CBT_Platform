@@ -20,6 +20,7 @@ import {
   BookOpen, Target, Award, Brain, BarChart3, Home
 } from 'lucide-react';
 import { useLocation } from 'wouter';
+import { useEffect } from 'react';
 
 // === TYPE DEFINITIONS ===
 
@@ -55,6 +56,24 @@ interface DashboardData {
 export default function Dashboard() {
   const [, navigate] = useLocation();
   const { isAuthenticated, loading } = useAuth();
+
+  // === NAVIGATION GUARD ===
+  // Redirect to landing page when user tries to navigate back from dashboard
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      console.log('🔄 Back navigation detected from Dashboard page, redirecting to landing...');
+      navigate('/', { replace: true });
+    };
+
+    // Push current state and listen for back navigation
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [navigate]);
 
   // Redirect to home if not authenticated
   if (!loading && !isAuthenticated) {
