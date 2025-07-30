@@ -14,6 +14,7 @@ from ..serializers import (
     StudentProfileCreateSerializer,
     StudentLoginSerializer
 )
+from ..jwt_authentication import StudentJWTAuthentication
 
 
 class StudentProfileViewSet(viewsets.ModelViewSet):
@@ -23,6 +24,20 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
     """
     queryset = StudentProfile.objects.all()
     serializer_class = StudentProfileSerializer
+    authentication_classes = [StudentJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        """
+        Instantiate and return the list of permissions required for this view.
+        Allow registration without authentication, but require authentication for other operations.
+        """
+        if self.action in ['create', 'register', 'login']:
+            permission_classes = []
+        else:
+            permission_classes = [IsAuthenticated]
+        
+        return [permission() for permission in permission_classes]
     
     def get_queryset(self):
         """Filter profiles by authenticated user for security"""
@@ -53,6 +68,33 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         except StudentProfile.DoesNotExist:
             return Response({"error": "Student profile not found"}, status=404)
+
+    @action(detail=False, methods=['put', 'patch'], url_path='update/(?P<student_id>[^/.]+)')
+    def update_by_student_id(self, request, student_id=None):
+        """
+        Update student profile by student_id. Students can only update their own profile.
+        PUT /api/student-profile/update/{student_id}/
+        PATCH /api/student-profile/update/{student_id}/
+        """
+        if not hasattr(request.user, 'student_id'):
+            return Response({"error": "User not properly authenticated"}, status=401)
+        
+        # Ensure student can only update their own profile
+        if student_id != request.user.student_id:
+            return Response({"error": "You can only update your own profile"}, status=403)
+        
+        try:
+            student = StudentProfile.objects.get(student_id=student_id)
+        except StudentProfile.DoesNotExist:
+            return Response({"error": "Student profile not found"}, status=404)
+        
+        # Use partial=True for PATCH requests
+        partial = request.method == 'PATCH'
+        serializer = StudentProfileSerializer(student, data=request.data, partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
 
     @action(detail=False, methods=['post'])
     def register(self, request):
@@ -124,6 +166,27 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         return Response({
             'message': 'Password changed successfully'
         }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='check-username')
+    def check_username(self, request):
+        """
+        Check if a username (full_name) is available.
+        GET /api/student-profile/check-username/?full_name=John%20Doe
+        """
+        full_name = request.query_params.get('full_name')
+        
+        if not full_name:
+            return Response({
+                'error': 'full_name parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        from ..utils.password_utils import validate_full_name_uniqueness
+        is_available, error_message = validate_full_name_uniqueness(full_name)
+        
+        return Response({
+            'available': is_available,
+            'message': error_message if not is_available else 'Username is available'
+        })
 
     @action(detail=False, methods=['get'], url_path='email/(?P<email>.+)')
     def by_email(self, request, email=None):

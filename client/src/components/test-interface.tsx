@@ -97,6 +97,10 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const [answers, setAnswers] = useState<Record<number, string>>({});         // User's answers by question ID
   const [markedForReview, setMarkedForReview] = useState<Set<number>>(new Set()); // Questions marked for review
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);            // Submit confirmation dialog visibility
+  const [showTimeOverDialog, setShowTimeOverDialog] = useState(false);        // Time over dialog visibility
+  const [timeOverAutoSubmit, setTimeOverAutoSubmit] = useState<NodeJS.Timeout | null>(null); // Auto-submit timeout
+  const [showQuitDialog, setShowQuitDialog] = useState(false);                // Quit exam confirmation dialog visibility
+  const [isNavigationBlocked, setIsNavigationBlocked] = useState(true);       // Block navigation during test
   
   // === TIME TRACKING ===
   const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now()); // When current question started
@@ -148,12 +152,80 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       return response;
     },
     onSuccess: () => {
+      // Disable navigation blocking before navigating away
+      setIsNavigationBlocked(false);
+      
+      // Invalidate all relevant queries to refresh dashboard data
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/analytics/'] }); // Main dashboard
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/comprehensive-analytics/'] }); // Landing dashboard
+      queryClient.invalidateQueries({ queryKey: [`testSession-${sessionId}`] }); // Current test session
+      queryClient.invalidateQueries({ queryKey: [`/api/test-sessions/${sessionId}/results/`] }); // Results page
+      
+      // Invalidate any test sessions lists or test-related data
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            typeof key === "string" &&
+            (
+              key.includes('test-session') || 
+              key.includes('/api/test-sessions') ||
+              key.includes('dashboard') ||
+              key.includes('analytics')
+            )
+          );
+        }
+      });
+      
+      // Navigate to results
       navigate(`/results/${sessionId}`);
     },
     onError: () => {
       toast({
         title: "Error",
         description: "Failed to submit test. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // === QUIT TEST MUTATION ===
+  // This mutation handles marking the test as incomplete when user quits
+  const quitTestMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest(`/api/test-sessions/${sessionId}/quit/`, "POST");
+      return response;
+    },
+    onSuccess: () => {
+      // Invalidate all relevant queries to refresh dashboard data
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/analytics/'] }); // Main dashboard
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/comprehensive-analytics/'] }); // Landing dashboard
+      queryClient.invalidateQueries({ queryKey: [`testSession-${sessionId}`] }); // Current test session
+      
+      // Invalidate any test sessions lists or test-related data
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            typeof key === "string" &&
+            (
+              key.includes('test-session') || 
+              key.includes('/api/test-sessions') ||
+              key.includes('dashboard') ||
+              key.includes('analytics')
+            )
+          );
+        }
+      });
+      
+      // Disable navigation blocking and navigate away
+      setIsNavigationBlocked(false);
+      navigate("/dashboard");
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to quit test. Please try again.",
         variant: "destructive",
       });
     },
@@ -166,6 +238,11 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   // No need to pre-create answers - they will be created when user interacts
 
   const handleAnswerChange = (questionId: number, answer: string) => {
+    // Prevent answering if time is over
+    if (showTimeOverDialog) {
+      return;
+    }
+
     setAnswers(prev => ({
       ...prev,
       [questionId]: answer
@@ -188,7 +265,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   };
 
   const handleMarkForReview = () => {
-    if (!currentQuestion) return;
+    if (!currentQuestion || showTimeOverDialog) return; // Prevent interaction when time is over
 
     const newMarkedSet = new Set(markedForReview);
     if (newMarkedSet.has(currentQuestion.id)) {
@@ -216,7 +293,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   };
 
   const handleNextQuestion = () => {
-    if (currentQuestionIndex < totalQuestions - 1) {
+    if (currentQuestionIndex < totalQuestions - 1 && !showTimeOverDialog) { // Prevent navigation when time is over
       // Track time spent on current question
       if (currentQuestion) {
         const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
@@ -232,7 +309,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   };
 
   const handlePreviousQuestion = () => {
-    if (currentQuestionIndex > 0) {
+    if (currentQuestionIndex > 0 && !showTimeOverDialog) { // Prevent navigation when time is over
       // Track time spent on current question
       if (currentQuestion) {
         const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
@@ -248,7 +325,9 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   };
 
   const navigateToQuestion = (index: number) => {
-    setCurrentQuestionIndex(index);
+    if (!showTimeOverDialog) { // Prevent navigation when time is over
+      setCurrentQuestionIndex(index);
+    }
   };
 
   const handleSubmitTest = () => {
@@ -261,7 +340,89 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   };
 
   const handleTimeUp = () => {
+    // Show time over dialog to inform the user
+    setShowTimeOverDialog(true);
+    
+    // Set auto-submit after 10 seconds if user doesn't manually submit
+    const autoSubmitTimeout = setTimeout(() => {
+      submitTestMutation.mutate();
+      setShowTimeOverDialog(false);
+    }, 10000); // 10 seconds delay
+    
+    setTimeOverAutoSubmit(autoSubmitTimeout);
+  };
+
+  const handleTimeOverSubmit = () => {
+    // Clear auto-submit timeout since user is manually submitting
+    if (timeOverAutoSubmit) {
+      clearTimeout(timeOverAutoSubmit);
+      setTimeOverAutoSubmit(null);
+    }
+    
+    // Submit the test
     submitTestMutation.mutate();
+    setShowTimeOverDialog(false);
+  };
+
+  // Clean up timeout on component unmount
+  useEffect(() => {
+    return () => {
+      if (timeOverAutoSubmit) {
+        clearTimeout(timeOverAutoSubmit);
+      }
+    };
+  }, [timeOverAutoSubmit]);
+
+  // === NAVIGATION GUARD IMPLEMENTATION ===
+  // Prevent browser navigation (back/forward/refresh/close tab) during test
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isNavigationBlocked) {
+        e.preventDefault();
+        e.returnValue = "Are you sure you want to leave? Your test progress will be lost.";
+        return "Are you sure you want to leave? Your test progress will be lost.";
+      }
+    };
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (isNavigationBlocked) {
+        e.preventDefault();
+        // Push the current state back to prevent navigation
+        window.history.pushState(null, "", window.location.href);
+        setShowQuitDialog(true);
+      }
+    };
+
+    if (isNavigationBlocked) {
+      // Prevent browser back/forward
+      window.history.pushState(null, "", window.location.href);
+      window.addEventListener("popstate", handlePopState);
+      
+      // Prevent tab close/refresh
+      window.addEventListener("beforeunload", handleBeforeUnload);
+    }
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isNavigationBlocked]);
+
+  // Disable navigation blocking when component unmounts or test completes
+  useEffect(() => {
+    return () => {
+      setIsNavigationBlocked(false);
+    };
+  }, []);
+
+  // === QUIT EXAM HANDLERS ===
+  const handleQuitExam = () => {
+    setShowQuitDialog(false);
+    quitTestMutation.mutate();
+  };
+
+  const handleContinueExam = () => {
+    setShowQuitDialog(false);
   };
 
   const getQuestionStatus = (questionId: number) => {
@@ -362,6 +523,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           <RadioGroup
             value={answers[currentQuestion.id] || ""}
             onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
+            disabled={showTimeOverDialog} // Disable when time is over
           >
             <div className="space-y-4">
               {["A", "B", "C", "D"].map((option) => (
@@ -387,7 +549,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           <div className="flex justify-between mt-8">
             <Button
               onClick={handlePreviousQuestion}
-              disabled={currentQuestionIndex === 0}
+              disabled={currentQuestionIndex === 0 || showTimeOverDialog}
               variant="outline"
               className="px-6 py-3"
             >
@@ -399,13 +561,14 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                 onClick={handleMarkForReview}
                 variant="outline"
                 className="px-6 py-3"
+                disabled={showTimeOverDialog}
               >
                 <Bookmark className="h-4 w-4 mr-2" />
                 {markedForReview.has(currentQuestion.id) ? "Unmark" : "Mark for Review"}
               </Button>
               <Button
                 onClick={handleNextQuestion}
-                disabled={currentQuestionIndex === totalQuestions - 1}
+                disabled={currentQuestionIndex === totalQuestions - 1 || showTimeOverDialog}
                 className="bg-neet-blue text-white px-6 py-3 hover:bg-blue-700"
               >
                 Next
@@ -429,11 +592,12 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                   key={question.id}
                   onClick={() => navigateToQuestion(index)}
                   size="sm"
+                  disabled={showTimeOverDialog} // Disable question navigation when time is over
                   className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${
                     isCurrentQuestion 
                       ? "ring-2 ring-neet-blue ring-offset-2" 
                       : ""
-                  } ${getStatusColor(status)}`}
+                  } ${getStatusColor(status)} ${showTimeOverDialog ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {index + 1}
                 </Button>
@@ -456,11 +620,16 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
               </div>
             </div>
             <Button
-              onClick={handleSubmitTest}
-              className="bg-neet-red text-white px-6 py-2 hover:bg-red-700 font-medium"
+              onClick={showTimeOverDialog ? handleTimeOverSubmit : handleSubmitTest}
+              className={`px-6 py-2 font-medium ${
+                showTimeOverDialog 
+                  ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' 
+                  : 'bg-neet-red text-white hover:bg-red-700'
+              }`}
+              disabled={submitTestMutation.isPending}
             >
               <Check className="h-4 w-4 mr-2" />
-              Submit Test
+              {showTimeOverDialog ? 'Submit Test (Time Over)' : 'Submit Test'}
             </Button>
           </div>
         </div>
@@ -483,6 +652,71 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
               className="bg-neet-red hover:bg-red-700"
             >
               Submit Test
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Time Over Dialog */}
+      <AlertDialog open={showTimeOverDialog} onOpenChange={() => {}}>
+        <AlertDialogContent className="border-red-200 bg-red-50">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-700 flex items-center">
+              <Clock className="h-5 w-5 mr-2" />
+              Time Over!
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-red-600">
+              Your test time has expired. Your test will be automatically submitted in 10 seconds, 
+              or you can submit it now manually. You have answered{" "}
+              {Object.keys(answers).length} out of {totalQuestions} questions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction 
+              onClick={handleTimeOverSubmit}
+              className="bg-red-600 hover:bg-red-700 text-white w-full"
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Submit Test Now
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Quit Exam Confirmation Dialog */}
+      <AlertDialog open={showQuitDialog} onOpenChange={() => {}}>
+        <AlertDialogContent className="border-amber-200 bg-amber-50">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-amber-700 flex items-center">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              Quit Exam?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-amber-600">
+              Are you sure you want to quit the exam? Your test will be marked as incomplete and 
+              you won't be able to resume it later. You have answered{" "}
+              {Object.keys(answers).length} out of {totalQuestions} questions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel 
+              onClick={handleContinueExam}
+              className="bg-green-600 hover:bg-green-700 text-white border-none"
+            >
+              Continue Exam
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleQuitExam}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={quitTestMutation.isPending}
+            >
+              {quitTestMutation.isPending ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  Quitting...
+                </>
+              ) : (
+                "Quit Exam"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

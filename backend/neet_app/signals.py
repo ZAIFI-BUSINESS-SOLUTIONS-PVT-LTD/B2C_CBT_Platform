@@ -9,9 +9,11 @@ from .models import StudentProfile, TestSession
 @receiver(pre_save, sender=StudentProfile)
 def generate_student_credentials(sender, instance, **kwargs):
     """
-    Auto-generate student_id and password before saving StudentProfile
+    Auto-generate student_id before saving StudentProfile
+    Password generation is now handled by user input, not automatic generation
     """
     if not instance.student_id and instance.full_name and instance.date_of_birth:
+        # Only generate student_id, password is now user-defined
         instance.generate_credentials()
 
 

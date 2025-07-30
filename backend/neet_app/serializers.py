@@ -95,8 +95,11 @@ class TestSessionCreateSerializer(serializers.Serializer):
             data['question_count'] = time_limit
         elif selection_mode == 'question_count':
             # Existing behavior - ensure question_count is provided
-            if not data.get('question_count'):
+            question_count = data.get('question_count')
+            if not question_count:
                 raise serializers.ValidationError("Question count is required when using count-based selection")
+            # Calculate time limit: 1 minute per question
+            data['time_limit'] = question_count
         
         return data
 
@@ -159,6 +162,22 @@ class TestAnswerCreateSerializer(serializers.Serializer):
         try:
             session = TestSession.objects.get(pk=session_id)
             question = Question.objects.get(pk=question_id)
+            
+            # Apply cleaning if LaTeX patterns or simple chemical notations are found
+            needs_cleaning = any(pattern in question.question for pattern in ['\\', '$', '^{', '_{', '\\frac', '^ -', '^ +', '^-', '^+', 'x 10^'])
+            if not needs_cleaning:
+                # Also check options for patterns
+                all_options = question.option_a + question.option_b + question.option_c + question.option_d
+                needs_cleaning = any(pattern in all_options for pattern in ['\\', '$', '^{', '_{', '\\frac', '^ -', '^ +', '^-', '^+', 'x 10^'])
+            
+            if needs_cleaning:
+                from .views.utils import clean_mathematical_text
+                question.question = clean_mathematical_text(question.question)
+                question.option_a = clean_mathematical_text(question.option_a)
+                question.option_b = clean_mathematical_text(question.option_b)
+                question.option_c = clean_mathematical_text(question.option_c)
+                question.option_d = clean_mathematical_text(question.option_d)
+                question.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d'])
         except TestSession.DoesNotExist:
             raise serializers.ValidationError({"session_id": "Test session not found."})
         except Question.DoesNotExist:
@@ -209,13 +228,14 @@ class StudentProfileSerializer(serializers.ModelSerializer):
 
 
 class StudentProfileCreateSerializer(serializers.ModelSerializer):
-    password_confirmation = serializers.CharField(write_only=True, required=False)
+    password = serializers.CharField(write_only=True, min_length=8, max_length=64, required=True)
+    password_confirmation = serializers.CharField(write_only=True, required=True)
     
     class Meta:
         model = StudentProfile
         fields = [
             'full_name', 'email', 'phone_number', 'date_of_birth',
-            'school_name', 'target_exam_year', 'password_confirmation'
+            'school_name', 'target_exam_year', 'password', 'password_confirmation'
         ]
         
     def validate_email(self, value):
@@ -224,32 +244,85 @@ class StudentProfileCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Student with this email already exists.")
         return value
     
+    def validate_full_name(self, value):
+        """Ensure full_name uniqueness (case-insensitive) - acts as username"""
+        from .utils.password_utils import validate_full_name_uniqueness
+        
+        is_unique, error_message = validate_full_name_uniqueness(value)
+        if not is_unique:
+            raise serializers.ValidationError(error_message)
+        return value
+    
+    def validate_password(self, value):
+        """Validate password strength and policies"""
+        from .utils.password_utils import validate_password_strength
+        
+        is_valid, errors, strength_score = validate_password_strength(value)
+        if not is_valid:
+            raise serializers.ValidationError(errors)
+        return value
+    
+    def validate(self, data):
+        """Validate password confirmation matches"""
+        from .utils.password_utils import validate_password_confirmation
+        
+        password = data.get('password')
+        password_confirmation = data.get('password_confirmation')
+        
+        if password and password_confirmation:
+            is_valid, error_message = validate_password_confirmation(password, password_confirmation)
+            if not is_valid:
+                raise serializers.ValidationError({'password_confirmation': error_message})
+        
+        return data
+    
     def create(self, validated_data):
-        """Create student with auto-generated credentials"""
+        """Create student with user-defined password"""
+        password = validated_data.pop('password')
         validated_data.pop('password_confirmation', None)
-        student = StudentProfile.objects.create(**validated_data)
-        # The save() method and signals will handle ID and password generation
+        
+        # Create student instance
+        student = StudentProfile(**validated_data)
+        
+        # Set user-defined password
+        student.set_user_password(password)
+        
+        # Save the student (this will trigger student_id generation via signals)
+        student.save()
+        
         return student
 
 
 class StudentLoginSerializer(serializers.Serializer):
-    student_id = serializers.CharField(max_length=20)
-    password = serializers.CharField(max_length=20)
+    username = serializers.CharField(max_length=100, help_text="Student ID or Full Name")
+    password = serializers.CharField(max_length=64)
     
     def validate(self, data):
-        student_id = data.get('student_id')
+        username = data.get('username')
         password = data.get('password')
         
+        student = None
+        
+        # Try to find student by student_id first
         try:
-            student = StudentProfile.objects.get(student_id=student_id)
-            if not student.check_password(password):
-                raise serializers.ValidationError("Invalid credentials.")
-            if not student.is_active:
-                raise serializers.ValidationError("Account is deactivated.")
-            data['student'] = student
+            student = StudentProfile.objects.get(student_id=username)
         except StudentProfile.DoesNotExist:
+            # If not found by student_id, try by full_name (case-insensitive)
+            try:
+                student = StudentProfile.objects.get(full_name__iexact=username)
+            except StudentProfile.DoesNotExist:
+                pass
+        
+        if not student:
             raise serializers.ValidationError("Invalid credentials.")
         
+        if not student.check_password(password):
+            raise serializers.ValidationError("Invalid credentials.")
+            
+        if not student.is_active:
+            raise serializers.ValidationError("Account is deactivated.")
+            
+        data['student'] = student
         return data
 
 

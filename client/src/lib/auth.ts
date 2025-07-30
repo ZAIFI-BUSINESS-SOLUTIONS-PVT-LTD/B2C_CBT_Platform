@@ -1,6 +1,25 @@
 // JWT Authentication utilities
 import { StudentProfile } from "@/types/api";
 
+// Environment-based API configuration
+// This automatically switches between development and production URLs
+const getApiBaseUrl = (): string => {
+  if (import.meta.env.DEV) {
+    // Development environment (npm run dev)
+    return 'http://localhost:8000/api';
+  } else {
+    // Production environment (npm run build)
+    return 'https://cbtapi.inzighted.com/api';
+  }
+};
+
+// Export the dynamic base URL for use throughout the application
+export const API_BASE_URL = getApiBaseUrl();
+
+// Debug logging to verify which environment is being used
+console.log('🌐 Environment Mode:', import.meta.env.DEV ? 'Development' : 'Production');
+console.log('🔗 API Base URL:', API_BASE_URL);
+
 export interface TokenPair {
   access: string;
   refresh: string;
@@ -39,7 +58,8 @@ export const refreshAccessToken = async (): Promise<string | null> => {
   }
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/auth/refresh/', {
+    // Use dynamic API base URL instead of hardcoded production URL
+    const response = await fetch(`${API_BASE_URL}/auth/refresh/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -121,14 +141,15 @@ export const authenticatedFetch = async (
   return response;
 };
 
-// Login function - using email and password as per updated LoginCredentials type
+// Login function - using username and password as per backend authentication serializer
 export const loginWithJWT = async (email: string, password: string): Promise<JWTLoginResponse> => {
-  const response = await fetch('http://127.0.0.1:8000/api/auth/login/', {
+  // Use dynamic API base URL instead of hardcoded production URL
+  const response = await fetch(`${API_BASE_URL}/auth/login/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username: email, password }),
   });
 
   if (!response.ok) {
@@ -141,8 +162,9 @@ export const loginWithJWT = async (email: string, password: string): Promise<JWT
 
 // Get current student profile
 export const getCurrentStudent = async (): Promise<StudentProfile> => {
-  const response = await authenticatedFetch('http://127.0.0.1:8000/api/students/me/');
-  
+  // Use dynamic API base URL instead of hardcoded production URL
+  const response = await authenticatedFetch(`${API_BASE_URL}/students/me/`);
+
   if (!response.ok) {
     throw new Error('Failed to get student profile');
   }

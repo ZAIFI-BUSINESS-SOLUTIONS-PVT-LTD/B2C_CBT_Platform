@@ -9,6 +9,7 @@ from .views import (
     dashboard_analytics, dashboard_comprehensive_analytics, 
     sync_neo4j_to_postgresql, reset_chapter_structure, sync_questions_from_neo4j
 )
+from .views.utils import clean_existing_questions
 from .views.test_views import (
     create_test_student, test_login, test_topic_classification,
     create_test_session, system_status
@@ -42,6 +43,7 @@ urlpatterns = [
     path('dashboard/sync-neo4j-to-postgresql/', sync_neo4j_to_postgresql, name='sync-neo4j-to-postgresql'),
     path('dashboard/comprehensive-analytics/', dashboard_comprehensive_analytics, name='dashboard-comprehensive-analytics'),
     path('dashboard/sync-questions-from-neo4j/', sync_questions_from_neo4j, name='sync-questions-from-neo4j'),
+    path('dashboard/clean-existing-questions/', clean_existing_questions, name='clean-existing-questions'),
     
     # Test endpoints for new authentication system
     path('test/create-student/', create_test_student, name='test-create-student'),

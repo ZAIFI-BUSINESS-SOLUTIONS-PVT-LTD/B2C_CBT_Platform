@@ -30,34 +30,6 @@ def clean_mathematical_text(text):
     original_text = text
     
     try:
-        # Define character maps early for use throughout the function
-        superscript_map = {'0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'}
-        subscript_map = {'0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉'}
-        
-        # Handle simple chemical notations (before LaTeX processing)
-        # Convert simple ion notations: 2NO2^ - -> 2NO₂⁻, 2H^ + -> 2H⁺
-        text = re.sub(r'(\w+)\^ -', r'\1⁻', text)  # NO2^ - -> NO₂⁻
-        text = re.sub(r'(\w+)\^ \+', r'\1⁺', text)  # H^ + -> H⁺
-        text = re.sub(r'(\w+)\^-', r'\1⁻', text)   # NO2^- -> NO₂⁻
-        text = re.sub(r'(\w+)\^\+', r'\1⁺', text)   # H^+ -> H⁺
-        
-        # Handle more complex ion patterns with multiple charges
-        text = re.sub(r'(\w+)\^(\d+)-', lambda m: f"{m.group(1)}{superscript_map.get(m.group(2), m.group(2))}⁻", text)  # SO4^2- -> SO₄²⁻
-        text = re.sub(r'(\w+)\^(\d+)\+', lambda m: f"{m.group(1)}{superscript_map.get(m.group(2), m.group(2))}⁺", text)  # Ca^2+ -> Ca²⁺
-        
-        # Convert scientific notation: 4 x 10^13 -> 4 × 10¹³
-        text = re.sub(r'(\d+\.?\d*) x 10\^(\d+)', 
-                     lambda m: f"{m.group(1)} × 10{''.join(superscript_map.get(d, d) for d in m.group(2))}", 
-                     text)
-        
-        # Also handle scientific notation with * instead of x
-        text = re.sub(r'(\d+\.?\d*) \* 10\^(\d+)', 
-                     lambda m: f"{m.group(1)} × 10{''.join(superscript_map.get(d, d) for d in m.group(2))}", 
-                     text)
-        
-        # Handle subscripts in chemical formulas: H2O -> H₂O, CO2 -> CO₂
-        text = re.sub(r'([A-Za-z])(\d)', lambda m: f"{m.group(1)}{subscript_map.get(m.group(2), m.group(2))}", text)
-        
         # Remove LaTeX document structure commands
         text = re.sub(r'\\documentclass.*?\\begin\{document\}', '', text, flags=re.DOTALL)
         text = re.sub(r'\\end\{document\}', '', text)
@@ -87,44 +59,26 @@ def clean_mathematical_text(text):
         text = re.sub(r'\\emph\{([^}]+)\}', r'\1', text)  # \emph{abc} -> abc
         
         # Handle superscripts: ^{2} or ^2 -> ²
+        superscript_map = {'0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'}
         text = re.sub(r'\^\{([0-9]+)\}', lambda m: ''.join(superscript_map.get(d, d) for d in m.group(1)), text)
         text = re.sub(r'\^([0-9])', lambda m: superscript_map.get(m.group(1), m.group(1)), text)
         
         # Handle subscripts: _{2} or _2 -> ₂
+        subscript_map = {'0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉'}
         text = re.sub(r'_\{([0-9]+)\}', lambda m: ''.join(subscript_map.get(d, d) for d in m.group(1)), text)
         text = re.sub(r'_([0-9])', lambda m: subscript_map.get(m.group(1), m.group(1)), text)
         
-        # Convert common LaTeX symbols to Unicode (enhanced with more symbols)
+        # Convert common LaTeX symbols to Unicode
         symbol_replacements = {
-            # Greek letters (lowercase)
             r'\\alpha': 'α', r'\\beta': 'β', r'\\gamma': 'γ', r'\\delta': 'δ',
-            r'\\epsilon': 'ε', r'\\zeta': 'ζ', r'\\eta': 'η', r'\\theta': 'θ',
-            r'\\iota': 'ι', r'\\kappa': 'κ', r'\\lambda': 'λ', r'\\mu': 'μ',
-            r'\\nu': 'ν', r'\\xi': 'ξ', r'\\pi': 'π', r'\\rho': 'ρ',
-            r'\\sigma': 'σ', r'\\tau': 'τ', r'\\upsilon': 'υ', r'\\phi': 'φ',
-            r'\\chi': 'χ', r'\\psi': 'ψ', r'\\omega': 'ω',
-            # Greek letters (uppercase)
-            r'\\Alpha': 'Α', r'\\Beta': 'Β', r'\\Gamma': 'Γ', r'\\Delta': 'Δ',
-            r'\\Epsilon': 'Ε', r'\\Zeta': 'Ζ', r'\\Eta': 'Η', r'\\Theta': 'Θ',
-            r'\\Iota': 'Ι', r'\\Kappa': 'Κ', r'\\Lambda': 'Λ', r'\\Mu': 'Μ',
-            r'\\Nu': 'Ν', r'\\Xi': 'Ξ', r'\\Pi': 'Π', r'\\Rho': 'Ρ',
-            r'\\Sigma': 'Σ', r'\\Tau': 'Τ', r'\\Upsilon': 'Υ', r'\\Phi': 'Φ',
-            r'\\Chi': 'Χ', r'\\Psi': 'Ψ', r'\\Omega': 'Ω',
-            # Mathematical operators
+            r'\\epsilon': 'ε', r'\\theta': 'θ', r'\\lambda': 'λ', r'\\mu': 'μ',
+            r'\\pi': 'π', r'\\sigma': 'σ', r'\\tau': 'τ', r'\\phi': 'φ',
+            r'\\omega': 'ω', r'\\Delta': 'Δ', r'\\Omega': 'Ω',
             r'\\times': '×', r'\\div': '÷', r'\\pm': '±', r'\\mp': '∓',
             r'\\leq': '≤', r'\\geq': '≥', r'\\neq': '≠', r'\\approx': '≈',
-            r'\\equiv': '≡', r'\\propto': '∝', r'\\sim': '∼', r'\\simeq': '≃',
-            r'\\ll': '≪', r'\\gg': '≫', r'\\subset': '⊂', r'\\supset': '⊃',
-            r'\\in': '∈', r'\\notin': '∉', r'\\cup': '∪', r'\\cap': '∩',
-            # Mathematical symbols
             r'\\infty': '∞', r'\\sum': '∑', r'\\prod': '∏', r'\\int': '∫',
-            r'\\oint': '∮', r'\\iint': '∬', r'\\iiint': '∭',
             r'\\partial': '∂', r'\\nabla': '∇', r'\\degree': '°',
-            r'\\cdot': '·', r'\\bullet': '•', r'\\circ': '∘',
-            r'\\rightarrow': '→', r'\\leftarrow': '←', r'\\leftrightarrow': '↔',
-            r'\\Rightarrow': '⇒', r'\\Leftarrow': '⇐', r'\\Leftrightarrow': '⇔',
-            # Fractions and roots (additional patterns)
-            r'\\half': '½', r'\\third': '⅓', r'\\quarter': '¼',
+            r'\\cdot': '·', r'\\bullet': '•'
         }
         
         for latex_symbol, unicode_symbol in symbol_replacements.items():
@@ -151,22 +105,12 @@ def clean_mathematical_text(text):
         # Handle special patterns like T^{2}=Kr^{3} (if any remain after previous cleaning)
         text = re.sub(r'([A-Za-z])\^\{([0-9]+)\}', lambda m: f"{m.group(1)}{superscript_map.get(m.group(2), m.group(2))}", text)
         
-        # Handle chemical formulas with parentheses like Ca(OH)2 -> Ca(OH)₂
-        text = re.sub(r'\)(\d)', lambda m: f"){subscript_map.get(m.group(1), m.group(1))}", text)
-        
-        # Handle molecular formulas with brackets like [Cu(NH3)4]2+ -> [Cu(NH₃)₄]²⁺
-        text = re.sub(r'\](\d+)', lambda m: f"]{subscript_map.get(m.group(1), m.group(1))}", text)
-        
         # Clean up multiple spaces and whitespace
         text = re.sub(r'\s+', ' ', text)
         text = text.strip()
         
         # Remove any remaining backslashes that aren't part of valid escape sequences
         text = re.sub(r'\\(?![nrtbf\'\"\\])', '', text)
-        
-        # Final cleanup: remove any stray braces that might be left
-        text = re.sub(r'\{+', '', text)
-        text = re.sub(r'\}+', '', text)
         
         return text
         
@@ -203,15 +147,8 @@ def generate_questions_for_topics(selected_topics, question_count=None):
         
         # Clean mathematical expressions in questions if they haven't been cleaned yet
         for question in questions:
-            # Check if question text contains LaTeX patterns OR simple chemical notations (enhanced pattern detection)
-            patterns_to_check = ['\\', '$', '^{', '_{', '\\frac', '\\sqrt', '\\alpha', '\\beta', '^ -', '^ +', '^-', '^+', 'x 10^', '\\mathrm', '\\text']
-            needs_cleaning = any(pattern in question.question for pattern in patterns_to_check)
-            if not needs_cleaning:
-                # Also check options for patterns
-                all_options = question.option_a + question.option_b + question.option_c + question.option_d
-                needs_cleaning = any(pattern in all_options for pattern in patterns_to_check)
-            
-            if needs_cleaning:
+            # Check if question text contains LaTeX patterns
+            if any(pattern in question.question for pattern in ['\\', '$', '^{', '_{', '\\frac']):
                 question.question = clean_mathematical_text(question.question)
                 question.option_a = clean_mathematical_text(question.option_a)
                 question.option_b = clean_mathematical_text(question.option_b)
@@ -494,9 +431,9 @@ def clean_existing_questions(request=None):
     Can be called via API or as a utility function.
     """
     try:
-        # Find questions that likely contain LaTeX/regex patterns OR simple chemical notations
+        # Find questions that likely contain LaTeX/regex patterns
         questions_to_clean = Question.objects.filter(
-            question__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^'
+            question__iregex=r'\\\\|\\$|\\^\\{|_\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta'
         )
         
         total_questions = questions_to_clean.count()

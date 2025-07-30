@@ -16,95 +16,107 @@ class StudentTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Replace username field with email
-        self.fields['email'] = serializers.EmailField()
+        # Replace username field with email and support username login
+        self.fields['username'] = serializers.CharField(help_text="Email, Student ID, or Full Name")
         self.fields['password'] = serializers.CharField()
-        # Remove default username field if it exists
-        if 'username' in self.fields:
-            del self.fields['username']
+        # Remove default email field since we're using username for flexibility
+        if 'email' in self.fields:
+            del self.fields['email']
 
     def validate(self, attrs):
-        email = attrs.get('email')
+        username = attrs.get('username')
         password = attrs.get('password')
         
-        if not email or not password:
-            raise serializers.ValidationError('Both email and password are required.')
+        if not username or not password:
+            raise serializers.ValidationError('Both username and password are required.')
         
+        student = None
+        
+        # Try to find student by email first
         try:
-            # Get student by email
-            student = StudentProfile.objects.get(email__iexact=email)
-            
-            # Check if student is active
-            if not student.is_active:
-                raise serializers.ValidationError('Student account is deactivated.')
-            
-            # Verify password
-            if not student.check_password(password):
-                raise serializers.ValidationError('Invalid credentials.')
-            
-            # Update last login
-            from django.utils import timezone
-            student.last_login = timezone.now()
-            student.save(update_fields=['last_login'])
-            
-            # Create a dummy user object for JWT token generation
-            # We'll use the student_id as the user identifier in the token
-            class StudentUser:
-                def __init__(self, student_profile):
-                    self.id = student_profile.student_id  # Use student_id as the ID for the token
-                    self.pk = student_profile.student_id  
-                    self.student_profile = student_profile
-                    self.username = student_profile.student_id  
-                    self._is_authenticated = True
-                    self._is_active = student_profile.is_active
-                    self._is_anonymous = False
-                
-                @property
-                def is_authenticated(self):
-                    return self._is_authenticated
-                
-                @property
-                def is_active(self):
-                    return self._is_active
-                
-                @property
-                def is_anonymous(self):
-                    return self._is_anonymous
-                
-                def __str__(self):
-                    return f"Student-{self.student_profile.student_id}"
-            
-            user = StudentUser(student)
-            
-            # Generate tokens with student_id as the user_id
-            refresh = self.get_token(user)
-            
-            # Add student data to the token payload
-            refresh['student_id'] = student.student_id
-            refresh['email'] = student.email
-            
-            # Get student data and convert to camelCase
-            student_data = StudentProfileSerializer(student).data
-            
-            # Convert snake_case keys to camelCase for consistency with frontend
-            camel_case_student = {}
-            for key, value in student_data.items():
-                # Convert snake_case to camelCase
-                if '_' in key:
-                    parts = key.split('_')
-                    camel_key = parts[0] + ''.join(word.capitalize() for word in parts[1:])
-                    camel_case_student[camel_key] = value
-                else:
-                    camel_case_student[key] = value
-            
-            return {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-                'student': camel_case_student
-            }
-            
+            student = StudentProfile.objects.get(email__iexact=username)
         except StudentProfile.DoesNotExist:
+            # Try by student_id
+            try:
+                student = StudentProfile.objects.get(student_id=username)
+            except StudentProfile.DoesNotExist:
+                # Try by full_name (case-insensitive)
+                try:
+                    student = StudentProfile.objects.get(full_name__iexact=username)
+                except StudentProfile.DoesNotExist:
+                    pass
+        
+        if not student:
             raise serializers.ValidationError('Invalid credentials.')
+            
+        # Check if student is active
+        if not student.is_active:
+            raise serializers.ValidationError('Student account is deactivated.')
+        
+        # Verify password
+        if not student.check_password(password):
+            raise serializers.ValidationError('Invalid credentials.')
+        
+        # Update last login
+        from django.utils import timezone
+        student.last_login = timezone.now()
+        student.save(update_fields=['last_login'])
+        
+        # Create a dummy user object for JWT token generation
+        # We'll use the student_id as the user identifier in the token
+        class StudentUser:
+            def __init__(self, student_profile):
+                self.id = student_profile.student_id  # Use student_id as the ID for the token
+                self.pk = student_profile.student_id  
+                self.student_profile = student_profile
+                self.username = student_profile.student_id  
+                self._is_authenticated = True
+                self._is_active = student_profile.is_active
+                self._is_anonymous = False
+            
+            @property
+            def is_authenticated(self):
+                return self._is_authenticated
+            
+            @property
+            def is_active(self):
+                return self._is_active
+            
+            @property
+            def is_anonymous(self):
+                return self._is_anonymous
+            
+            def __str__(self):
+                return f"Student-{self.student_profile.student_id}"
+        
+        user = StudentUser(student)
+        
+        # Generate tokens with student_id as the user_id
+        refresh = self.get_token(user)
+        
+        # Add student data to the token payload
+        refresh['student_id'] = student.student_id
+        refresh['email'] = student.email
+        
+        # Get student data and convert to camelCase
+        student_data = StudentProfileSerializer(student).data
+        
+        # Convert snake_case keys to camelCase for consistency with frontend
+        camel_case_student = {}
+        for key, value in student_data.items():
+            # Convert snake_case to camelCase
+            if '_' in key:
+                parts = key.split('_')
+                camel_key = parts[0] + ''.join(word.capitalize() for word in parts[1:])
+                camel_case_student[camel_key] = value
+            else:
+                camel_case_student[key] = value
+        
+        return {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'student': camel_case_student
+        }
     
     @classmethod
     def get_token(cls, user):
