@@ -203,6 +203,39 @@ SESSION_COOKIE_AGE = int(os.environ.get('SESSION_COOKIE_AGE', '86400'))  # 24 ho
 # URL Configuration
 APPEND_SLASH = os.environ.get('APPEND_SLASH', 'False') == 'True'  # Disable automatic trailing slash redirect for API consistency
 
+# AI Chatbot Configuration
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+
+# Multiple Gemini API Keys for rotation (to avoid rate limits)
+# You can add up to 10 API keys for automatic rotation
+GEMINI_API_KEYS = [
+    key.strip() for key in [
+        os.environ.get('GEMINI_API_KEY_1', 'AIzaSyCiRo7SBPCG7sXcoO3SwKJ83wwS0HjMTms'),
+        os.environ.get('GEMINI_API_KEY_2', 'AIzaSyBE1loGo70z8u5nFpuTTc_9R55sjxjCNhY'),
+        os.environ.get('GEMINI_API_KEY_3', 'AIzaSyABTJVXvysbnjRVhPsVjLZzNktngqtzIgM'),
+        os.environ.get('GEMINI_API_KEY_4', 'AIzaSyAgInt3v8pAqM_12bLWo90-32M56YvDSHY'),
+        os.environ.get('GEMINI_API_KEY_5', 'AIzaSyCocQbZChhFrebz66Go1MQ5Y94imDxtT8g'),
+        os.environ.get('GEMINI_API_KEY_6', 'AIzaSyAVf05frX2D1aXLmNqCindJHeO0hB_DT60'),
+        os.environ.get('GEMINI_API_KEY_7', 'AIzaSyCl1_xxF-BPg7_Tnf7Sw9IDr0tO3TdL6DE'),
+        os.environ.get('GEMINI_API_KEY_8', 'AIzaSyCF7VOs8OE7ADuuIvjw5Aao8L9oDN85u5Q'),
+        os.environ.get('GEMINI_API_KEY_9', 'AIzaSyBp9jYYfQdUASd5nckwT9Xv6oD0_lkNikc'),
+        os.environ.get('GEMINI_API_KEY_10', 'AIzaSyCqhAVgqJqqfpNKpgSJGBF2vTIKPK_77Ok'),
+    ] if key.strip()
+]
+
+# Fallback to single key if no multiple keys are provided
+if not GEMINI_API_KEYS and GEMINI_API_KEY:
+    GEMINI_API_KEYS = [GEMINI_API_KEY]
+
+# LangChain configuration
+LANGCHAIN_TRACING_V2 = os.environ.get('LANGCHAIN_TRACING_V2', 'false')
+LANGCHAIN_API_KEY = os.environ.get('LANGCHAIN_API_KEY', '')
+
+# Chatbot configuration
+CHATBOT_MAX_SESSIONS = int(os.environ.get('CHATBOT_MAX_SESSIONS', '10'))
+CHATBOT_MAX_MESSAGES = int(os.environ.get('CHATBOT_MAX_MESSAGES', '1000'))
+CHATBOT_SESSION_TIMEOUT = int(os.environ.get('CHATBOT_SESSION_TIMEOUT', '86400'))  # 24 hours
+
 # Logging configuration
 LOGGING = {
     'version': 1,

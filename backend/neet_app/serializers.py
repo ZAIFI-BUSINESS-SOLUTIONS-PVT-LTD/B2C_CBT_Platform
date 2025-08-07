@@ -1,6 +1,6 @@
 # your_app_name/serializers.py
 from rest_framework import serializers
-from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment
+from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage
 from django.db.models import F
 from django.utils import timezone
 
@@ -343,3 +343,92 @@ class ReviewCommentSerializer(serializers.ModelSerializer):
     
     def get_question_text(self, obj):
         return obj.question.question[:100] + "..." if len(obj.question.question) > 100 else obj.question.question
+
+
+class ChatSessionSerializer(serializers.ModelSerializer):
+    """Serializer for ChatSession model"""
+    student_name = serializers.SerializerMethodField()
+    message_count = serializers.SerializerMethodField()
+    last_message = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ChatSession
+        fields = [
+            'id', 'student_id', 'student_name', 'chat_session_id', 'session_title',
+            'is_active', 'created_at', 'updated_at', 'message_count', 'last_message'
+        ]
+        read_only_fields = ['id', 'chat_session_id', 'created_at', 'updated_at']
+    
+    def get_student_name(self, obj):
+        """Get student name from StudentProfile"""
+        student_profile = obj.get_student_profile()
+        return student_profile.full_name if student_profile else "Unknown Student"
+    
+    def get_message_count(self, obj):
+        """Get total number of messages in this session"""
+        return obj.messages.count()
+    
+    def get_last_message(self, obj):
+        """Get the last message content (truncated)"""
+        last_message = obj.messages.last()
+        if last_message:
+            content = last_message.message_content
+            return content[:100] + "..." if len(content) > 100 else content
+        return None
+
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    """Serializer for ChatMessage model"""
+    time_since = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ChatMessage
+        fields = [
+            'id', 'chat_session', 'message_type', 'message_content',
+            'sql_query', 'processing_time', 'created_at', 'time_since'
+        ]
+        read_only_fields = ['id', 'created_at', 'processing_time', 'sql_query']
+    
+    def get_time_since(self, obj):
+        """Get human-readable time since message was created"""
+        from django.utils.timesince import timesince
+        return timesince(obj.created_at)
+
+
+class ChatMessageCreateSerializer(serializers.Serializer):
+    """Serializer for creating chat messages"""
+    session_id = serializers.CharField(max_length=100)
+    message = serializers.CharField(max_length=2000, min_length=1)
+    
+    def validate_session_id(self, value):
+        """Validate that chat session exists and belongs to user"""
+        request = self.context.get('request')
+        
+        try:
+            chat_session = ChatSession.objects.get(chat_session_id=value, is_active=True)
+            
+            # Validate that session belongs to authenticated user
+            if request and hasattr(request.user, 'student_id'):
+                if chat_session.student_id != request.user.student_id:
+                    raise serializers.ValidationError("You can only send messages to your own chat sessions.")
+            
+            return value
+        except ChatSession.DoesNotExist:
+            raise serializers.ValidationError("Chat session not found or inactive.")
+    
+    def validate_message(self, value):
+        """Basic message validation"""
+        if not value.strip():
+            raise serializers.ValidationError("Message cannot be empty.")
+        return value.strip()
+
+
+class ChatSessionCreateSerializer(serializers.Serializer):
+    """Serializer for creating new chat sessions"""
+    session_title = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    
+    def validate_session_title(self, value):
+        """Clean and validate session title"""
+        if value:
+            return value.strip()
+        return None

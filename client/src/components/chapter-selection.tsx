@@ -422,7 +422,7 @@ const getChaptersBySubject = (subject: string): string[] => { // <-- Explicitly 
                     variant="outline"
                     size="sm"
                     onClick={() => navigate("/dashboard")}
-                    className="flex items-center gap-2 text-white border-white hover:bg-white hover:text-blue-600"
+                    className="flex items-center gap-2 text-white border-white bg-blue-600"
                   >
                     <BarChart3 className="h-4 w-4" />
                     Dashboard

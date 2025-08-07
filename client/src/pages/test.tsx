@@ -12,9 +12,7 @@
  */
 
 import { useParams } from "wouter";
-import { useQuery } from "@tanstack/react-query";
 import { TestInterface } from "@/components/test-interface";
-import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * Test page component that loads and displays the test interface
@@ -24,36 +22,16 @@ export default function Test() {
   // Extract session ID from URL parameters
   const { sessionId } = useParams<{ sessionId: string }>();
   
-  // Fetch test session data from the server
-  const { data: session, isLoading, error } = useQuery({
-    queryKey: [`/api/test-sessions/${sessionId}/`],
-    enabled: !!sessionId && !isNaN(Number(sessionId)),
-  });
-
-  // Loading state with skeleton placeholders
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="space-y-4">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-32 w-96" />
-          <Skeleton className="h-8 w-48" />
-        </div>
-      </div>
-    );
-  }
-
-  // Error state when there's an API error
-  if (error) {
-    console.error('Test session fetch error:', error);
+  // Validate sessionId - if invalid, show error
+  if (!sessionId || isNaN(Number(sessionId))) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-slate-900 mb-4">
-            Error Loading Test
+            Invalid Test Session
           </h2>
           <p className="text-slate-600 mb-4">
-            There was an error loading your test session. Please try again.
+            The test session ID is invalid or missing.
           </p>
           <button
             onClick={() => window.location.href = '/topics'}
@@ -66,26 +44,10 @@ export default function Test() {
     );
   }
 
-  // Error state when test session is not found or sessionId is invalid
-  if (!session || !sessionId || isNaN(Number(sessionId))) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-slate-900 mb-4">
-            Test Session Not Found
-          </h2>
-          <p className="text-slate-600">
-            The test session you're looking for doesn't exist or has expired.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Main test interface
+  // Main test interface - let TestInterface handle all data fetching
   return (
     <div className="min-h-screen bg-slate-50">
-      <TestInterface sessionId={parseInt(sessionId!)} />
+      <TestInterface sessionId={parseInt(sessionId)} />
     </div>
   );
 }

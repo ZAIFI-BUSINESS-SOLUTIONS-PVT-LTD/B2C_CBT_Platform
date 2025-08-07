@@ -6,6 +6,8 @@ from .test_answer_views import TestAnswerViewSet
 from .student_profile_views import StudentProfileViewSet
 from .review_comment_views import ReviewCommentViewSet
 from .dashboard_views import dashboard_analytics, dashboard_comprehensive_analytics
+from .time_tracking_views import TimeTrackingViewSet
+from .chatbot_views import ChatSessionViewSet, chat_statistics
 from .utils import sync_neo4j_to_postgresql, reset_chapter_structure, sync_questions_from_neo4j, sync_questions_from_neo4j
 
 # Make all views available for import
@@ -16,8 +18,11 @@ __all__ = [
     'TestAnswerViewSet',
     'StudentProfileViewSet',
     'ReviewCommentViewSet',
+    'TimeTrackingViewSet',
+    'ChatSessionViewSet',
     'dashboard_analytics',
     'dashboard_comprehensive_analytics',
+    'chat_statistics',
     'initialize_chapter_structure',
     'sync_neo4j_to_postgresql',
     'reset_chapter_structure',

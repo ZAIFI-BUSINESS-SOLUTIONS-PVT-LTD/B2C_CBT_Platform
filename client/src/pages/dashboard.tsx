@@ -1,5 +1,7 @@
 /**
- * NEET Practice Platform - Student Dashboard
+ * NEET Practiimport { 
+  BookOpen, Target, Award, Brain, BarChart3, Home, MessageCircle
+} from "lucide-react";Platform - Student Dashboard
  * 
  * A clean, simple dashboard that shows essential performance metrics
  * and analytics for student progress tracking. Focuses on clarity and
@@ -17,7 +19,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { 
-  BookOpen, Target, Award, Brain, BarChart3, Home
+  BookOpen, Target, Award, Brain, BarChart3, Home, MessageCircle
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useEffect } from 'react';
@@ -128,6 +130,14 @@ export default function Dashboard() {
           >
             <Home className="h-4 w-4 mr-2" />
             Back to Home
+          </Button>
+          <Button
+            onClick={() => navigate('/chatbot')}
+            variant="outline"
+            className="mr-4"
+          >
+            <MessageCircle className="h-4 w-4 mr-2" />
+            AI Tutor
           </Button>
         </div>
 

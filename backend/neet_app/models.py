@@ -139,6 +139,103 @@ class TestSession(models.Model):
             elif topic_name in classification.get('Zoology', []):
                 self.zoology_topics.append(topic_name)
 
+    def calculate_and_update_subject_scores(self):
+        """
+        Calculate and update subject-wise scores based on test answers.
+        Scoring: Correct = +4, Wrong = -1, Unanswered = 0
+        Uses TestAnswer -> Question -> Topic -> Subject path
+        """
+        from django.db.models import Q
+        
+        # Initialize subject scores
+        subject_scores = {
+            'Physics': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0},
+            'Chemistry': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0},
+            'Botany': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0},
+            'Zoology': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0}
+        }
+        
+        # Get all test answers for this session with related data
+        test_answers = TestAnswer.objects.filter(session=self).select_related(
+            'question__topic'
+        )
+        
+        # Group answers by subject
+        for answer in test_answers:
+            subject = answer.question.topic.subject
+            
+            # Normalize subject names to match our scoring dict
+            if subject.lower() in ['physics']:
+                subject_key = 'Physics'
+            elif subject.lower() in ['chemistry']:
+                subject_key = 'Chemistry'
+            elif subject.lower() in ['botany', 'biology', 'plant biology']:
+                subject_key = 'Botany'
+            elif subject.lower() in ['zoology', 'animal biology']:
+                subject_key = 'Zoology'
+            else:
+                # Handle edge cases - try to map based on common patterns
+                if 'physics' in subject.lower():
+                    subject_key = 'Physics'
+                elif 'chemistry' in subject.lower() or 'chemical' in subject.lower():
+                    subject_key = 'Chemistry'
+                elif 'plant' in subject.lower() or 'botany' in subject.lower():
+                    subject_key = 'Botany'
+                elif 'animal' in subject.lower() or 'zoology' in subject.lower():
+                    subject_key = 'Zoology'
+                else:
+                    continue  # Skip if subject cannot be classified
+            
+            # Count the answer type
+            subject_scores[subject_key]['total_questions'] += 1
+            
+            if answer.is_correct is True:
+                subject_scores[subject_key]['correct'] += 1
+            elif answer.is_correct is False:
+                subject_scores[subject_key]['wrong'] += 1
+            else:  # is_correct is None (unanswered)
+                subject_scores[subject_key]['unanswered'] += 1
+        
+        # Calculate scores for each subject
+        # Score = (Correct * 4) + (Wrong * -1) + (Unanswered * 0)
+        # Percentage = (Score / Max_Possible_Score) * 100
+        
+        for subject, stats in subject_scores.items():
+            if stats['total_questions'] > 0:
+                # Calculate raw score
+                raw_score = (stats['correct'] * 4) + (stats['wrong'] * -1)
+                
+                # Calculate maximum possible score (all correct)
+                max_possible_score = stats['total_questions'] * 4
+                
+                # Calculate percentage (ensuring it doesn't go below 0)
+                percentage = max(0, (raw_score / max_possible_score) * 100) if max_possible_score > 0 else 0
+                
+                # Update the respective field
+                if subject == 'Physics':
+                    self.physics_score = round(percentage, 2)
+                elif subject == 'Chemistry':
+                    self.chemistry_score = round(percentage, 2)
+                elif subject == 'Botany':
+                    self.botany_score = round(percentage, 2)
+                elif subject == 'Zoology':
+                    self.zoology_score = round(percentage, 2)
+            else:
+                # No questions for this subject
+                if subject == 'Physics':
+                    self.physics_score = None
+                elif subject == 'Chemistry':
+                    self.chemistry_score = None
+                elif subject == 'Botany':
+                    self.botany_score = None
+                elif subject == 'Zoology':
+                    self.zoology_score = None
+        
+        # Save the updated scores
+        self.save(update_fields=['physics_score', 'chemistry_score', 'botany_score', 'zoology_score'])
+        
+        return subject_scores  # Return for debugging/logging purposes
+
 class TestAnswer(models.Model):
     """
     Replicates the 'test_answers' table from the Drizzle ORM schema.
@@ -319,3 +416,73 @@ class StudentProfile(models.Model):
         if not self.student_id:
             self.generate_credentials()
         super().save(*args, **kwargs)
+
+
+class ChatSession(models.Model):
+    """
+    Manages chatbot conversation sessions for students.
+    Each session represents a conversation thread between a student and the AI tutor.
+    """
+    id = models.AutoField(primary_key=True)
+    # Link to StudentProfile using student_id for consistency with TestSession
+    student_id = models.CharField(max_length=20, null=False, db_index=True)  # STU + YY + DDMM + ABC123
+    # Unique session identifier for chatbot conversations
+    chat_session_id = models.CharField(max_length=100, unique=True, db_index=True)  # Different from TestSession.id
+    # Session metadata
+    session_title = models.TextField(null=True, blank=True)  # Optional title for the chat session
+    is_active = models.BooleanField(default=True, null=False)
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, null=False)
+    updated_at = models.DateTimeField(auto_now=True, null=False)
+    
+    class Meta:
+        db_table = 'chat_sessions'
+        verbose_name = 'Chat Session'
+        verbose_name_plural = 'Chat Sessions'
+        indexes = [
+            models.Index(fields=['student_id', 'created_at']),
+            models.Index(fields=['is_active', 'updated_at']),
+        ]
+    
+    def __str__(self):
+        return f"Chat Session {self.chat_session_id} - {self.student_id}"
+    
+    def get_student_profile(self):
+        """Get the associated StudentProfile"""
+        try:
+            return StudentProfile.objects.get(student_id=self.student_id)
+        except StudentProfile.DoesNotExist:
+            return None
+
+
+class ChatMessage(models.Model):
+    """
+    Stores individual chat messages and bot responses within a chat session.
+    Maintains conversation history for context and analysis.
+    """
+    id = models.AutoField(primary_key=True)
+    # Foreign key to ChatSession
+    chat_session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name='messages', db_column='chat_session_id')
+    # Message type: user question or bot response
+    message_type = models.CharField(max_length=10, choices=[('user', 'User'), ('bot', 'Bot')], null=False)
+    # Message content
+    message_content = models.TextField(null=False)
+    # Optional: Store the generated SQL query for debugging and transparency
+    sql_query = models.TextField(null=True, blank=True)
+    # Optional: Store query execution time for performance monitoring
+    processing_time = models.FloatField(null=True, blank=True)  # Time in seconds
+    # Timestamp
+    created_at = models.DateTimeField(auto_now_add=True, null=False)
+    
+    class Meta:
+        db_table = 'chat_messages'
+        verbose_name = 'Chat Message'
+        verbose_name_plural = 'Chat Messages'
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['chat_session', 'created_at']),
+            models.Index(fields=['message_type', 'created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.message_type}: {self.message_content[:50]}..."

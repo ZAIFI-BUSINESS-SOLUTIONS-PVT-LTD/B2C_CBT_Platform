@@ -29,6 +29,17 @@ export const API_CONFIG = {
     // Add other custom endpoints here if you have them, e.g.:
     DASHBOARD_ANALYTICS: '/api/dashboard/analytics/',
     DASHBOARD_COMPREHENSIVE_ANALYTICS: '/api/dashboard/comprehensive-analytics/',
+    
+    // Time tracking endpoint
+    TEST_SESSION_LOG_TIME: '/api/time-tracking/log_time/',
+    
+    // Chatbot endpoints
+    CHAT_SESSIONS: '/api/chat-sessions/',
+    CHAT_SESSION_DETAIL: (sessionId: string) => `/api/chat-sessions/${sessionId}/`,
+    CHAT_SESSION_MESSAGES: (sessionId: string) => `/api/chat-sessions/${sessionId}/messages/`,
+    CHAT_SESSION_SEND_MESSAGE: (sessionId: string) => `/api/chat-sessions/${sessionId}/send-message/`,
+    CHAT_QUICK: '/api/chatbot/quick-chat/',
+    CHAT_STATISTICS: '/api/chatbot/statistics/',
   },
 };
 

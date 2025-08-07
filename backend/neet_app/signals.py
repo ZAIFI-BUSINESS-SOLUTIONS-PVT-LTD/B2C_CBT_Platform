@@ -6,6 +6,29 @@ from django.dispatch import receiver
 from .models import StudentProfile, TestSession
 
 
+@receiver(post_save, sender=TestSession)
+def update_subject_scores_on_completion(sender, instance, created, **kwargs):
+    """
+    Automatically update subject scores when a test session is marked as completed
+    """
+    # Only process if the session is completed and has answers
+    if instance.is_completed:
+        try:
+            # Check if there are any test answers for this session
+            from .models import TestAnswer
+            answer_count = TestAnswer.objects.filter(session=instance).count()
+            
+            if answer_count > 0:
+                print(f"🔄 Auto-updating subject scores for completed session {instance.id}")
+                instance.calculate_and_update_subject_scores()
+                print(f"✅ Subject scores updated for session {instance.id}")
+            else:
+                print(f"⚠️ No answers found for session {instance.id}, skipping score calculation")
+                
+        except Exception as e:
+            print(f"❌ Failed to auto-update subject scores for session {instance.id}: {e}")
+
+
 @receiver(pre_save, sender=StudentProfile)
 def generate_student_credentials(sender, instance, **kwargs):
     """
