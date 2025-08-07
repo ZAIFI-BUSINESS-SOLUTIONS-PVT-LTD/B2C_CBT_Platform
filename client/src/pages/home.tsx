@@ -19,7 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { LoginForm } from "@/components/LoginForm";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { StudentProfile } from "@/components/student-profile";
 import { 
   BarChart3, 
@@ -36,7 +36,8 @@ import {
   Calendar as CalendarIcon,
   Zap,
   Home as HomeIcon,
-  AlertCircle
+  AlertCircle,
+  MessageCircle
 } from "lucide-react";
 import { 
   BarChart, 
@@ -94,6 +95,7 @@ interface AnalyticsData {
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const { isAuthenticated } = useAuth();
+  const [, navigate] = useLocation();
 
   // Debug: Log authentication state
   console.log("Home component - isAuthenticated:", isAuthenticated);
@@ -140,6 +142,14 @@ export default function Home() {
                   Take Test
                 </Button>
               </Link>
+              <Button 
+                variant="outline" 
+                className="shadow-sm"
+                onClick={() => navigate('/chatbot')}
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                AI Tutor
+              </Button>
               <StudentProfile />
             </div>
           </div>

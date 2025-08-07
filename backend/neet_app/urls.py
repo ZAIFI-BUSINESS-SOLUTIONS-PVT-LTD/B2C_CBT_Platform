@@ -5,7 +5,8 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView, TokenBlacklistView
 from .views import (
     TopicViewSet, QuestionViewSet, TestSessionViewSet, TestAnswerViewSet,
-    StudentProfileViewSet, ReviewCommentViewSet,
+    StudentProfileViewSet, ReviewCommentViewSet, TimeTrackingViewSet,
+    ChatSessionViewSet, chat_statistics,
     dashboard_analytics, dashboard_comprehensive_analytics, 
     sync_neo4j_to_postgresql, reset_chapter_structure, sync_questions_from_neo4j
 )
@@ -26,6 +27,8 @@ router.register(r'test-answers', TestAnswerViewSet, basename='test-answer')
 router.register(r'student-profile', StudentProfileViewSet, basename='student-profile')
 router.register(r'students', StudentProfileViewSet, basename='students')  # For /students/me/ endpoint
 router.register(r'review-comments', ReviewCommentViewSet, basename='review-comment')
+router.register(r'time-tracking', TimeTrackingViewSet, basename='time-tracking')
+router.register(r'chat-sessions', ChatSessionViewSet, basename='chat-session')
 
 
 urlpatterns = [
@@ -36,6 +39,9 @@ urlpatterns = [
     path('auth/login/', StudentTokenObtainPairView.as_view(), name='student-token-obtain-pair'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('auth/logout/', TokenBlacklistView.as_view(), name='token-blacklist'),
+    
+    # Chatbot endpoints (additional to router)
+    path('chatbot/statistics/', chat_statistics, name='chat-statistics'),
     
     # Dashboard endpoints
     path('dashboard/analytics/', dashboard_analytics, name='dashboard-analytics'),

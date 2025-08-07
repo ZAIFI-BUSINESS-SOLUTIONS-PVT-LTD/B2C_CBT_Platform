@@ -9,13 +9,15 @@
 import { ChapterSelection } from "@/components/chapter-selection";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, BookOpen, Home, TrendingUp } from "lucide-react";
-import { Link } from "wouter";
+import { BarChart3, BookOpen, Home, TrendingUp, MessageCircle } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { StudentProfile } from "@/components/student-profile";
 import { AnalyticsData } from '../types/api';
 
 export default function Topics() {
+  const [, navigate] = useLocation();
+  
   // Check if user has previous test data for personalized greeting
   // We're telling useQuery that the raw data is AnalyticsData, but the 'select' function
   // will transform it into a boolean. So, the 'data' variable (aliased to 'hasData')
@@ -64,6 +66,15 @@ export default function Topics() {
                   Test History
                 </Button>
               </Link>
+              
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-2"
+                onClick={() => navigate('/chatbot')}
+              >
+                <MessageCircle className="h-4 w-4" />
+                AI Tutor
+              </Button>
               
               <StudentProfile />
             </div>

@@ -1,4 +1,4 @@
-import { GraduationCap, User, LogOut } from "lucide-react";
+import { GraduationCap, User, LogOut, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
@@ -48,6 +48,14 @@ export function Header() {
                 <span className="text-sm text-neet-gray-600 font-medium">
                   Welcome, {student.fullName || student.email}
                 </span>
+                <Button 
+                  variant="outline" 
+                  className="shadow-sm"
+                  onClick={() => navigate('/chatbot')}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  AI Tutor
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button className="btn-primary shadow-sm">

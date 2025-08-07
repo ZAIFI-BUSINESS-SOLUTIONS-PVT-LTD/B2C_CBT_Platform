@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Topic, Question, TestSession, TestAnswer
+from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage
 
 @admin.register(Topic)
 class TopicAdmin(admin.ModelAdmin):
@@ -7,6 +7,26 @@ class TopicAdmin(admin.ModelAdmin):
     list_filter = ['subject']
     search_fields = ['name', 'subject']
     ordering = ['subject', 'name']
+@admin.register(StudentProfile)
+class StudentProfileAdmin(admin.ModelAdmin):
+    list_display = ['student_id', 'full_name', 'email', 'is_active']
+    list_filter = ['is_active']
+    search_fields = ['student_id', 'full_name', 'email']
+    ordering = ['student_id']
+
+@admin.register(ChatSession)
+class ChatSessionAdmin(admin.ModelAdmin):
+    list_display = ['student_id','chat_session_id','session_title','is_active']
+    list_filter = ['student_id']
+    search_fields = ['session_id', 'student__full_name']
+
+
+@admin.register(ChatMessage)
+class ChatMessageAdmin(admin.ModelAdmin):
+    list_display = ['chat_session', 'message_type', 'created_at', 'processing_time']
+    list_filter = ['message_type']
+    search_fields = ['chat_session__session_id', 'message_content']
+    ordering = ['-created_at']
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):

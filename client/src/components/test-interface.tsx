@@ -106,6 +106,14 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now()); // When current question started
   const [questionTimes, setQuestionTimes] = useState<Record<number, number>>({});  // Time spent on each question
 
+  // === ENHANCED TIME TRACKING (Visit-based) ===
+  const [currentVisitStartTime, setCurrentVisitStartTime] = useState<number>(0); // When current visit started
+  const [questionVisits, setQuestionVisits] = useState<Record<number, Array<{
+    startTime: number;
+    endTime?: number;
+    duration?: number;
+  }>>>({});  // Track all visits to each question
+
   // === DATA FETCHING ===
   // Fetch test session data and questions from the database
   const { data: testData, isLoading } = useQuery<TestSessionData>({
@@ -144,6 +152,25 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       const response = await apiRequest(API_CONFIG.ENDPOINTS.TEST_ANSWERS, "POST", data);
       return response;
     },
+  });
+
+  // === ENHANCED TIME LOGGING MUTATION ===
+  // New separate mutation for detailed visit-based time tracking
+  const logTimeMutation = useMutation({
+    mutationFn: async (data: {
+      sessionId: number;
+      questionId: number;
+      timeSpent: number;
+      visitStartTime: string;
+      visitEndTime: string;
+    }) => {
+      const response = await apiRequest(API_CONFIG.ENDPOINTS.TEST_SESSION_LOG_TIME, 'POST', data);
+      return response;
+    },
+    onError: (error) => {
+      console.error('Failed to log time:', error);
+      // Don't show user error for time logging failures to avoid disruption
+    }
   });
 
   const submitTestMutation = useMutation({
@@ -235,6 +262,60 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const totalQuestions = testData?.questions.length || 0;
   const progressPercentage = totalQuestions > 0 ? ((currentQuestionIndex + 1) / totalQuestions) * 100 : 0;
 
+  // === ENHANCED TIME TRACKING HELPER FUNCTIONS ===
+  /**
+   * Log time spent on current question visit using the new enhanced system
+   */
+  const logCurrentQuestionTime = (questionId: number, endTime: number = Date.now()) => {
+    // Don't log if visit hasn't started or if we don't have a valid session
+    if (currentVisitStartTime === 0 || !sessionId) {
+      console.log(`⏱️ Enhanced: Skipping log - visit not started or no session (visitStart: ${currentVisitStartTime}, sessionId: ${sessionId})`);
+      return;
+    }
+    
+    const duration = Math.round((endTime - currentVisitStartTime) / 1000);
+    
+    // Only log if user spent at least 1 second on question
+    if (duration >= 1) {
+      const payload = {
+        sessionId: parseInt(sessionId.toString()),
+        questionId,
+        timeSpent: duration,
+        visitStartTime: new Date(currentVisitStartTime).toISOString(),
+        visitEndTime: new Date(endTime).toISOString()
+      };
+      
+      console.log(`⏱️ Enhanced: Sending time log payload:`, payload);
+      
+      logTimeMutation.mutate(payload);
+
+      // Update local visit tracking for analytics
+      setQuestionVisits(prev => ({
+        ...prev,
+        [questionId]: [
+          ...(prev[questionId] || []),
+          {
+            startTime: currentVisitStartTime,
+            endTime,
+            duration
+          }
+        ]
+      }));
+      
+      console.log(`⏱️ Enhanced: Logged ${duration} seconds for question ${questionId}`);
+    }
+  };
+
+  /**
+   * Start tracking time for a new question visit
+   */
+  const startQuestionTimer = (questionId: number) => {
+    const now = Date.now();
+    setCurrentVisitStartTime(now);
+    
+    console.log(`⏱️ Enhanced: Started timer for question ${questionId} at ${new Date(now).toISOString()}`);
+  };
+
   // No need to pre-create answers - they will be created when user interacts
 
   const handleAnswerChange = (questionId: number, answer: string) => {
@@ -294,8 +375,11 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
   const handleNextQuestion = () => {
     if (currentQuestionIndex < totalQuestions - 1 && !showTimeOverDialog) { // Prevent navigation when time is over
-      // Track time spent on current question
+      // Enhanced time tracking: log current question visit
       if (currentQuestion) {
+        logCurrentQuestionTime(currentQuestion.id);
+        
+        // Original time tracking - keep for compatibility
         const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
         setQuestionTimes(prev => ({
           ...prev,
@@ -303,15 +387,25 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         }));
       }
       
-      setCurrentQuestionIndex(prev => prev + 1);
+      const nextIndex = currentQuestionIndex + 1;
+      setCurrentQuestionIndex(nextIndex);
       setQuestionStartTime(Date.now()); // Reset timer for next question
+      
+      // Enhanced time tracking: start timer for new question
+      const nextQuestion = testData?.questions[nextIndex];
+      if (nextQuestion) {
+        startQuestionTimer(nextQuestion.id);
+      }
     }
   };
 
   const handlePreviousQuestion = () => {
     if (currentQuestionIndex > 0 && !showTimeOverDialog) { // Prevent navigation when time is over
-      // Track time spent on current question
+      // Enhanced time tracking: log current question visit
       if (currentQuestion) {
+        logCurrentQuestionTime(currentQuestion.id);
+        
+        // Original time tracking - keep for compatibility
         const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
         setQuestionTimes(prev => ({
           ...prev,
@@ -319,14 +413,40 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         }));
       }
       
-      setCurrentQuestionIndex(prev => prev - 1);
+      const prevIndex = currentQuestionIndex - 1;
+      setCurrentQuestionIndex(prevIndex);
       setQuestionStartTime(Date.now()); // Reset timer for previous question
+      
+      // Enhanced time tracking: start timer for new question
+      const prevQuestion = testData?.questions[prevIndex];
+      if (prevQuestion) {
+        startQuestionTimer(prevQuestion.id);
+      }
     }
   };
 
   const navigateToQuestion = (index: number) => {
     if (!showTimeOverDialog) { // Prevent navigation when time is over
+      // Enhanced time tracking: log current question visit before navigation
+      if (currentQuestion && index !== currentQuestionIndex) {
+        logCurrentQuestionTime(currentQuestion.id);
+        
+        // Original time tracking - keep for compatibility
+        const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
+        setQuestionTimes(prev => ({
+          ...prev,
+          [currentQuestion.id]: (prev[currentQuestion.id] || 0) + timeSpent
+        }));
+      }
+      
       setCurrentQuestionIndex(index);
+      setQuestionStartTime(Date.now()); // Reset timer for target question
+      
+      // Enhanced time tracking: start timer for new question
+      const targetQuestion = testData?.questions[index];
+      if (targetQuestion) {
+        startQuestionTimer(targetQuestion.id);
+      }
     }
   };
 
@@ -335,11 +455,21 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   };
 
   const confirmSubmit = () => {
+    // Enhanced time tracking: Log final question time before submission
+    if (currentQuestion) {
+      logCurrentQuestionTime(currentQuestion.id);
+    }
+    
     submitTestMutation.mutate();
     setShowSubmitDialog(false);
   };
 
   const handleTimeUp = () => {
+    // Enhanced time tracking: Log final question time when time runs out
+    if (currentQuestion) {
+      logCurrentQuestionTime(currentQuestion.id);
+    }
+    
     // Show time over dialog to inform the user
     setShowTimeOverDialog(true);
     
@@ -398,7 +528,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       window.history.pushState(null, "", window.location.href);
       window.addEventListener("popstate", handlePopState);
       
-      // Prevent tab close/refresh
+      // Prevent browser refresh/close
       window.addEventListener("beforeunload", handleBeforeUnload);
     }
 
@@ -408,34 +538,62 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     };
   }, [isNavigationBlocked]);
 
-  // Disable navigation blocking when component unmounts or test completes
+  // Enhanced time tracking: Start timer when test data loads and current question is available
   useEffect(() => {
-    return () => {
-      setIsNavigationBlocked(false);
-    };
-  }, []);
-
-  // === QUIT EXAM HANDLERS ===
-  const handleQuitExam = () => {
-    setShowQuitDialog(false);
-    quitTestMutation.mutate();
-  };
-
-  const handleContinueExam = () => {
-    setShowQuitDialog(false);
-  };
-
-  const getQuestionStatus = (questionId: number) => {
-    if (answers[questionId]) {
-      return markedForReview.has(questionId) ? "answered-marked" : "answered";
+    if (testData?.questions && currentQuestion && currentVisitStartTime === 0) {
+      startQuestionTimer(currentQuestion.id);
     }
-    return markedForReview.has(questionId) ? "marked" : "not-visited";
+  }, [testData, currentQuestion]); // Run when test data or current question changes
+
+  // === QUIT DIALOG HANDLERS ===
+  const handleQuitConfirm = () => {
+    quitTestMutation.mutate();
+    setShowQuitDialog(false);
   };
 
-  const getStatusColor = (status: string) => {
+  const handleQuitCancel = () => {
+    // Re-push the state to prevent navigation
+    window.history.pushState(null, "", window.location.href);
+    setShowQuitDialog(false);
+  };
+
+  // === UTILITY FUNCTIONS ===
+  // Get status for question number buttons (answered, marked, current, etc.)
+  const getQuestionStatus = (index: number, questionId: number) => {
+    const isAnswered = answers[questionId] !== undefined;
+    const isMarked = markedForReview.has(questionId);
+    const isCurrent = index === currentQuestionIndex;
+
+    if (isCurrent) return "current";
+    if (isAnswered && isMarked) return "answered-marked";
+    if (isAnswered) return "answered";
+    if (isMarked) return "marked";
+    return "default";
+  };
+
+  // Get CSS classes for question buttons based on status
+  const getQuestionButtonClasses = (status: string) => {
     switch (status) {
+      case "current":
+        return "bg-neet-blue text-white ring-2 ring-neet-blue ring-offset-2";
       case "answered":
+        return "bg-green-500 text-white";
+      case "answered-marked":
+        return "bg-purple-500 text-white";
+      case "marked":
+        return "bg-amber-200 text-amber-800";
+      default:
+        return "bg-slate-200 text-slate-700";
+    }
+  };
+
+  // Get CSS classes for question palette buttons
+  const getPaletteButtonClasses = (status: string) => {
+    switch (status) {
+      case "current":
         return "bg-neet-blue text-white";
+      case "answered":
+        return "bg-green-500 text-white";
       case "answered-marked":
         return "bg-purple-500 text-white";
       case "marked":
@@ -476,30 +634,28 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     <div className="min-h-screen bg-neet-gray-50">
       <Card className="dashboard-card shadow-xl overflow-hidden">
         {/* Test Header */}
-        <div className="bg-gradient-to-r from-neet-gray-50 to-neet-gray-100 border-b border-neet-gray-200 px-6 py-5">
+        <div className="bg-white text-black p-6 shadow-sm">
           <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-6">
-              <div className="text-sm text-neet-gray-600 font-medium">
-                Question{" "}
-                <span className="font-bold text-neet-gray-900 text-lg">
-                  {currentQuestionIndex + 1}
-                </span>{" "}
-                of <span className="font-semibold">{totalQuestions}</span>
+            <div className="flex items-center space-x-6 min-w-[350px]">
+              <span className="font-medium text-lg whitespace-nowrap">
+                Question <b>{currentQuestionIndex + 1}</b> of {totalQuestions}
+              </span>     
+              <div className="mt-2">
+                <Progress value={progressPercentage} className="h-2 bg-blue-200 flex-1 min-w-[200px] w-[250px] md:w-[350px]" />
               </div>
-              <Progress value={progressPercentage} className="w-64 h-2" />
             </div>
             <div className="flex items-center space-x-4">
               {testData.session.timeLimit ? (
                 <>
-                  <div className="text-sm text-neet-gray-600 font-medium">Time Remaining:</div>
+                  <span className="text-sm font-medium">Time Remaining:</span>
                   <Timer
                     initialMinutes={testData.session.timeLimit}
                     onTimeUp={handleTimeUp}
-                    className="bg-gradient-to-r from-neet-amber to-amber-500 text-white px-4 py-2 rounded-xl font-mono text-lg font-bold shadow-md"
+                    className="bg-yellow-400 text-black px-4 py-2 rounded-xl font-mono text-lg font-bold shadow"
                   />
                 </>
               ) : (
-                <div className="text-sm text-neet-gray-600 font-medium bg-neet-blue text-white px-4 py-2 rounded-xl font-mono text-lg font-bold shadow-md">
+                <div className="text-sm font-medium bg-gray-200 text-black px-4 py-2 rounded-xl font-mono text-lg font-bold shadow">
                   <Clock className="h-4 w-4 inline mr-1" />
                   No Time Limit
                 </div>
@@ -585,7 +741,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           </h4>
           <div className="grid grid-cols-10 gap-2 mb-6">
             {testData.questions.map((question, index) => {
-              const status = getQuestionStatus(question.id);
+              const status = getQuestionStatus(index, question.id);
               const isCurrentQuestion = index === currentQuestionIndex;
               return (
                 <Button
@@ -597,7 +753,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                     isCurrentQuestion 
                       ? "ring-2 ring-neet-blue ring-offset-2" 
                       : ""
-                  } ${getStatusColor(status)} ${showTimeOverDialog ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  } ${getPaletteButtonClasses(status)} ${showTimeOverDialog ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {index + 1}
                 </Button>
@@ -607,7 +763,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-6 text-xs text-slate-600">
               <div className="flex items-center">
-                <div className="w-4 h-4 bg-neet-blue rounded mr-2"></div>
+                <div className="w-4 h-4 bg-green-500 rounded mr-2"></div>
                 <span>Answered</span>
               </div>
               <div className="flex items-center">
@@ -699,13 +855,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel 
-              onClick={handleContinueExam}
+              onClick={handleQuitCancel}
               className="bg-green-600 hover:bg-green-700 text-white border-none"
             >
               Continue Exam
             </AlertDialogCancel>
             <AlertDialogAction 
-              onClick={handleQuitExam}
+              onClick={handleQuitConfirm}
               className="bg-red-600 hover:bg-red-700 text-white"
               disabled={quitTestMutation.isPending}
             >

@@ -47,7 +47,8 @@ class TestAnswerViewSet(viewsets.ModelViewSet):
             defaults={
                 'selected_answer': validated_data.get('selected_answer'),
                 'marked_for_review': validated_data.get('marked_for_review', False),
-                'time_taken': validated_data.get('time_taken', 0)
+                # NOTE: time_taken is now handled by the separate time-tracking endpoint
+                # We don't update time_taken here to avoid conflicts
             }
         )
 

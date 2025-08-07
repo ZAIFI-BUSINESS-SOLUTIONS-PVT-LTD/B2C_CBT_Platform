@@ -21,7 +21,8 @@ import Results from "@/pages/results";
 import Topics from "@/pages/topics";
 import Dashboard from "@/pages/dashboard";
 import LandingDashboard from "@/pages/landing-dashboard";
-
+import Chatbot from "@/pages/chatbot";
+import { FloatingChatbot } from "@/components/floating-chatbot";
 /**
  * Application Router Component
  * Defines all available routes and their corresponding page components
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/topics" component={Topics} />                  {/* Topics overview page */}
       <Route path="/dashboard" component={Dashboard} />            {/* Student performance dashboard */}
       <Route path="/landing-dashboard" component={LandingDashboard} />  {/* Comprehensive landing dashboard */}
+      <Route path="/chatbot" component={Chatbot} />               {/* AI Chatbot tutor page */}
       <Route path="/test/:sessionId" component={Test} />           {/* Test taking interface */}
       <Route path="/results/:sessionId" component={Results} />     {/* Test results and analytics */}
       <Route component={NotFound} />                               {/* 404 page for undefined routes */}
@@ -49,7 +51,8 @@ function App() {
     <QueryClientProvider client={queryClient}>  {/* React Query for server state management */}
       <AuthProvider>                             {/* Authentication context provider */}
         <TooltipProvider>                        {/* Tooltip context for UI components */}
-          <Toaster />                            {/* Toast notification system */}
+          <Toaster />
+          <FloatingChatbot />                      {/* Floating chatbot component */}
           <Router />                             {/* Application routing */}
         </TooltipProvider>
       </AuthProvider>
