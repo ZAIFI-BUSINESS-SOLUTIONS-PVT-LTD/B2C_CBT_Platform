@@ -133,8 +133,10 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('✅ Test session fetch successful');
-      return response.json();
+      const data = await response.json();
+      console.log('✅ Test session fetch successful, data:', data);
+      console.log('📊 Questions in response:', data?.questions?.length || 'No questions');
+      return data;
     },
     enabled: !!sessionId, // Only fetch if sessionId is available
   });
@@ -258,7 +260,17 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     },
   });
 
+    // Current question derived from fetched data and current index
   const currentQuestion = testData?.questions[currentQuestionIndex];
+  
+  // Debug logging for troubleshooting
+  console.log('🐛 Debug TestInterface:');
+  console.log('  - sessionId:', sessionId);
+  console.log('  - isLoading:', isLoading);
+  console.log('  - testData:', testData);
+  console.log('  - currentQuestionIndex:', currentQuestionIndex);
+  console.log('  - currentQuestion:', currentQuestion);
+  console.log('  - questions count:', testData?.questions?.length || 'undefined');
   const totalQuestions = testData?.questions.length || 0;
   const progressPercentage = totalQuestions > 0 ? ((currentQuestionIndex + 1) / totalQuestions) * 100 : 0;
 
@@ -575,15 +587,15 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const getQuestionButtonClasses = (status: string) => {
     switch (status) {
       case "current":
-        return "bg-neet-blue text-white ring-2 ring-neet-blue ring-offset-2";
+        return "bg-[#4F83FF] text-white ring-2 ring-[#4F83FF] ring-offset-2";
       case "answered":
-        return "bg-green-500 text-white";
+        return "bg-[#10B981] text-white";
       case "answered-marked":
-        return "bg-purple-500 text-white";
+        return "bg-[#8B5CF6] text-white";
       case "marked":
-        return "bg-amber-200 text-amber-800";
+        return "bg-[#FCD34D] text-[#1F2937]";
       default:
-        return "bg-slate-200 text-slate-700";
+        return "bg-[#E2E8F0] text-[#6B7280]";
     }
   };
 
@@ -591,24 +603,24 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const getPaletteButtonClasses = (status: string) => {
     switch (status) {
       case "current":
-        return "bg-neet-blue text-white";
+        return "bg-[#4F83FF] text-white";
       case "answered":
-        return "bg-green-500 text-white";
+        return "bg-[#10B981] text-white";
       case "answered-marked":
-        return "bg-purple-500 text-white";
+        return "bg-[#8B5CF6] text-white";
       case "marked":
-        return "bg-amber-200 text-amber-800";
+        return "bg-[#FCD34D] text-[#1F2937]";
       default:
-        return "bg-slate-200 text-slate-700";
+        return "bg-[#E2E8F0] text-[#6B7280]";
     }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-neet-blue"></div>
-          <p className="mt-4 text-slate-600">Loading test...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 flex items-center justify-center">
+        <div className="text-center bg-white rounded-2xl shadow-lg border border-[#E2E8F0] p-8 max-w-md mx-4">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[#4F83FF] mx-auto"></div>
+          <p className="mt-4 text-[#6B7280] font-medium">Loading test...</p>
         </div>
       </div>
     );
@@ -616,46 +628,50 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
   if (!testData || !currentQuestion) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 flex items-center justify-center">
+        <div className="text-center bg-white rounded-2xl shadow-lg border border-[#E2E8F0] p-8 max-w-md mx-4">
+          <AlertTriangle className="h-16 w-16 text-[#DC2626] mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-[#1F2937] mb-2">
             Test Not Found
           </h2>
-          <p className="text-slate-600">
+          <p className="text-[#6B7280]">
             Unable to load the test. Please try again.
           </p>
+          <button
+            onClick={() => window.location.href = '/topics'}
+            className="mt-6 px-6 py-3 bg-[#4F83FF] text-white rounded-xl hover:bg-[#3B82F6] transition-colors shadow-md font-medium"
+          >
+            Return to Topics
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-neet-gray-50">
-      <Card className="dashboard-card shadow-xl overflow-hidden">
-        {/* Test Header */}
-        <div className="bg-white text-black p-6 shadow-sm">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-6 min-w-[350px]">
-              <span className="font-medium text-lg whitespace-nowrap">
-                Question <b>{currentQuestionIndex + 1}</b> of {totalQuestions}
-              </span>     
-              <div className="mt-2">
-                <Progress value={progressPercentage} className="h-2 bg-blue-200 flex-1 min-w-[200px] w-[250px] md:w-[350px]" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 p-4">
+      {/* Header with Navigation and Profile - matching home page */}
+      <header className="w-full bg-white/95 backdrop-blur-sm border-b border-blue-100 sticky top-0 z-50 shadow-sm mb-6 rounded-2xl">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-[#4F83FF] rounded-lg flex items-center justify-center shadow-md">
+                <Clock className="h-5 w-5 text-white" />
               </div>
+              <h1 className="text-xl font-bold text-[#1F2937] tracking-tight">NEET Practice Test</h1>
             </div>
             <div className="flex items-center space-x-4">
               {testData.session.timeLimit ? (
                 <>
-                  <span className="text-sm font-medium">Time Remaining:</span>
+                  <span className="text-sm font-medium text-[#1F2937]">Time Remaining:</span>
                   <Timer
                     initialMinutes={testData.session.timeLimit}
                     onTimeUp={handleTimeUp}
-                    className="bg-yellow-400 text-black px-4 py-2 rounded-xl font-mono text-lg font-bold shadow"
+                    className="bg-[#FCD34D] text-[#1F2937] px-4 py-2 rounded-xl font-mono text-lg font-bold shadow-md"
                   />
                 </>
               ) : (
-                <div className="text-sm font-medium bg-gray-200 text-black px-4 py-2 rounded-xl font-mono text-lg font-bold shadow">
+                <div className="text-sm font-medium bg-[#F3F4F6] text-[#1F2937] px-4 py-2 rounded-xl font-mono text-lg font-bold shadow-md">
                   <Clock className="h-4 w-4 inline mr-1" />
                   No Time Limit
                 </div>
@@ -663,149 +679,170 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
             </div>
           </div>
         </div>
+      </header>
 
-        {/* Question Content */}
-        <CardContent className="p-8">
-          <div className="mb-6">
-            <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full mb-4">
-              Question {currentQuestionIndex + 1}
-            </span>
-            <h3 className="text-xl font-medium text-slate-900 leading-relaxed">
-              {currentQuestion.question}
-            </h3>
+      <div className="max-w-6xl mx-auto">
+        <Card className="bg-white border border-[#E2E8F0] shadow-lg rounded-2xl overflow-hidden">
+          {/* Test Progress Header */}
+          <div className="bg-white text-[#1F2937] p-6 border-b border-[#E2E8F0]">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center space-x-6 min-w-[350px]">
+                <span className="font-semibold text-lg text-[#1F2937] whitespace-nowrap">
+                  Question <span className="text-[#4F83FF]">{currentQuestionIndex + 1}</span> of {totalQuestions}
+                </span>     
+                <div className="mt-2">
+                  <Progress 
+                    value={progressPercentage} 
+                    className="h-3 bg-[#E8F0FF] flex-1 min-w-[200px] w-[250px] md:w-[350px] rounded-full overflow-hidden"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Answer Options */}
-          <RadioGroup
-            value={answers[currentQuestion.id] || ""}
-            onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
-            disabled={showTimeOverDialog} // Disable when time is over
-          >
-            <div className="space-y-4">
-              {["A", "B", "C", "D"].map((option) => (
-                <Label
-                  key={option}
-                  className="flex items-center p-4 bg-slate-50 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors border-2 border-transparent hover:border-blue-200"
-                >
-                  <RadioGroupItem value={option} className="mr-4" />
-                  <div className="flex items-center">
-                    <span className="bg-slate-200 text-slate-700 w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold mr-3">
-                      {option}
-                    </span>
-                    <span className="text-slate-800">
-                      {currentQuestion[`option${option}` as keyof Question]}
-                    </span>
-                  </div>
-                </Label>
-              ))}
+          {/* Question Content */}
+          <CardContent className="p-8">
+            <div className="mb-8">
+              <span className="inline-block bg-[#E8F0FF] text-[#4F83FF] text-sm px-3 py-1 rounded-full mb-4 font-medium">
+                Question {currentQuestionIndex + 1}
+              </span>
+              <h3 className="text-xl font-semibold text-[#1F2937] leading-relaxed">
+                {currentQuestion.question}
+              </h3>
             </div>
-          </RadioGroup>
 
-          {/* Navigation Buttons */}
-          <div className="flex justify-between mt-8">
-            <Button
-              onClick={handlePreviousQuestion}
-              disabled={currentQuestionIndex === 0 || showTimeOverDialog}
-              variant="outline"
-              className="px-6 py-3"
+            {/* Answer Options */}
+            <RadioGroup
+              value={answers[currentQuestion.id] || ""}
+              onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
+              disabled={showTimeOverDialog} // Disable when time is over
             >
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              Previous
-            </Button>
-            <div className="flex space-x-4">
+              <div className="space-y-4">
+                {["A", "B", "C", "D"].map((option) => (
+                  <Label
+                    key={option}
+                    className="flex items-center p-4 bg-[#F8FAFC] rounded-xl hover:bg-[#E8F0FF] cursor-pointer transition-colors border-2 border-[#E2E8F0] hover:border-[#4F83FF]/30"
+                  >
+                    <RadioGroupItem value={option} className="mr-4" />
+                    <div className="flex items-center">
+                      <span className="bg-[#E2E8F0] text-[#1F2937] w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold mr-4">
+                        {option}
+                      </span>
+                      <span className="text-[#1F2937] font-medium">
+                        {currentQuestion[`option${option}` as keyof Question]}
+                      </span>
+                    </div>
+                  </Label>
+                ))}
+              </div>
+            </RadioGroup>
+
+            {/* Navigation Buttons */}
+            <div className="flex justify-between mt-8">
               <Button
-                onClick={handleMarkForReview}
+                onClick={handlePreviousQuestion}
+                disabled={currentQuestionIndex === 0 || showTimeOverDialog}
                 variant="outline"
-                className="px-6 py-3"
-                disabled={showTimeOverDialog}
+                className="px-6 py-3 border-[#E2E8F0] text-[#6B7280] hover:bg-[#F8FAFC] hover:border-[#4F83FF]/30"
               >
-                <Bookmark className="h-4 w-4 mr-2" />
-                {markedForReview.has(currentQuestion.id) ? "Unmark" : "Mark for Review"}
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Previous
               </Button>
-              <Button
-                onClick={handleNextQuestion}
-                disabled={currentQuestionIndex === totalQuestions - 1 || showTimeOverDialog}
-                className="bg-neet-blue text-white px-6 py-3 hover:bg-blue-700"
-              >
-                Next
-                <ChevronRight className="h-4 w-4 ml-2" />
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-
-        {/* Question Navigation Panel */}
-        <div className="bg-slate-50 border-t border-slate-200 p-6">
-          <h4 className="text-sm font-medium text-slate-700 mb-4">
-            Question Navigation
-          </h4>
-          <div className="grid grid-cols-10 gap-2 mb-6">
-            {testData.questions.map((question, index) => {
-              const status = getQuestionStatus(index, question.id);
-              const isCurrentQuestion = index === currentQuestionIndex;
-              return (
+              <div className="flex space-x-4">
                 <Button
-                  key={question.id}
-                  onClick={() => navigateToQuestion(index)}
-                  size="sm"
-                  disabled={showTimeOverDialog} // Disable question navigation when time is over
-                  className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${
-                    isCurrentQuestion 
-                      ? "ring-2 ring-neet-blue ring-offset-2" 
-                      : ""
-                  } ${getPaletteButtonClasses(status)} ${showTimeOverDialog ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={handleMarkForReview}
+                  variant="outline"
+                  className="px-6 py-3 border-[#F59E0B] text-[#F59E0B] hover:bg-[#FEF3C7]"
+                  disabled={showTimeOverDialog}
                 >
-                  {index + 1}
+                  <Bookmark className="h-4 w-4 mr-2" />
+                  {markedForReview.has(currentQuestion.id) ? "Unmark" : "Mark for Review"}
                 </Button>
-              );
-            })}
-          </div>
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-6 text-xs text-slate-600">
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-green-500 rounded mr-2"></div>
-                <span>Answered</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-amber-200 rounded mr-2"></div>
-                <span>Marked for Review</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-slate-200 rounded mr-2"></div>
-                <span>Not Visited</span>
+                <Button
+                  onClick={handleNextQuestion}
+                  disabled={currentQuestionIndex === totalQuestions - 1 || showTimeOverDialog}
+                  className="bg-[#4F83FF] text-white px-6 py-3 hover:bg-[#3B82F6] shadow-md"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-2" />
+                </Button>
               </div>
             </div>
-            <Button
-              onClick={showTimeOverDialog ? handleTimeOverSubmit : handleSubmitTest}
-              className={`px-6 py-2 font-medium ${
-                showTimeOverDialog 
-                  ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' 
-                  : 'bg-neet-red text-white hover:bg-red-700'
-              }`}
-              disabled={submitTestMutation.isPending}
-            >
-              <Check className="h-4 w-4 mr-2" />
-              {showTimeOverDialog ? 'Submit Test (Time Over)' : 'Submit Test'}
-            </Button>
+          </CardContent>
+
+          {/* Question Navigation Panel */}
+          <div className="bg-[#F8FAFC] border-t border-[#E2E8F0] p-6">
+            <h4 className="text-sm font-semibold text-[#1F2937] mb-4">
+              Question Navigation
+            </h4>
+            <div className="grid grid-cols-10 gap-2 mb-6">
+              {testData.questions.map((question, index) => {
+                const status = getQuestionStatus(index, question.id);
+                const isCurrentQuestion = index === currentQuestionIndex;
+                return (
+                  <Button
+                    key={question.id}
+                    onClick={() => navigateToQuestion(index)}
+                    size="sm"
+                    disabled={showTimeOverDialog} // Disable question navigation when time is over
+                    className={`w-8 h-8 rounded-lg text-xs font-semibold transition-colors ${
+                      isCurrentQuestion 
+                        ? "ring-2 ring-[#4F83FF] ring-offset-2" 
+                        : ""
+                    } ${getPaletteButtonClasses(status)} ${showTimeOverDialog ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {index + 1}
+                  </Button>
+                );
+              })}
+            </div>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center space-x-6 text-xs text-[#6B7280]">
+                <div className="flex items-center">
+                  <div className="w-4 h-4 bg-[#10B981] rounded mr-2"></div>
+                  <span>Answered</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-4 h-4 bg-[#F59E0B] rounded mr-2"></div>
+                  <span>Marked for Review</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-4 h-4 bg-[#E2E8F0] rounded mr-2"></div>
+                  <span>Not Visited</span>
+                </div>
+              </div>
+              <Button
+                onClick={showTimeOverDialog ? handleTimeOverSubmit : handleSubmitTest}
+                className={`px-6 py-2 font-semibold shadow-md ${
+                  showTimeOverDialog 
+                    ? 'bg-[#DC2626] hover:bg-[#B91C1C] text-white animate-pulse' 
+                    : 'bg-[#DC2626] text-white hover:bg-[#B91C1C]'
+                }`}
+                disabled={submitTestMutation.isPending}
+              >
+                <Check className="h-4 w-4 mr-2" />
+                {showTimeOverDialog ? 'Submit Test (Time Over)' : 'Submit Test'}
+              </Button>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
 
       {/* Submit Confirmation Dialog */}
       <AlertDialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-white border border-[#E2E8F0] rounded-2xl shadow-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>Submit Test?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-[#1F2937] font-bold">Submit Test?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#6B7280]">
               Are you sure you want to submit your test? This action cannot be undone.
               You have answered {Object.keys(answers).length} out of {totalQuestions} questions.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="border-[#E2E8F0] text-[#6B7280] hover:bg-[#F8FAFC]">Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={confirmSubmit}
-              className="bg-neet-red hover:bg-red-700"
+              className="bg-[#DC2626] hover:bg-[#B91C1C] text-white"
             >
               Submit Test
             </AlertDialogAction>
@@ -815,13 +852,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
       {/* Time Over Dialog */}
       <AlertDialog open={showTimeOverDialog} onOpenChange={() => {}}>
-        <AlertDialogContent className="border-red-200 bg-red-50">
+        <AlertDialogContent className="border-[#FCA5A5] bg-[#FEF2F2] rounded-2xl shadow-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-red-700 flex items-center">
+            <AlertDialogTitle className="text-[#DC2626] flex items-center font-bold">
               <Clock className="h-5 w-5 mr-2" />
               Time Over!
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-red-600">
+            <AlertDialogDescription className="text-[#DC2626]">
               Your test time has expired. Your test will be automatically submitted in 10 seconds, 
               or you can submit it now manually. You have answered{" "}
               {Object.keys(answers).length} out of {totalQuestions} questions.
@@ -830,7 +867,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           <AlertDialogFooter>
             <AlertDialogAction 
               onClick={handleTimeOverSubmit}
-              className="bg-red-600 hover:bg-red-700 text-white w-full"
+              className="bg-[#DC2626] hover:bg-[#B91C1C] text-white w-full"
             >
               <Check className="h-4 w-4 mr-2" />
               Submit Test Now
@@ -841,13 +878,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
       {/* Quit Exam Confirmation Dialog */}
       <AlertDialog open={showQuitDialog} onOpenChange={() => {}}>
-        <AlertDialogContent className="border-amber-200 bg-amber-50">
+        <AlertDialogContent className="border-[#FCD34D] bg-[#FEF3C7] rounded-2xl shadow-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-amber-700 flex items-center">
+            <AlertDialogTitle className="text-[#F59E0B] flex items-center font-bold">
               <AlertTriangle className="h-5 w-5 mr-2" />
               Quit Exam?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-amber-600">
+            <AlertDialogDescription className="text-[#F59E0B]">
               Are you sure you want to quit the exam? Your test will be marked as incomplete and 
               you won't be able to resume it later. You have answered{" "}
               {Object.keys(answers).length} out of {totalQuestions} questions.
@@ -856,13 +893,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel 
               onClick={handleQuitCancel}
-              className="bg-green-600 hover:bg-green-700 text-white border-none"
+              className="bg-[#10B981] hover:bg-[#059669] text-white border-none"
             >
               Continue Exam
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleQuitConfirm}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-[#DC2626] hover:bg-[#B91C1C] text-white"
               disabled={quitTestMutation.isPending}
             >
               {quitTestMutation.isPending ? (

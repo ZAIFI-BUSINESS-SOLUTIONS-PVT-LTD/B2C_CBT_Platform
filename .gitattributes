@@ -1,7 +1,6 @@
 # Enforce LF line endings
 * text eol=lf
-
 # Optionally keep binary files untouched
-*.png binary
+*.png filter=lfs diff=lfs merge=lfs -text
 *.jpg binary
 *.pdf binary

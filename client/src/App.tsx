@@ -23,6 +23,7 @@ import Dashboard from "@/pages/dashboard";
 import LandingDashboard from "@/pages/landing-dashboard";
 import Chatbot from "@/pages/chatbot";
 import { FloatingChatbot } from "@/components/floating-chatbot";
+import { useLocation } from "wouter";
 /**
  * Application Router Component
  * Defines all available routes and their corresponding page components
@@ -46,14 +47,18 @@ function Router() {
  * Root Application Component
  * Provides global context providers and renders the router
  */
+
 function App() {
+  const [location] = useLocation();
+  // Hide chatbot on any /test route
+  const isTestPage = location.startsWith("/test");
   return (
-    <QueryClientProvider client={queryClient}>  {/* React Query for server state management */}
-      <AuthProvider>                             {/* Authentication context provider */}
-        <TooltipProvider>                        {/* Tooltip context for UI components */}
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
           <Toaster />
-          <FloatingChatbot />                      {/* Floating chatbot component */}
-          <Router />                             {/* Application routing */}
+          {!isTestPage && <FloatingChatbot />}
+          <Router />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>

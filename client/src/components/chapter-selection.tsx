@@ -27,10 +27,12 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { API_CONFIG } from "@/config/api";
-import { ListCheck, Atom, FlaskConical, Dna, Clock, Play, Leaf, ChevronDown, ChevronRight, BookOpen, Search, X, BarChart3 } from "lucide-react";
+import { ListCheck, Atom, FlaskConical, Dna, Clock, Play, Leaf, ChevronDown, ChevronRight, BookOpen, Search, X, BarChart3, Shuffle, Target } from "lucide-react";
 import { ChapterSelector } from "./chapter-selector";
 import { SearchBar } from "./search-bar";
 import { Topic, CreateTestSessionRequest, CreateTestSessionResponse } from '../types/api'; // Adjust path as needed
@@ -54,9 +56,14 @@ export function ChapterSelection() {
   
   // === SELECTION AND FORM STATE ===
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);      // Selected topic IDs
-  const [timeLimit, setTimeLimit] = useState<string>("");                  // Time limit input value
-  const [testMode, setTestMode] = useState<"time" | "questions">("time");  // Test mode selection
-  const [questionCount, setQuestionCount] = useState<string>("20");        // Question count input value
+  const [timeLimit, setTimeLimit] = useState<number>(60);                  // Time limit in minutes
+  const [questionCount, setQuestionCount] = useState<number>(20);          // Number of questions
+  
+  // === NEW UI STATE FOR WIREFRAME ===
+  const [testType, setTestType] = useState<"random" | "custom" | "search">("random"); // Test type selection
+  const [selectedSubject, setSelectedSubject] = useState<string>("");      // Selected subject for custom mode
+  const [selectedChapter, setSelectedChapter] = useState<string>("");      // Selected chapter for custom mode
+  const [selectedTopicsCustom, setSelectedTopicsCustom] = useState<string[]>([]); // Topics for custom mode
   
   // === UI INTERACTION STATE ===
   const [expandedChapters, setExpandedChapters] = useState<string[]>([]);  // Expanded chapter IDs
@@ -66,35 +73,67 @@ export function ChapterSelection() {
   // === DATA FETCHING ===
   // Fetch all available topics from the PostgreSQL database
   const { data: topicsResponse, isLoading, error } = useQuery({
-    queryKey: ["allTopics"], // Use a distinct key if you're fetching all topics now
+    queryKey: ["allTopics"], // Use a distinct key for fetching all topics
     queryFn: async () => {
       let allTopics: Topic[] = [];
       let nextUrl: string | null = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TOPICS}`;
 
+      console.log("🔄 Starting to fetch all topics...");
+      
       while (nextUrl) {
-        // Explicitly type 'response' here as 'Response'
+        console.log("📡 Fetching page:", nextUrl);
+        
+        // Use fetch directly to handle pagination properly
         const response: Response = await fetch(nextUrl);
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status} for URL: ${nextUrl}`);
         }
 
-        // Explicitly type 'data' here as 'PaginatedTopicsResponse'
         const data: PaginatedTopicsResponse = await response.json();
+        console.log(`✅ Fetched ${data.results.length} topics from this page. Total so far: ${allTopics.length + data.results.length}`);
 
         // Add the results from the current page to our accumulator
         allTopics = allTopics.concat(data.results);
 
-        // Update nextUrl for the next iteration
+        // Update nextUrl for the next iteration (null if no more pages)
         nextUrl = data.next;
       }
 
-      return { results: allTopics }; // Return in a consistent format
+      console.log(`🎉 Finished fetching all topics. Total: ${allTopics.length}`);
+      return { results: allTopics, count: allTopics.length }; // Return in consistent format
     },
-});
+  });
+
+  // Debug logging
+  console.log("📊 Topics query state:", { isLoading, error, totalTopics: topicsResponse?.results?.length });
 
   // Extract topics from response (Django format: { results: [...] })
   const topics = topicsResponse?.results || [];
+  
+  // Debug logging for topics data
+  useEffect(() => {
+    if (topics.length > 0) {
+      const subjects = [...new Set(topics.map(t => t.subject))];
+      const totalChapters = [...new Set(topics.map(t => `${t.subject}-${t.chapter}`))].length;
+      console.log("📚 Topics loaded:", {
+        totalTopics: topics.length,
+        subjects: subjects,
+        totalChapters: totalChapters,
+        sampleTopics: topics.slice(0, 3)
+      });
+      
+      // Debug specific subject data
+      subjects.forEach(subject => {
+        const subjectTopics = topics.filter(t => t.subject === subject);
+        const subjectChapters = [...new Set(subjectTopics.map(t => t.chapter))];
+        console.log(`📖 ${subject}: ${subjectTopics.length} topics, ${subjectChapters.length} chapters`, subjectChapters);
+      });
+      
+      // Extra debug: Check data structure
+      console.log("🔬 Raw topic sample:", JSON.stringify(topics.slice(0, 2), null, 2));
+    }
+  }, [topics]);
   
   // === CHAPTER EXPANSION LOGIC ===
   // Start with all chapters collapsed for better user experience
@@ -112,9 +151,10 @@ export function ChapterSelection() {
   const createTestMutation = useMutation({
     mutationFn: async (data: { 
       selected_topics: string[], 
-      selection_mode: 'question_count' | 'time_limit',
-      time_limit?: number, 
-      question_count?: number 
+      selection_mode: string,
+      time_limit: number, 
+      question_count: number,
+      test_type: string,
     }) => {
       // Add studentId to the payload if available
       const payload = {
@@ -139,6 +179,120 @@ export function ChapterSelection() {
   });
 
   // === EVENT HANDLERS ===
+  
+  /**
+   * Generate random topics from all subjects
+   * Selects equal number of topics from each subject
+   * UPDATED: Only selects topics that have questions available
+   */
+  const generateRandomTopics = (totalQuestions: number) => {
+    const subjects = ["Physics", "Chemistry", "Botany", "Zoology"];
+    const questionsPerSubject = Math.floor(totalQuestions / 4);
+    const randomTopics: string[] = [];
+    
+    console.log('🎲 generateRandomTopics called with:', { totalQuestions, questionsPerSubject });
+    console.log('📊 Total topics available:', topics.length);
+    
+    subjects.forEach(subject => {
+      // Fix: Make subject matching case-insensitive
+      const subjectTopics = topics.filter(topic => topic.subject.toLowerCase() === subject.toLowerCase());
+      
+      // For now, select random topics from available topics
+      // TODO: In future, we could add a 'hasQuestions' field to topics or query backend
+      const shuffled = subjectTopics.sort(() => 0.5 - Math.random());
+      const selected = shuffled.slice(0, Math.min(questionsPerSubject, subjectTopics.length));
+      
+      console.log(`🧪 ${subject}: found ${subjectTopics.length} topics, selected ${selected.length}`);
+      console.log(`📝 Selected ${subject} topics:`, selected.map(t => ({ id: t.id, name: t.name })));
+      
+      randomTopics.push(...selected.map(topic => topic.id.toString()));
+    });
+    
+    console.log('🎯 Final random topics array:', randomTopics);
+    console.log('🔢 Total random topics selected:', randomTopics.length);
+    
+    // If no topics were selected, show helpful message
+    if (randomTopics.length === 0) {
+      console.log('⚠️ No topics selected for random test - this might indicate no topics with questions are available');
+    }
+    
+    return randomTopics;
+  };
+
+  /**
+   * Get chapters for selected subject
+   */
+  const getChaptersForSubject = (subject: string): string[] => {
+    if (!subject) return [];
+    
+    // Fix: Make subject matching case-insensitive
+    const subjectTopics = topics.filter(topic => topic.subject.toLowerCase() === subject.toLowerCase());
+    console.log(`🔍 getChaptersForSubject: subject="${subject}", totalTopics=${topics.length}, subjectTopics=${subjectTopics.length}`);
+    
+    // Debug: log first few topics to see their structure
+    if (subjectTopics.length > 0) {
+      console.log(`📋 Sample ${subject} topics:`, subjectTopics.slice(0, 3).map(t => ({ name: t.name, subject: t.subject, chapter: t.chapter })));
+    }
+    
+    const chapters = [...new Set(subjectTopics.map(topic => topic.chapter))]
+      .filter((chapter): chapter is string => typeof chapter === 'string' && chapter !== null && chapter !== undefined && chapter.trim() !== '');
+    
+    console.log(`📋 Chapters found for ${subject}:`, chapters);
+    return chapters;
+  };
+
+  /**
+   * Get topics for selected subject and chapter
+   */
+  const getTopicsForChapter = (subject: string, chapter: string): Topic[] => {
+    if (!subject || !chapter) return [];
+    // Fix: Make subject matching case-insensitive
+    return topics.filter(topic => topic.subject.toLowerCase() === subject.toLowerCase() && topic.chapter === chapter);
+  };
+
+  /**
+   * Handle test type change
+   */
+  const handleTestTypeChange = (type: "random" | "custom" | "search") => {
+    setTestType(type);
+    setSelectedTopics([]);
+    setSelectedTopicsCustom([]);
+    setSelectedSubject("");
+    setSelectedChapter("");
+    // Only clear search for non-custom modes or when switching away from search mode
+    if (type !== "custom" && type !== "search") {
+      setSearchQuery("");
+      setShowSearchResults(false);
+    }
+  };
+
+  /**
+   * Handle subject selection in custom mode
+   */
+  const handleSubjectChange = (subject: string) => {
+    setSelectedSubject(subject);
+    setSelectedChapter("");
+    // Don't reset selectedTopicsCustom - preserve previously selected topics from other subjects
+  };
+
+  /**
+   * Handle chapter selection in custom mode
+   */
+  const handleChapterChange = (chapter: string) => {
+    setSelectedChapter(chapter);
+    // Don't reset selectedTopicsCustom - preserve previously selected topics
+  };
+
+  /**
+   * Handle topic selection in custom mode
+   */
+  const handleCustomTopicToggle = (topicId: string) => {
+    setSelectedTopicsCustom(prev => 
+      prev.includes(topicId) 
+        ? prev.filter(id => id !== topicId)
+        : [...prev, topicId]
+    );
+  };
   
   /**
    * Toggle topic selection on/off
@@ -169,106 +323,95 @@ export function ChapterSelection() {
    * 
    * DETAILED EXPLANATION:
    * This function validates user selections and creates a new test session.
-   * It implements the "1 minute per question" timing logic for question-based tests.
-   * The function handles both time-based and question-based test configurations.
+   * It supports three modes: random test, custom selection, and search-based selection.
    * 
    * BUSINESS LOGIC:
-   * - Validates that at least one topic is selected
-   * - Validates test configuration parameters (time limit or question count)
-   * - Applies 1-minute-per-question rule for question-based tests
-   * - Submits test creation request to backend API
-   * 
-   * TIMING LOGIC IMPLEMENTATION:
-   * - Time-based tests: Uses user-specified time limit directly
-   * - Question-based tests: Automatically calculates time as questionCount * 1 minute
-   * - This ensures consistent timing across both test modes
-   * 
-   * USER EXPERIENCE:
-   * - Shows validation errors through toast notifications
-   * - Prevents test creation if validation fails
-   * - Provides clear feedback on what needs to be corrected
-   * 
-   * API INTEGRATION:
-   * - Uses React Query mutation for test creation
-   * - Sends structured test data to /api/test-sessions endpoint
-   * - Handles both successful creation and error scenarios
-   * 
-   * VALIDATION FLOW:
-   * 1. Check if topics are selected
-   * 2. Validate test mode parameters (time limit or question count)
-   * 3. Apply timing logic based on test mode
-   * 4. Submit request to backend
-   * 5. Handle success/error responses
-   * 
-   * TIMING RULE APPLICATION:
-   * - Time-based: { time_limit: userSpecifiedMinutes }
-   * - Question-based: { question_count: N, time_limit: N } (1 min per question)
+   * - Random mode: Automatically selects topics from all subjects
+   * - Custom mode: Uses user-selected topics from dropdowns
+   * - Search mode: Uses topics selected via search functionality
    * 
    * Validates selections and creates test with appropriate parameters
-   * Implements 1 minute per question timing logic
    */
   const handleCreateTest = () => {
-    // VALIDATION STEP 1: Check if user has selected at least one topic
-    // This prevents creating empty tests and ensures valid test content
-    if (selectedTopics.length === 0) {
+    let finalSelectedTopics: string[] = [];
+    
+    console.log('🚀 handleCreateTest called with testType:', testType);
+    
+    // Determine which topics to use based on test type
+    if (testType === "random") {
+      console.log('🎲 Using random test mode');
+      finalSelectedTopics = generateRandomTopics(questionCount);
+    } else if (testType === "custom") {
+      console.log('🎯 Using custom test mode');
+      finalSelectedTopics = selectedTopicsCustom;
+    } else if (testType === "search") {
+      console.log('🔍 Using search test mode');
+      finalSelectedTopics = selectedTopics;
+    }
+    
+    console.log('📋 Final selected topics:', finalSelectedTopics);
+    console.log('🔢 Topics count:', finalSelectedTopics.length);
+    
+    // VALIDATION: Check if topics are selected
+    if (finalSelectedTopics.length === 0) {
+      console.log('❌ No topics selected, showing error toast');
       toast({
         title: "No topics selected",
         description: "Please select at least one topic for your test.",
         variant: "destructive",
       });
-      return; // Exit early if validation fails
+      return;
     }
 
-    // VALIDATION STEP 2: Validate test mode parameters and apply timing logic
-    if (testMode === "time") {
-      // TIME-BASED TEST VALIDATION
-      if (!timeLimit) {
-        toast({
-          title: "No time limit selected",
-          description: "Please select a time limit for your test.",
-          variant: "destructive",
-        });
-        return; // Exit early if validation fails
-      }
-      
-      // Time-based test: use user-specified time limit directly
-      // User chooses how many minutes they want for the test
-      createTestMutation.mutate({
-        selected_topics: selectedTopics,
-        selection_mode: 'time_limit',
-        time_limit: parseInt(timeLimit), // Backend will calculate question_count = time_limit
+    // VALIDATION: Check question count and time limit
+    if (!questionCount || questionCount <= 0) {
+      toast({
+        title: "Invalid question count",
+        description: "Please set a valid number of questions.",
+        variant: "destructive",
       });
-    } else {
-      // QUESTION-BASED TEST VALIDATION AND TIMING LOGIC
-      if (!questionCount) {
-        toast({
-          title: "No question count selected",
-          description: "Please select the number of questions for your test.",
-          variant: "destructive",
-        });
-        return; // Exit early if validation fails
-      }
-      
-      // Question-based test: send question count, backend won't calculate time limit
-      // This implements the core business rule: user specifies exact question count
-      const questionCountValue = parseInt(questionCount);
-      createTestMutation.mutate({
-        selected_topics: selectedTopics,
-        selection_mode: 'question_count',
-        question_count: questionCountValue,
-      });
+      return;
     }
+    
+    if (!timeLimit || timeLimit <= 0) {
+      toast({
+        title: "Invalid time limit",
+        description: "Please set a valid time limit.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Create test session with new payload structure
+    // Always pass both question_count and time_limit from user selections
+    const payload = {
+      selected_topics: finalSelectedTopics,
+      selection_mode: 'question_count', // Use question count mode
+      question_count: questionCount, // Number of questions from slider
+      time_limit: timeLimit, // Time limit from slider (in minutes)
+      test_type: testType,
+    };
+    
+    // Debug log to verify payload
+    console.log('🚀 Creating test with payload:', payload);
+    console.log('📋 Selected topics details:');
+    finalSelectedTopics.forEach(topicId => {
+      const topic = topics.find(t => t.id.toString() === topicId);
+      if (topic) {
+        console.log(`  - Topic ID ${topicId}: ${topic.subject} > ${topic.chapter} > ${topic.name}`);
+      } else {
+        console.log(`  - Topic ID ${topicId}: NOT FOUND in topics array!`);
+      }
+    });
+    
+    createTestMutation.mutate(payload);
   };
 
-const getChaptersBySubject = (subject: string): string[] => { // <-- Explicitly state string[] return type
-  const subjectTopics = topics.filter((topic: Topic) => topic.subject === subject);
-  const chapters = [...new Set(subjectTopics.map((topic: Topic) => topic.chapter))]
-    .filter((chapter): chapter is string => chapter !== null && chapter !== undefined); // <-- Stronger type guard
-  return chapters;
-};
+  // Remove duplicate function - use getChaptersForSubject instead
 
-  const getTopicsByChapter = (subject: string, chapter: string) => {
-    return topics.filter((topic: Topic) => topic.subject === subject && topic.chapter === chapter);
+  const getTopicsByChapter = (subject: string, chapter: string): Topic[] => {
+    // Fix: Make subject matching case-insensitive
+    return topics.filter((topic: Topic) => topic.subject.toLowerCase() === subject.toLowerCase() && topic.chapter === chapter);
   };
 
   const getSubjectIcon = (subject: string) => {
@@ -329,7 +472,8 @@ const getChaptersBySubject = (subject: string): string[] => { // <-- Explicitly 
   };
 
   const handleSelectAllInSubject = (subject: string) => {
-    const subjectTopics = topics.filter((topic: Topic) => topic.subject === subject);
+    // Fix: Make subject matching case-insensitive
+    const subjectTopics = topics.filter((topic: Topic) => topic.subject.toLowerCase() === subject.toLowerCase());
     const subjectTopicIds = subjectTopics.map((t: Topic) => t.id.toString());
     const allSelected = subjectTopicIds.every((id: string) => selectedTopics.includes(id));
     
@@ -435,19 +579,274 @@ const getChaptersBySubject = (subject: string): string[] => { // <-- Explicitly 
             </CardHeader>
             <CardContent className="p-8">
               
-              {/* Search Bar */}
-              <SearchBar
-                searchQuery={searchQuery}
-                onSearchChange={handleSearchChange}
-                onClearSearch={clearSearch}
-                filteredTopics={filteredTopics}
-                selectedTopics={selectedTopics}
-                onTopicSelect={handleTopicSelectFromSearch}
-                showResults={showSearchResults}
-              />
+              {/* Test Type Selection */}
+              <div className="mb-8">
+                <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                  <Target className="h-6 w-6 mr-3 text-blue-600" />
+                  Choose Test Mode
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                  {/* Random Test Card */}
+                  <Card 
+                    className={`cursor-pointer transition-all duration-300 border-2 ${
+                      testType === "random" 
+                        ? "border-blue-500 bg-blue-50 shadow-lg" 
+                        : "border-gray-200 hover:border-blue-300 hover:shadow-md"
+                    }`}
+                    onClick={() => handleTestTypeChange("random")}
+                  >
+                    <CardHeader className="text-center pb-4">
+                      <div className="flex justify-center mb-3">
+                        <Shuffle className="h-8 w-8 text-blue-600" />
+                      </div>
+                      <CardTitle className="text-lg font-bold">Random Test</CardTitle>
+                      <p className="text-sm text-gray-600">
+                        Randomly generated questions
+                      </p>
+                    </CardHeader>
+                  </Card>
+
+                  {/* Custom Selection Card */}
+                  <Card 
+                    className={`cursor-pointer transition-all duration-300 border-2 ${
+                      testType === "custom" 
+                        ? "border-green-500 bg-green-50 shadow-lg" 
+                        : "border-gray-200 hover:border-green-300 hover:shadow-md"
+                    }`}
+                    onClick={() => handleTestTypeChange("custom")}
+                  >
+                    <CardHeader className="text-center pb-4">
+                      <div className="flex justify-center mb-3">
+                        <Target className="h-8 w-8 text-green-600" />
+                      </div>
+                      <CardTitle className="text-lg font-bold">Select Subject</CardTitle>
+                      <p className="text-sm text-gray-600">
+                        Choose specific topics
+                      </p>
+                    </CardHeader>
+                  </Card>
+
+                  {/* Search Topics Card */}
+                  <Card 
+                    className={`cursor-pointer transition-all duration-300 border-2 ${
+                      testType === "search" 
+                        ? "border-purple-500 bg-purple-50 shadow-lg" 
+                        : "border-gray-200 hover:border-purple-300 hover:shadow-md"
+                    }`}
+                    onClick={() => handleTestTypeChange("search")}
+                  >
+                    <CardHeader className="text-center pb-4">
+                      <div className="flex justify-center mb-3">
+                        <Search className="h-8 w-8 text-purple-600" />
+                      </div>
+                      <CardTitle className="text-lg font-bold">Search Topics</CardTitle>
+                      <p className="text-sm text-gray-600">
+                        Find specific topics
+                      </p>
+                    </CardHeader>
+                  </Card>
+                </div>
+              </div>
+              {/* Search Topics Section */}
+              <div className="mb-6">
+                <h5 className="text-md font-semibold text-gray-800 mb-3 flex items-center">
+                  <Search className="h-4 w-4 mr-2 text-green-600" />
+                  Search Topics
+                </h5>
+                <SearchBar
+                  searchQuery={searchQuery}
+                  onSearchChange={handleSearchChange}
+                  onClearSearch={clearSearch}
+                  filteredTopics={filteredTopics}
+                  selectedTopics={selectedTopicsCustom}
+                  onTopicSelect={(topicId) => handleCustomTopicToggle(topicId)}
+                  showResults={showSearchResults}
+                />
+              </div>
+              {/* Custom Subject Selection */}
+              {testType === "custom" && (
+                <div className="mb-8">
+                  <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                    Select Subject, Chapter, and Topics
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    {/* Subject Dropdown */}
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">Subject</Label>
+                      <Select value={selectedSubject} onValueChange={handleSubjectChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select subject" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Physics">Physics</SelectItem>
+                          <SelectItem value="Chemistry">Chemistry</SelectItem>
+                          <SelectItem value="Botany">Botany</SelectItem>
+                          <SelectItem value="Zoology">Zoology</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Chapter Dropdown */}
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">Chapter</Label>
+                      <Select 
+                        value={selectedChapter} 
+                        onValueChange={handleChapterChange}
+                        disabled={!selectedSubject}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select chapter" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getChaptersForSubject(selectedSubject).map((chapter) => (
+                            <SelectItem key={chapter} value={chapter}>{chapter}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Topics Multi-select */}
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Topics ({selectedTopicsCustom.length} selected)
+                      </Label>
+                      <div className="border rounded-md p-2 max-h-32 overflow-y-auto bg-white">
+                        {selectedSubject && selectedChapter ? (
+                          getTopicsForChapter(selectedSubject, selectedChapter).map((topic) => (
+                            <div key={topic.id} className="flex items-center space-x-2 p-1">
+                              <Checkbox
+                                id={`custom-topic-${topic.id}`}
+                                checked={selectedTopicsCustom.includes(topic.id.toString())}
+                                onCheckedChange={() => handleCustomTopicToggle(topic.id.toString())}
+                                className="data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+                              />
+                              <Label 
+                                htmlFor={`custom-topic-${topic.id}`} 
+                                className="text-xs cursor-pointer flex-1"
+                              >
+                                {topic.name}
+                              </Label>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-gray-500 text-center py-2">
+                            Select subject and chapter first
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  
+                  {/* Show all selected topics across all chapters */}
+                  {selectedTopicsCustom.length > 0 && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-sm font-medium text-gray-700">
+                          All Selected Topics ({selectedTopicsCustom.length})
+                        </Label>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedTopicsCustom([])}
+                          className="text-xs text-red-600 hover:text-red-800 border-red-200 hover:border-red-300"
+                        >
+                          Clear All
+                        </Button>
+                      </div>
+                      <div className="border rounded-md p-3 bg-gray-50 max-h-40 overflow-y-auto">
+                        <div className="flex flex-wrap gap-2">
+                          {selectedTopicsCustom.map((topicId) => {
+                            const topic = topics.find(t => t.id.toString() === topicId);
+                            if (!topic) return null;
+                            return (
+                              <div
+                                key={topicId}
+                                className="inline-flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs"
+                              >
+                                <span>{topic.subject} - {topic.chapter}</span>
+                                <span className="font-medium">{topic.name}</span>
+                                <button
+                                  onClick={() => handleCustomTopicToggle(topicId)}
+                                  className="ml-1 text-green-600 hover:text-green-800"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               
-              {/* Subject Cards with Chapter Drill-down */}
-              {!showSearchResults && (
+              {/* Search Bar for Search Mode */}
+              {testType === "search" && (
+                <SearchBar
+                  searchQuery={searchQuery}
+                  onSearchChange={handleSearchChange}
+                  onClearSearch={clearSearch}
+                  filteredTopics={filteredTopics}
+                  selectedTopics={selectedTopics}
+                  onTopicSelect={handleTopicSelectFromSearch}
+                  showResults={showSearchResults}
+                />
+              )}
+
+              {/* Test Settings */}
+              <div className="mb-8">
+                <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                  <Clock className="h-5 w-5 mr-2 text-blue-600" />
+                  Test Settings
+                </h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Time Limit Slider */}
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-3 block">
+                      Time Limit: {timeLimit} minutes
+                    </Label>
+                    <Slider
+                      value={[timeLimit]}
+                      onValueChange={(value) => setTimeLimit(value[0])}
+                      max={180}
+                      min={15}
+                      step={15}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>15 min</span>
+                      <span>180 min</span>
+                    </div>
+                  </div>
+
+                  {/* Number of Questions Slider */}
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700 mb-3 block">
+                      Number of Questions: {questionCount}
+                    </Label>
+                    <Slider
+                      value={[questionCount]}
+                      onValueChange={(value) => setQuestionCount(value[0])}
+                      max={100}
+                      min={5}
+                      step={5}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>5 questions</span>
+                      <span>100 questions</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Subject Cards for Search Mode */}
+              {testType === "search" && !showSearchResults && (
                 <div className="space-y-8 mb-12">
                   <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
                     <ListCheck className="h-6 w-6 mr-3 text-blue-600" />
@@ -457,9 +856,16 @@ const getChaptersBySubject = (subject: string): string[] => { // <-- Explicitly 
                 {/* Subject Dropdown Selection */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {["Physics", "Chemistry", "Botany", "Zoology"].map((subject) => {
-                    const subjectTopics = topics.filter((t: Topic) => t.subject === subject);
+                    // Fix: Make subject matching case-insensitive
+                    const subjectTopics = topics.filter((t: Topic) => t.subject.toLowerCase() === subject.toLowerCase());
                     const selectedCount = subjectTopics.filter((t: Topic) => selectedTopics.includes(t.id.toString())).length;
-                    const hasChapters = subjectTopics.some((t: Topic) => t.chapter);
+                    const hasChapters = subjectTopics.some((t: Topic) => t.chapter && t.chapter.trim() !== '');
+                    
+                    console.log(`🧪 ${subject} check:`, { 
+                      subjectTopics: subjectTopics.length, 
+                      hasChapters, 
+                      sampleChapters: subjectTopics.slice(0, 3).map(t => t.chapter) 
+                    });
                     
                     return (
                       <Card key={subject} className={`${getSubjectColor(subject)} border-2 transition-all duration-300`}>
@@ -481,7 +887,7 @@ const getChaptersBySubject = (subject: string): string[] => { // <-- Explicitly 
                           <div className="space-y-3">
                             {hasChapters ? (
                               // Chapter dropdown sections
-                              getChaptersBySubject(subject).map((chapter) => {
+                              getChaptersForSubject(subject).map((chapter) => {
                                 const chapterTopics = getTopicsByChapter(subject, chapter);
                                 const chapterSelectedCount = chapterTopics.filter((t: Topic) => selectedTopics.includes(t.id.toString())).length;
                                 const isChapterExpanded = expandedChapters.includes(`${subject}-${chapter}`);
@@ -567,91 +973,15 @@ const getChaptersBySubject = (subject: string): string[] => { // <-- Explicitly 
               </div>
               )}
 
-              {/* Test Mode Selection */}
-              <div className="mb-8">
-                <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                  <Clock className="h-5 w-5 mr-2 text-blue-600" />
-                  Test Configuration
-                </h4>
-                
-                {/* Mode Toggle */}
-                <div className="mb-6">
-                  <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-                    <Button
-                      variant={testMode === "time" ? "default" : "ghost"}
-                      onClick={() => setTestMode("time")}
-                      className={`flex-1 ${testMode === "time" ? "bg-blue-600 text-white" : "text-gray-600"}`}
-                    >
-                      <Clock className="h-4 w-4 mr-2" />
-                      Time Limit
-                    </Button>
-                    <Button
-                      variant={testMode === "questions" ? "default" : "ghost"}
-                      onClick={() => setTestMode("questions")}
-                      className={`flex-1 ${testMode === "questions" ? "bg-blue-600 text-white" : "text-gray-600"}`}
-                    >
-                      <ListCheck className="h-4 w-4 mr-2" />
-                      Question Count
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Time Limit Options */}
-                {testMode === "time" && (
-                  <div>
-                    <h5 className="text-sm font-medium text-gray-700 mb-3">Select Time Limit:</h5>
-                    <RadioGroup value={timeLimit} onValueChange={setTimeLimit}>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {[
-                          { value: "15", label: "15 minutes", description: "Quick practice" },
-                          { value: "30", label: "30 minutes", description: "Standard test" },
-                          { value: "60", label: "1 hour", description: "Extended practice" },
-                          { value: "90", label: "1.5 hours", description: "Full length test" },
-                        ].map((option) => (
-                          <div key={option.value} className="flex items-center space-x-2">
-                            <RadioGroupItem value={option.value} id={`time-${option.value}`} />
-                            <Label htmlFor={`time-${option.value}`} className="cursor-pointer">
-                              <div className="text-sm font-medium text-gray-800">{option.label}</div>
-                              <div className="text-xs text-gray-500">{option.description}</div>
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </RadioGroup>
-                  </div>
-                )}
-
-                {/* Question Count Options */}
-                {testMode === "questions" && (
-                  <div>
-                    <h5 className="text-sm font-medium text-gray-700 mb-3">Select Number of Questions:</h5>
-                    <RadioGroup value={questionCount} onValueChange={setQuestionCount}>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {[
-                          { value: "10", label: "10 questions", description: "Quick quiz" },
-                          { value: "20", label: "20 questions", description: "Short test" },
-                          { value: "30", label: "30 questions", description: "Medium test" },
-                          { value: "50", label: "50 questions", description: "Long test" },
-                        ].map((option) => (
-                          <div key={option.value} className="flex items-center space-x-2">
-                            <RadioGroupItem value={option.value} id={`questions-${option.value}`} />
-                            <Label htmlFor={`questions-${option.value}`} className="cursor-pointer">
-                              <div className="text-sm font-medium text-gray-800">{option.label}</div>
-                              <div className="text-xs text-gray-500">{option.description}</div>
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </RadioGroup>
-                  </div>
-                )}
-              </div>
-
               {/* Create Test Button */}
               <div className="flex justify-center">
                 <Button
                   onClick={handleCreateTest}
-                  disabled={createTestMutation.isPending || selectedTopics.length === 0 || (testMode === "time" && !timeLimit) || (testMode === "questions" && !questionCount)}
+                  disabled={createTestMutation.isPending || (
+                    testType === "search" && selectedTopics.length === 0
+                  ) || (
+                    testType === "custom" && selectedTopicsCustom.length === 0
+                  )}
                   className="bg-blue-600 hover:bg-blue-700 px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
                 >
                   {createTestMutation.isPending ? (
@@ -662,7 +992,13 @@ const getChaptersBySubject = (subject: string): string[] => { // <-- Explicitly 
                   ) : (
                     <>
                       <Play className="h-5 w-5 mr-2" />
-                      Create Test ({selectedTopics.length} topic{selectedTopics.length !== 1 ? 's' : ''})
+                      Create Test ({
+                        testType === "random" 
+                          ? `${questionCount} questions` 
+                          : testType === "custom" 
+                            ? `${selectedTopicsCustom.length} topic${selectedTopicsCustom.length !== 1 ? 's' : ''}`
+                            : `${selectedTopics.length} topic${selectedTopics.length !== 1 ? 's' : ''}`
+                      })
                     </>
                   )}
                 </Button>

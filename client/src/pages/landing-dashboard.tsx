@@ -117,6 +117,81 @@ interface AnalyticsData {
   studyRecommendations: string[]; // Or Array<{ priority: string; subject: string; reason: string; actionTip: string; }> if detailed
   message?: string; // For the "Take more tests" message
 }
+
+interface InsightsData {
+  status: string;
+  data: {
+    strengthTopics: Array<{
+      topic: string;
+      accuracy: number;
+      avgTimeSec: number;
+      subject: string;
+      chapter: string;
+    }>;
+    weakTopics: Array<{
+      topic: string;
+      accuracy: number;
+      avgTimeSec: number;
+      subject: string;
+      chapter: string;
+    }>;
+    improvementTopics: Array<{
+      topic: string;
+      accuracy: number;
+      avgTimeSec: number;
+      subject: string;
+      chapter: string;
+    }>;
+    lastTestTopics: Array<{
+      topic: string;
+      accuracy: number;
+      avgTimeSec: number;
+      subject: string;
+      chapter: string;
+      attempted: number;
+    }>;
+    llmInsights: {
+      strengths?: {
+        status: string;
+        message: string;
+        insights: string[];
+      };
+      weaknesses?: {
+        status: string;
+        message: string;
+        insights: string[];
+      };
+      studyPlan?: {
+        status: string;
+        message: string;
+        insights: string[];
+      };
+      lastTestFeedback?: {
+        status: string;
+        message: string;
+        insights: string[];
+      };
+    };
+    summary: {
+      totalTopicsAnalyzed: number;
+      totalTestsTaken: number;
+      strengthsCount: number;
+      weaknessesCount: number;
+      improvementsCount: number;
+      overallAvgTime?: number;
+      lastSessionId?: number;
+    };
+    cached?: boolean;
+    thresholdsUsed?: any;
+  };
+  cacheInfo?: {
+    fileExists: boolean;
+    fileSize: number;
+    lastModified: string | null;
+  };
+  cached?: boolean;
+}
+
 const CHART_COLORS = [COLORS.primary, COLORS.success, COLORS.warning, COLORS.purple];
 
 /**
@@ -158,7 +233,16 @@ export default function LandingDashboard() {
     enabled: isAuthenticated && !loading, // Only run when authenticated
   });
 
-  if (isLoading) {
+  // Fetch insights data directly from cache file
+  const { data: insights, isLoading: insightsLoading, error: insightsError } = useQuery<InsightsData>({
+    queryKey: ['/api/insights/cache/'],
+    refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
+    enabled: isAuthenticated && !loading, // Only run when authenticated
+  });
+
+
+
+  if (isLoading || insightsLoading) {
     return <DashboardSkeleton />;
   }
 
@@ -167,38 +251,38 @@ export default function LandingDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50">
       {/* Header with Navigation */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
+      <header className="bg-white/95 backdrop-blur-sm border-b border-blue-100 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Button 
                 variant="ghost" 
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 text-[#64748B] hover:text-[#1F2937] hover:bg-[#F8FAFC]"
                 onClick={() => navigate('/')}
               >
                 <Home className="h-4 w-4" />
                 Home
               </Button>
-              <Separator orientation="vertical" className="h-6" />
+              <Separator orientation="vertical" className="h-6 bg-[#E2E8F0]" />
               <div className="flex items-center space-x-2">
-                <BarChart3 className="h-6 w-6 text-blue-600" />
-                <h1 className="text-2xl font-bold text-gray-900">Performance Dashboard</h1>
+                <BarChart3 className="h-6 w-6 text-[#4F83FF]" />
+                <h1 className="text-2xl font-bold text-[#1F2937]">Performance Dashboard</h1>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
               <Button 
                 variant="outline" 
-                className="shadow-sm"
+                className="shadow-sm border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]"
                 onClick={() => navigate('/chatbot')}
               >
                 <MessageCircle className="h-4 w-4 mr-2" />
                 AI Tutor
               </Button>
               <Button 
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-[#4F83FF] hover:bg-[#3B82F6] text-white shadow-md"
                 onClick={() => navigate('/topics')}
               >
                 <PlusCircle className="h-4 w-4 mr-2" />
@@ -213,12 +297,221 @@ export default function LandingDashboard() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+          <h2 className="text-3xl font-bold text-[#1F2937] mb-2">
             Welcome back, NEET Warrior! 🎯
           </h2>
-          <p className="text-lg text-gray-600">
+          <p className="text-lg text-[#6B7280]">
             Track your progress and optimize your NEET preparation with detailed analytics
           </p>
+        </div>
+
+  {/* Insights Container */}
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 mb-8" style={{gridAutoRows: '1fr'}}>
+          <InsightCard
+            title="Strengths"
+            description="AI insights on your strongest topics."
+            icon={<Star className="h-6 w-6" />}
+            isLocked={!analytics || analytics.totalTests === 0}
+            lockMessage="Complete practice tests to unlock your strengths!"
+          >
+            <div className="mt-2 space-y-3">
+              {insights?.data?.llmInsights?.strengths?.insights ? (
+                <div className="space-y-2">
+                  {insights.data.llmInsights.strengths.insights.map((insight: string, idx: number) => (
+                    <div key={idx} className="p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
+                      <p className="text-sm text-green-800">{insight}</p>
+                    </div>
+                  ))}
+                  <div className="mt-2">
+                    {insights.cacheInfo && (
+                      <p className="text-xs text-gray-500">
+                        Updated: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : insights?.data?.strengthTopics && insights.data.strengthTopics.length > 0 ? (
+                <div>
+                  <p className="text-sm text-green-700 mb-2">Your top performing topics:</p>
+                  <ul className="space-y-1 text-sm">
+                    {insights.data.strengthTopics.slice(0, 3).map((topic: any, idx: number) => (
+                      <li key={idx} className="flex justify-between">
+                        <span className="truncate mr-2">{topic.topic}</span>
+                        <span className="font-semibold text-green-600">{topic.accuracy.toFixed(1)}%</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {insights.cacheInfo && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Cache: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
+                  <p className="text-sm text-green-800">Take some tests to get AI analysis of your strengths!</p>
+                </div>
+              )}
+            </div>
+          </InsightCard>
+          <InsightCard
+            title="Weaknesses"
+            description="AI insights on areas needing improvement."
+            icon={<AlertCircle className="h-6 w-6" />}
+            isLocked={false}
+            lockMessage=""
+          >
+            <div className="mt-2 space-y-3">
+              {insights?.data?.llmInsights?.weaknesses?.insights ? (
+                <div className="space-y-2">
+                  {insights.data.llmInsights.weaknesses.insights.map((insight: string, idx: number) => (
+                    <div key={idx} className="p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
+                      <p className="text-sm text-red-800">{insight}</p>
+                    </div>
+                  ))}
+                  <div className="mt-2">
+                    {insights.cacheInfo && (
+                      <p className="text-xs text-gray-500">
+                        Updated: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
+                <div>
+                  <p className="text-sm text-red-700 mb-2">Topics needing focus:</p>
+                  <ul className="space-y-1 text-sm">
+                    {insights.data.weakTopics.slice(0, 3).map((topic: any, idx: number) => (
+                      <li key={idx} className="flex justify-between">
+                        <span className="truncate mr-2">{topic.topic}</span>
+                        <span className="font-semibold text-red-600">{topic.accuracy.toFixed(1)}%</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {insights.cacheInfo && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Cache: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
+                  <p className="text-sm text-red-800">Take some tests to get AI analysis of your weaknesses!</p>
+                </div>
+              )}
+            </div>
+          </InsightCard>
+          <InsightCard
+            title="Study Plan"
+            description="AI-generated personalized study recommendations."
+            icon={<Activity className="h-6 w-6" />}
+            isLocked={false}
+            lockMessage=""
+          >
+            <div className="mt-2 space-y-3">
+              {insights?.data?.llmInsights?.studyPlan?.insights ? (
+                <div className="space-y-2">
+                  {insights.data.llmInsights.studyPlan.insights.map((insight: string, idx: number) => (
+                    <div key={idx} className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+                      <p className="text-sm text-blue-800">{insight}</p>
+                    </div>
+                  ))}
+                  <div className="mt-2">
+                    {insights.cacheInfo && (
+                      <p className="text-xs text-gray-500">
+                        Updated: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : insights?.data?.improvementTopics && insights.data.improvementTopics.length > 0 ? (
+                <div>
+                  <p className="text-sm text-blue-700 mb-2">Recommended focus areas:</p>
+                  <ul className="space-y-1 text-sm">
+                    {insights.data.improvementTopics.slice(0, 3).map((topic: any, idx: number) => (
+                      <li key={idx} className="flex justify-between">
+                        <span className="truncate mr-2">{topic.topic}</span>
+                        <span className="font-semibold text-blue-600">{topic.accuracy.toFixed(1)}%</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {insights.cacheInfo && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Cache: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                    </p>
+                  )}
+                </div>
+              ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
+                <div>
+                  <p className="text-sm text-blue-700 mb-2">Focus on improving these areas:</p>
+                  <ul className="space-y-1 text-sm">
+                    {insights.data.weakTopics.slice(0, 2).map((topic: any, idx: number) => (
+                      <li key={idx} className="flex justify-between">
+                        <span className="truncate mr-2">{topic.topic}</span>
+                        <span className="font-semibold text-blue-600">{topic.accuracy.toFixed(1)}%</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {insights.cacheInfo && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Cache: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+                  <p className="text-sm text-blue-800">Take some tests to get AI-generated study plans!</p>
+                </div>
+              )}
+            </div>
+          </InsightCard>
+          <InsightCard
+            title="Last Test Feedback"
+            description="AI feedback on your most recent test performance."
+            icon={<Brain className="h-6 w-6" />}
+            isLocked={false}
+            lockMessage=""
+          >
+            <div className="mt-2 space-y-3">
+              {insights?.data?.llmInsights?.lastTestFeedback?.insights ? (
+                <div className="space-y-2">
+                  {insights.data.llmInsights.lastTestFeedback.insights.map((insight: string, idx: number) => (
+                    <div key={idx} className="p-3 bg-purple-50 rounded-lg border-l-4 border-purple-400">
+                      <p className="text-sm text-purple-800">{insight}</p>
+                    </div>
+                  ))}
+                  <div className="mt-2">
+                    {insights.cacheInfo && (
+                      <p className="text-xs text-gray-500">
+                        Updated: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : insights?.data?.lastTestTopics && insights.data.lastTestTopics.length > 0 ? (
+                <div>
+                  <p className="text-sm text-purple-700 mb-2">Recent test performance:</p>
+                  <ul className="space-y-1 text-sm">
+                    {insights.data.lastTestTopics.slice(0, 3).map((topic: any, idx: number) => (
+                      <li key={idx} className="flex justify-between">
+                        <span className="truncate mr-2">{topic.topic}</span>
+                        <span className="font-semibold text-purple-600">{topic.accuracy.toFixed(1)}%</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {insights.cacheInfo && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Cache: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 bg-purple-50 rounded-lg border-l-4 border-purple-400">
+                  <p className="text-sm text-purple-800">Complete a test to get AI feedback on your performance!</p>
+                </div>
+              )}
+            </div>
+          </InsightCard>
         </div>
 
         {/* Overview Cards */}
@@ -227,25 +520,25 @@ export default function LandingDashboard() {
             title="Total Tests"
             value={analytics.totalTests}
             icon={<Trophy className="h-5 w-5" />}
-            color="bg-blue-500"
+            color="bg-[#4F83FF]"
           />
           <MetricCard
             title="Questions Attempted"
             value={analytics.totalQuestions}
             icon={<BookOpen className="h-5 w-5" />}
-            color="bg-green-500"
+            color="bg-[#10B981]"
           />
           <MetricCard
             title="Overall Accuracy"
             value={`${analytics.overallAccuracy.toFixed(1)}%`}
             icon={<Target className="h-5 w-5" />}
-            color="bg-purple-500"
+            color="bg-[#8B5CF6]"
           />
           <MetricCard
             title="Avg. Speed"
             value={`${Math.round(analytics.averageTimePerQuestion)}s`}
             icon={<Timer className="h-5 w-5" />}
-            color="bg-orange-500"
+            color="bg-[#F59E0B]"
           />
         </div>
 
@@ -283,15 +576,6 @@ export default function LandingDashboard() {
                 </Tabs>
               </CardContent>
             </Card>
-
-            {/* Strengths and Weaknesses */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <StrengthsCard strengths={analytics.strengthAreas} />
-              <WeaknessesCard weaknesses={analytics.challengingAreas} />
-            </div>
-
-            {/* Study Recommendations */}
-            <StudyRecommendationsCard recommendations={analytics.studyRecommendations} />
           </div>
 
           {/* Right Column - Calendar and Quick Stats */}
@@ -328,74 +612,121 @@ export default function LandingDashboard() {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5" />
-                  Quick Actions
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Link href="/topics">
-                  <Button className="w-full justify-start" variant="outline">
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Take Practice Test
-                  </Button>
-                </Link>
-                <Link href="/dashboard">
-                  <Button className="w-full justify-start" variant="outline">
-                    <BarChart3 className="h-4 w-4 mr-2" />
-                    Detailed Analytics
-                  </Button>
-                </Link>
-                <Button className="w-full justify-start" variant="outline">
-                  <Users className="h-4 w-4 mr-2" />
-                  Study Groups
-                </Button>
-                <Button className="w-full justify-start" variant="outline">
-                  <BookOpen className="h-4 w-4 mr-2" />
-                  Study Materials
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Today's Goal */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Star className="h-5 w-5" />
-                  Today's Goal
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium">Daily Practice</span>
-                      <span className="text-sm text-gray-500">1/3 tests</span>
-                    </div>
-                    <Progress value={33} className="h-2" />
-                  </div>
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium">Study Time</span>
-                      <span className="text-sm text-gray-500">2h 30m / 4h</span>
-                    </div>
-                    <Progress value={62} className="h-2" />
-                  </div>
-                  <Button className="w-full" size="sm">
-                    Continue Learning
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Insight Card Component
+ */
+interface InsightCardProps {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  isLocked: boolean;
+  lockMessage?: string;
+  children?: React.ReactNode;
+}
+
+function InsightCard({ title, description, icon, isLocked, lockMessage, children }: InsightCardProps) {
+  const [showLockModal, setShowLockModal] = useState(false);
+  const [, navigate] = useLocation();
+
+  const handleClick = () => {
+    if (isLocked) {
+      setShowLockModal(true);
+    }
+  };
+
+  return (
+    <>
+      <div className="relative">
+        <div
+          onClick={handleClick}
+          className="p-6 rounded-2xl shadow-lg border-2 border-[#4F83FF]/20 transition-all duration-300 bg-[#E8F0FF] hover:bg-[#DBEAFE] hover:shadow-xl cursor-pointer"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-full bg-[#4F83FF] text-white shadow-md">
+              {icon}
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold text-[#1F2937]">
+                {title}
+              </h3>
+              <p className="text-sm text-[#6B7280]">
+                {description}
+              </p>
+            </div>
+          </div>
+          
+          {/* Content container - only this part gets blurred */}
+          <div className="mt-4 relative">
+            {!isLocked && children ? (
+              <div className="min-h-32 bg-white rounded-lg p-3 border border-[#E2E8F0]">
+                {children}
+              </div>
+            ) : (
+              <div className="h-32 bg-white rounded-lg flex items-center justify-center border border-[#E2E8F0]">
+                <p className="text-[#94A3B8] text-sm">
+                  {isLocked ? "Complete tests to unlock insights" : "Coming soon..."}
+                </p>
+              </div>
+            )}
+            
+            {isLocked && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-lg z-10">
+                <div className="text-center px-4">
+                  <AlertCircle className="h-8 w-8 text-[#4F83FF] mx-auto mb-2" />
+                  <p className="text-[#1F2937] font-medium">
+                    Take tests to unlock
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Lock Modal */}
+      {showLockModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md mx-4 border-2 border-blue-200">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Target className="h-8 w-8 text-blue-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                Insights Locked
+              </h3>
+              <p className="text-gray-600 mb-6">
+                {lockMessage || "Complete practice tests to unlock detailed insights and analytics!"}
+              </p>
+              <div className="flex space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowLockModal(false)}
+                  className="flex-1"
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowLockModal(false);
+                    navigate('/topics');
+                  }}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Take Test
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -411,14 +742,14 @@ interface MetricCardProps {
 
 function MetricCard({ title, value, icon, color }: MetricCardProps) {
   return (
-    <Card>
+    <Card className="bg-white shadow-md border border-[#E2E8F0] hover:shadow-lg transition-shadow">
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-2xl font-bold text-gray-900">{value}</p>
+            <p className="text-sm font-medium text-[#6B7280]">{title}</p>
+            <p className="text-2xl font-bold text-[#1F2937]">{value}</p>
           </div>
-          <div className={`p-3 rounded-full ${color} text-white`}>
+          <div className={`p-3 rounded-full ${color} text-white shadow-md`}>
             {icon}
           </div>
         </div>

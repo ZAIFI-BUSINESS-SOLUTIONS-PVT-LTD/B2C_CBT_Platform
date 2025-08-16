@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Send, Bot, User, Loader2, RotateCcw, Plus, Menu } from 'lucide-react';
+import { MessageCircle, Send, Bot, User, Loader2, RotateCcw, Plus, Menu, Mic, MicOff, Check, Pencil, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,6 +8,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getAccessToken } from '@/lib/auth';
 import { useLocation } from 'wouter';
 import { API_CONFIG } from '@/config/api';
+import { SPEECH_CONFIG } from '@/config/speech';
+import '@/types/speech.d.ts';
 
 interface ChatMessage {
   id: string;
@@ -39,9 +41,46 @@ export default function ChatbotPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true); // Sidebar toggle remains for responsive
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  // PATCH session title
+  const renameSessionTitle = async (session: ChatSession, title: string) => {
+    setRenaming(true);
+    try {
+      const url = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CHAT_SESSION_DETAIL(session.chatSessionId)}`;
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ session_title: title })
+      });
+      if (response.ok) {
+        // Update session in state
+        setSessions(prev => prev.map(s => s.chatSessionId === session.chatSessionId ? { ...s, sessionTitle: title } : s));
+        if (currentSession?.chatSessionId === session.chatSessionId) {
+          setCurrentSession(cs => cs ? { ...cs, sessionTitle: title } : cs);
+        }
+        setEditingTitleId(null);
+      } else {
+        // Optionally show error toast
+        console.error('Failed to rename session title');
+      }
+    } catch (e) {
+      console.error('Rename error', e);
+    } finally {
+      setRenaming(false);
+    }
+  };
+  const [isNewSession, setIsNewSession] = useState(false); // Track if it's a new session waiting for first message
+  
+  // Speech recognition states
+  const [isRecording, setIsRecording] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [recognitionLanguage, setRecognitionLanguage] = useState(SPEECH_CONFIG.DEFAULT_LANGUAGE);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -62,6 +101,134 @@ export default function ChatbotPage() {
       loadChatSessions();
     }
   }, [isAuthenticated, student]);
+
+  // Handle URL parameters for direct session creation from home page
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('sessionId');
+    const message = urlParams.get('message');
+    
+    if (sessionId && message) {
+      // Clear URL parameters
+      window.history.replaceState({}, '', '/chatbot');
+      
+      // Find the session and send the message
+      const handleRedirectMessage = async () => {
+        try {
+          // First load sessions to find the new session
+          const url = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CHAT_SESSIONS}`;
+          const response = await fetch(url, { headers: getAuthHeaders() });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const targetSession = data.results?.find((s: ChatSession) => s.chatSessionId === sessionId);
+            
+            if (targetSession) {
+              setCurrentSession(targetSession);
+              setSessions(data.results || []);
+              setIsNewSession(false);
+              
+              // Send the message automatically
+              setTimeout(() => {
+                sendMessageToSession(targetSession, decodeURIComponent(message));
+              }, 100);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to handle redirect message:', error);
+        }
+      };
+      
+      handleRedirectMessage();
+    }
+  }, [isAuthenticated, student]);
+
+  // Initialize speech recognition
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (SpeechRecognition) {
+      setSpeechSupported(true);
+      const recognition = new SpeechRecognition();
+      
+      // Configure speech recognition using config
+      recognition.continuous = SPEECH_CONFIG.RECOGNITION_SETTINGS.continuous;
+      recognition.interimResults = SPEECH_CONFIG.RECOGNITION_SETTINGS.interimResults;
+      recognition.lang = recognitionLanguage;
+      recognition.maxAlternatives = SPEECH_CONFIG.RECOGNITION_SETTINGS.maxAlternatives;
+      
+      // Handle speech recognition results
+      recognition.onresult = (event: any) => {
+        let transcript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        
+        // Update input field with transcribed text (real-time)
+        setInputMessage(transcript);
+        
+        // Don't auto-stop recording - let user manually stop with check icon
+      };
+      
+      // Handle speech recognition start
+      recognition.onstart = () => {
+        console.log('🎤 Speech recognition started');
+        setIsRecording(true);
+      };
+      
+      // Handle speech recognition end
+      recognition.onend = () => {
+        console.log('🎤 Speech recognition ended');
+        setIsRecording(false);
+      };
+      
+      // Handle errors
+      recognition.onerror = (event: any) => {
+        console.error('🎤 Speech recognition error:', event.error);
+        setIsRecording(false);
+        
+        // Log specific error types for debugging
+        switch (event.error) {
+          case 'no-speech':
+            console.log('🎤 No speech detected');
+            break;
+          case 'audio-capture':
+            console.error('🎤 Audio capture failed - check microphone permissions');
+            break;
+          case 'not-allowed':
+            console.error('🎤 Microphone permission denied');
+            break;
+          case 'network':
+            console.error('🎤 Network error occurred');
+            break;
+          case 'aborted':
+            console.log('🎤 Speech recognition aborted');
+            break;
+          default:
+            console.error('🎤 Unknown error:', event.error);
+        }
+      };
+      
+      // Handle no match
+      recognition.onnomatch = () => {
+        console.log('🎤 No speech match found');
+        setIsRecording(false);
+      };
+      
+      recognitionRef.current = recognition;
+    } else {
+      console.warn('🎤 Speech Recognition not supported in this browser');
+      setSpeechSupported(false);
+    }
+    
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, [recognitionLanguage]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -112,6 +279,7 @@ export default function ChatbotPage() {
           // Clear current session if no sessions exist
           setCurrentSession(null);
           setMessages([]);
+          setIsNewSession(true); // Show "Where should we begin?" for first time users
         }
       } else {
         const errorText = await response.text();
@@ -151,17 +319,28 @@ export default function ChatbotPage() {
     }
   };
 
+  // Helper to generate a session title like ChatGPT (from first message)
+  function generateSessionTitleFromMessage(message: string): string {
+    if (!message) return 'New Chat';
+    let trimmed = message.trim();
+    if (trimmed.length > 30) {
+      trimmed = trimmed.slice(0, 30).trim() + '...';
+    }
+    // Capitalize first letter
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  }
+
   const createNewSession = async (messageToSend?: string) => {
     try {
       setIsLoading(true);
       const url = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CHAT_SESSIONS}`;
       console.log('🆕 Creating new session at:', url);
-      
+
       const response = await fetch(url, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          sessionTitle: `Chat Session ${new Date().toLocaleDateString()}`
+          sessionTitle: 'New Chat'  // Backend will update this when first message is sent
         }),
       });
 
@@ -173,14 +352,10 @@ export default function ChatbotPage() {
         setCurrentSession(newSession);
         setMessages([]);
         setSessions(prev => [newSession, ...prev]);
-        
-        // Only load welcome message if no message to send
-        if (!messageToSend) {
-          loadSessionMessages(newSession.chatSessionId);
-        }
-        
-        // If there's a message to send after session creation, send it
-        if (messageToSend) {
+        setIsNewSession(true); // Show "Where should we begin?" for new session
+
+        // Only send message if it's a valid non-empty string
+        if (messageToSend && typeof messageToSend === 'string' && messageToSend.trim()) {
           setTimeout(() => {
             sendMessageToSession(newSession, messageToSend);
           }, 100);
@@ -253,10 +428,24 @@ export default function ChatbotPage() {
         setSessions(prev => 
           prev.map(sessionItem => 
             sessionItem.chatSessionId === session.chatSessionId
-              ? { ...sessionItem, updatedAt: new Date().toISOString(), lastMessage: data.botResponse }
+              ? { 
+                  ...sessionItem, 
+                  updatedAt: new Date().toISOString(), 
+                  lastMessage: data.botResponse,
+                  // Update session title if this was the first message (backend updated it)
+                  sessionTitle: sessionItem.messageCount === 0 ? generateSessionTitleFromMessage(message) : sessionItem.sessionTitle
+                }
               : sessionItem
           )
         );
+
+        // Update current session title if this was the first message
+        if (currentSession && currentSession.messageCount === 0) {
+          setCurrentSession(prev => prev ? {
+            ...prev,
+            sessionTitle: generateSessionTitleFromMessage(message)
+          } : prev);
+        }
       } else {
         const errorText = await response.text();
         console.error('❌ Failed to send message:', response.status, errorText);
@@ -280,6 +469,7 @@ export default function ChatbotPage() {
 
     const messageToSend = inputMessage.trim();
     setInputMessage('');
+    setIsNewSession(false); // Hide "Where should we begin?" after first message
 
     // If no current session, create one first and send message after
     if (!currentSession) {
@@ -306,7 +496,42 @@ export default function ChatbotPage() {
 
   const switchSession = (session: ChatSession) => {
     setCurrentSession(session);
+    setIsNewSession(false); // Switch to existing session, show normal chat UI
     loadSessionMessages(session.chatSessionId);
+  };
+
+  // Speech recognition functions
+  const toggleSpeechRecognition = () => {
+    if (!speechSupported) {
+      console.warn('🎤 Speech recognition not supported');
+      return;
+    }
+    
+    if (isRecording) {
+      // Stop recording and automatically send the message if there's content
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      
+      // Auto-send the message if there's content when clicking the check icon
+      setTimeout(() => {
+        if (inputMessage.trim()) {
+          sendMessage();
+        }
+      }, 100);
+    } else {
+      // Start recording
+      if (recognitionRef.current) {
+        try {
+          // Clear previous input before starting new recording
+          setInputMessage('');
+          recognitionRef.current.start();
+        } catch (error) {
+          console.error('🎤 Failed to start speech recognition:', error);
+          setIsRecording(false);
+        }
+      }
+    }
   };
 
   if (!isAuthenticated) {
@@ -314,14 +539,14 @@ export default function ChatbotPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#23272f] text-white">
+    <div className="flex h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 text-[#1F2937]">
       {/* Sidebar - minimal, only new chat and chats */}
-      <div className={`${sidebarOpen ? 'w-72' : 'w-0'} transition-all duration-300 bg-[#18181c] border-r border-[#23272f] flex flex-col overflow-hidden shadow-lg`}>
-        <div className="p-4 border-b border-[#23272f]">
+      <div className={`${sidebarOpen ? 'w-72' : 'w-0'} transition-all duration-300 bg-white border-r border-[#E2E8F0] flex flex-col overflow-hidden shadow-lg`}>
+        <div className="p-4 border-b border-[#E2E8F0]">
           <Button 
-            onClick={createNewSession}
+            onClick={() => createNewSession()}
             disabled={isLoading}
-            className="w-full bg-[#23272f] hover:bg-[#23272f] text-white rounded-xl py-3 flex items-center justify-center gap-2 font-semibold text-base"
+            className="w-full bg-[#4F83FF] hover:bg-[#3B82F6] text-white rounded-xl py-3 flex items-center justify-center gap-2 font-semibold text-base shadow-md"
           >
             <Plus className="h-5 w-5" />
             New chat
@@ -329,24 +554,70 @@ export default function ChatbotPage() {
         </div>
         <ScrollArea className="flex-1 px-2 pt-2">
           <div className="space-y-1">
-            {sessions.map((session) => (
-              <div
-                key={session.chatSessionId}
-                className={`cursor-pointer rounded-lg px-4 py-3 hover:bg-[#23272f] transition-colors font-medium text-base ${
-                  currentSession?.chatSessionId === session.chatSessionId 
-                    ? 'bg-[#23272f] text-white' 
-                    : 'text-gray-300'
-                }`}
-                onClick={() => switchSession(session)}
-              >
-                <div className="truncate">
-                  {session.sessionTitle || `Chat ${session.id}`}
+            {sessions.map((session) => {
+              const isActive = currentSession?.chatSessionId === session.chatSessionId;
+              return (
+                <div
+                  key={session.chatSessionId}
+                  className={`cursor-pointer rounded-lg px-4 py-3 hover:bg-[#F8FAFC] transition-colors font-medium text-base ${
+                    isActive ? 'bg-[#E8F0FF] text-[#1F2937]' : 'text-[#6B7280]'
+                  } flex items-center justify-between gap-2`}
+                  onClick={() => switchSession(session)}
+                >
+                  <div className="flex-1 truncate">
+                    {editingTitleId === session.chatSessionId ? (
+                      <form
+                        className="flex items-center gap-1"
+                        onSubmit={e => {
+                          e.preventDefault();
+                          if (newTitle.trim() && !renaming) {
+                            renameSessionTitle(session, newTitle.trim());
+                          }
+                        }}
+                      >
+                        <Input
+                          value={newTitle}
+                          onChange={e => setNewTitle(e.target.value)}
+                          autoFocus
+                          className="h-7 text-base px-2 py-1 border border-[#CBD5E1] rounded"
+                          onClick={e => e.stopPropagation()}
+                          onBlur={() => setEditingTitleId(null)}
+                          maxLength={40}
+                          disabled={renaming}
+                        />
+                        <button type="submit" className="ml-1 text-[#4F83FF] hover:text-[#2563EB]" disabled={renaming}>
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button type="button" className="ml-1 text-[#DC2626] hover:text-[#B91C1C]" onClick={() => setEditingTitleId(null)}>
+                          <X className="h-4 w-4" />
+                        </button>
+                      </form>
+                    ) : (
+                      <span className="flex items-center gap-1 w-full">
+                        <span className="truncate max-w-[120px] md:max-w-[160px] lg:max-w-[200px]">{session.sessionTitle || `Chat ${session.id}`}</span>
+                        {isActive && (
+                          <button
+                            type="button"
+                            className="ml-1 flex-shrink-0 text-[#4F83FF] hover:text-[#2563EB]"
+                            title="Rename chat"
+                            onClick={e => {
+                              e.stopPropagation();
+                              setEditingTitleId(session.chatSessionId);
+                              setNewTitle(session.sessionTitle || '');
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-[#94A3B8] min-w-[70px] text-right">
+                    {new Date(session.updatedAt).toLocaleDateString()}
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500">
-                  {new Date(session.updatedAt).toLocaleDateString()}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </ScrollArea>
       </div>
@@ -354,51 +625,72 @@ export default function ChatbotPage() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Header - minimal, centered */}
-        <div className="bg-[#23272f] border-b border-[#23272f] p-6 flex items-center justify-between">
+        <div className="bg-white border-b border-[#E2E8F0] p-6 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-gray-400 hover:text-white"
+              className="text-[#6B7280] hover:text-[#1F2937] hover:bg-[#F8FAFC]"
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Chatbot</h1>
+            <h1 className="text-xl font-bold text-[#1F2937] tracking-tight">AI Tutor</h1>
           </div>
         </div>
 
         {/* Messages Area */}
         <div className="flex-1 overflow-hidden">
           <ScrollArea className="h-full">
-            <div className="max-w-2xl mx-auto px-4 py-16">
-              {!currentSession ? (
+            <div className="max-w-5xl mx-auto px-4 py-16">
+              {!currentSession || isNewSession ? (
                 <div className="flex flex-col items-center justify-center h-[60vh]">
-                  <h2 className="text-3xl font-bold text-white mb-6">Where should we begin?</h2>
+                  <h2 className="text-3xl font-bold text-[#1F2937] mb-6">Where should we begin?</h2>
                   <div className="w-full max-w-xl">
-                    <div className="rounded-2xl bg-[#23272f] border border-[#23272f] shadow-lg px-6 py-8 flex flex-col items-center">
-                      <Input
-                        ref={inputRef}
-                        value={inputMessage}
-                        onChange={(e) => setInputMessage(e.target.value)}
-                        onKeyPress={handleKeyPress}
-                        placeholder="Ask anything..."
-                        disabled={isLoading}
-                        className="flex-1 bg-[#343541] text-white placeholder-gray-400 border-none focus:ring-0 focus:outline-none text-lg pl-4 rounded-xl"
-                      />
-                      <Button 
-                        onClick={sendMessage} 
-                        disabled={!inputMessage.trim() || isLoading}
-                        size="lg"
-                        className="mt-6 w-full bg-[#343541] hover:bg-[#23272f] text-white rounded-xl px-4 py-3 font-semibold text-lg"
-                      >
-                        {isLoading ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                          <Send className="h-5 w-5" />
-                        )}
-                        <span className="ml-2">Send</span>
-                      </Button>
+                    <div className="rounded-2xl bg-white border border-[#E2E8F0] shadow-lg px-6 py-8 flex flex-col items-center">
+                      <form className="w-full" onSubmit={e => { e.preventDefault(); sendMessage(); }}>
+                        <div className={`flex items-center w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-2 transition-shadow duration-200 ${isRecording ? 'ring-2 ring-[#10B981] ring-offset-2 chatbot-glow' : ''}`}> 
+                          <Input
+                            ref={inputRef}
+                            value={inputMessage}
+                            onChange={(e) => setInputMessage(e.target.value)}
+                            onKeyPress={handleKeyPress}
+                            placeholder="Ask anything..."
+                            disabled={isLoading}
+                            className="flex-1 bg-transparent border-none outline-none shadow-none text-lg placeholder-[#6B7280]"
+                          />
+                          {speechSupported && (
+                            <button
+                              type="button"
+                              onClick={toggleSpeechRecognition}
+                              disabled={isLoading}
+                              className={`ml-2 p-2 rounded-full transition-all duration-200 ${
+                                isRecording 
+                                  ? 'bg-[#10B981] hover:bg-[#059669] text-white' 
+                                  : 'bg-[#E5E7EB] hover:bg-[#CBD5E1] text-[#6B7280]'
+                              }`}
+                              title={isRecording ? 'Stop recording and send' : 'Start voice input'}
+                              aria-label={isRecording ? 'Stop recording and send' : 'Start voice input'}
+                            >
+                              {isRecording ? <Check className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                            </button>
+                          )}
+                          <button
+                            type="submit"
+                            disabled={!inputMessage.trim() || isLoading}
+                            className="ml-2 p-2 rounded-full bg-[#4F83FF] hover:bg-[#3B82F6] text-white transition-all duration-200 disabled:opacity-50"
+                          >
+                            {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                          </button>
+                        </div>
+                      </form>
+                      {speechSupported && isRecording && (
+                        <div className="mt-4 text-center">
+                          <span className="text-[#10B981] text-sm">
+                            🎤 Listening... Click ✓ to stop and send
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -413,19 +705,25 @@ export default function ChatbotPage() {
                         {/* Avatar */}
                         <div className="flex-shrink-0">
                           {message.messageType === 'user' ? (
-                            <div className="w-8 h-8 bg-[#6e56cf] rounded-full flex items-center justify-center">
+                            <div className="w-8 h-8 bg-[#4F83FF] rounded-full flex items-center justify-center shadow-md">
                               <User className="h-4 w-4 text-white" />
                             </div>
                           ) : (
-                            <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center">
+                            <div className="w-8 h-8 bg-gradient-to-br from-[#10B981] to-[#4F83FF] rounded-full flex items-center justify-center shadow-md">
                               <Bot className="h-4 w-4 text-white" />
                             </div>
                           )}
                         </div>
                         {/* Bubble */}
-                        <div className={`rounded-2xl px-5 py-4 text-base ${message.messageType === 'user' ? 'bg-[#343541] text-white' : 'bg-[#18181c] text-gray-100'} shadow-md`}>
+                        <div className={`rounded-2xl px-5 py-4 text-base shadow-md ${
+                          message.messageType === 'user' 
+                            ? 'bg-[#4F83FF] text-white' 
+                            : 'bg-white text-[#1F2937] border border-[#E2E8F0]'
+                        }`}>
                           {message.messageContent}
-                          <div className="text-xs text-gray-500 mt-2 text-right">
+                          <div className={`text-xs mt-2 text-right ${
+                            message.messageType === 'user' ? 'text-blue-100' : 'text-[#6B7280]'
+                          }`}>
                             {new Date(message.createdAt).toLocaleTimeString()}
                             {message.processingTime && (
                               <span className="ml-2">
@@ -439,9 +737,14 @@ export default function ChatbotPage() {
                   ))}
                   {isLoading && (
                     <div className="flex justify-start">
-                      <div className="rounded-2xl px-5 py-4 bg-[#18181c] text-gray-100 shadow-md flex items-center gap-3">
-                        <Bot className="h-4 w-4 text-white" />
-                        <span className="text-sm text-gray-400">Thinking...</span>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-gradient-to-br from-[#10B981] to-[#4F83FF] rounded-full flex items-center justify-center shadow-md">
+                          <Bot className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="rounded-2xl px-5 py-4 bg-white text-[#1F2937] shadow-md border border-[#E2E8F0] flex items-center gap-3">
+                          <Loader2 className="h-4 w-4 animate-spin text-[#4F83FF]" />
+                          <span className="text-sm text-[#6B7280]">Thinking...</span>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -452,41 +755,64 @@ export default function ChatbotPage() {
           </ScrollArea>
         </div>
 
-        {/* Input Area - only show if session is active */}
-        {currentSession && (
-          <div className="bg-[#23272f] border-t border-[#23272f] p-6">
+        {/* Input Area - only show if session is active and not in new session mode */}
+        {currentSession && !isNewSession && (
+          <div className="bg-white border-t border-[#E2E8F0] p-6 shadow-lg">
             <div className="max-w-2xl mx-auto">
               {error && (
-                <div className="mb-3 p-3 bg-red-900/50 border border-red-800 rounded-lg">
-                  <p className="text-sm text-red-200">{error}</p>
+                <div className="mb-3 p-3 bg-[#FEF2F2] border border-[#FCA5A5] rounded-lg">
+                  <p className="text-sm text-[#DC2626]">{error}</p>
                 </div>
               )}
-              <div className="flex gap-3">
-                <Input
-                  ref={inputRef}
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask anything..."
-                  disabled={isLoading}
-                  className="flex-1 bg-[#343541] text-white placeholder-gray-400 border-none focus:ring-0 focus:outline-none text-lg pl-4 rounded-xl"
-                />
-                <Button 
-                  onClick={sendMessage} 
-                  disabled={!inputMessage.trim() || isLoading}
-                  size="lg"
-                  className="bg-[#343541] hover:bg-[#23272f] text-white rounded-xl px-4 py-3 font-semibold text-lg"
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Send className="h-5 w-5" />
+              <form className="w-full" onSubmit={e => { e.preventDefault(); sendMessage(); }}>
+                <div className={`flex items-center w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-2 transition-shadow duration-200 ${isRecording ? 'ring-2 ring-[#10B981] ring-offset-2 chatbot-glow' : ''}`}> 
+      {/* Smooth green glow animation for mic listening */}
+      <style>{`
+        .chatbot-glow {
+          animation: chatbot-glow-anim 1.6s ease-in-out infinite;
+        }
+        @keyframes chatbot-glow-anim {
+          0% { box-shadow: 0 0 0 0 #10B98133, 0 0 0 0 #10B98133; }
+          50% { box-shadow: 0 0 12px 4px #10B98166, 0 0 24px 8px #10B98133; }
+          100% { box-shadow: 0 0 0 0 #10B98133, 0 0 0 0 #10B98133; }
+        }
+      `}</style>
+                  <Input
+                    ref={inputRef}
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Ask anything..."
+                    disabled={isLoading}
+                    className="flex-1 bg-transparent border-none outline-none shadow-none text-lg placeholder-[#6B7280]"
+                  />
+                  {speechSupported && (
+                    <button
+                      type="button"
+                      onClick={toggleSpeechRecognition}
+                      disabled={isLoading}
+                      className={`ml-2 p-2 rounded-full transition-all duration-200 ${
+                        isRecording 
+                          ? 'bg-[#10B981] hover:bg-[#059669] text-white' 
+                          : 'bg-[#E5E7EB] hover:bg-[#CBD5E1] text-[#6B7280]'
+                      }`}
+                      title={isRecording ? 'Stop recording and send' : 'Start voice input'}
+                      aria-label={isRecording ? 'Stop recording and send' : 'Start voice input'}
+                    >
+                      {isRecording ? <Check className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                    </button>
                   )}
-                  <span className="ml-2">Send</span>
-                </Button>
-              </div>
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                Press Enter to send - Let your tutor take it from here!.
+                  <button
+                    type="submit"
+                    disabled={!inputMessage.trim() || isLoading}
+                    className="ml-2 p-2 rounded-full bg-[#4F83FF] hover:bg-[#3B82F6] text-white transition-all duration-200 disabled:opacity-50"
+                  >
+                    {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                  </button>
+                </div>
+              </form>
+              <p className="text-xs text-[#6B7280] mt-2 text-center">
+                Press Enter to send {speechSupported ? '• Click mic for voice input' : ''} - Let your tutor take it from here!
               </p>
             </div>
           </div>

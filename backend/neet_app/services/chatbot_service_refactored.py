@@ -106,15 +106,22 @@ Your response must:
 - Use the performance data to support your insights.
 - Avoid unnecessary elaboration or listing unless asked.
 - Maintain a friendly, motivating, and clear tone.
+- Do not include raw data formatting (e.g., asterisks, markdown tables, or code blocks) in your response.
+- Do not mention session IDs or any internal identifiers in your answer.
+- Present information in clear, readable sentences suitable for students.
 
 Do not provide insights outside the NEET syllabus."""
         
     def _initialize_grok_client(self):
         """Initialize Grok API client for SQL-related responses (backup)"""
         try:
+            import os
             from langchain_groq import ChatGroq
             
-            grok_api_key = "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"
+            grok_api_key = os.getenv('GROQ_API_KEY')
+            if not grok_api_key:
+                print("⚠️ GROQ_API_KEY not found in environment variables")
+                return None
             
             client = ChatGroq(
                 model="llama-3.3-70b-versatile",
@@ -124,6 +131,8 @@ Do not provide insights outside the NEET syllabus."""
                 timeout=30,
                 max_retries=3
             )
+            
+            
             
             print("🔧 Grok API client initialized for backup responses")
             return client

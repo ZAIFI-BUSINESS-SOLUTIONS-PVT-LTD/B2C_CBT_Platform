@@ -25,17 +25,17 @@ export default function Test() {
   // Validate sessionId - if invalid, show error
   if (!sessionId || isNaN(Number(sessionId))) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-slate-900 mb-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 flex items-center justify-center">
+        <div className="text-center bg-white rounded-2xl shadow-lg border border-[#E2E8F0] p-8 max-w-md mx-4">
+          <h2 className="text-2xl font-bold text-[#1F2937] mb-4">
             Invalid Test Session
           </h2>
-          <p className="text-slate-600 mb-4">
+          <p className="text-[#6B7280] mb-4">
             The test session ID is invalid or missing.
           </p>
           <button
             onClick={() => window.location.href = '/topics'}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="px-6 py-3 bg-[#4F83FF] text-white rounded-xl hover:bg-[#3B82F6] transition-colors shadow-md font-medium"
           >
             Return to Topics
           </button>
@@ -46,7 +46,7 @@ export default function Test() {
 
   // Main test interface - let TestInterface handle all data fetching
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50">
       <TestInterface sessionId={parseInt(sessionId)} />
     </div>
   );

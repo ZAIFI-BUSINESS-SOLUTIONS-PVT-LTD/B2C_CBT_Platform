@@ -2,8 +2,7 @@ from django.http import JsonResponse
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from neomodel import db
-from ..models import Topic, Question, TestSession, TestAnswer, StudentProfile
+from ..models import Topic, Question, TestSession, TestAnswer, StudentProfile, DatabaseQuestion
 import logging
 from django.db import transaction, IntegrityError
 import random
@@ -179,6 +178,7 @@ def clean_mathematical_text(text):
 def generate_questions_for_topics(selected_topics, question_count=None):
     """
     Generate questions for the selected topics with cleaned mathematical expressions.
+    Enhanced with fallback logic for topics without questions.
     
     Args:
         selected_topics: List of topic IDs
@@ -190,6 +190,25 @@ def generate_questions_for_topics(selected_topics, question_count=None):
     try:
         # Get all questions for the selected topics
         questions = Question.objects.filter(topic_id__in=selected_topics)
+        
+        logger.info(f"Found {questions.count()} questions for topics {selected_topics}")
+        
+        # If no questions found for selected topics, try to find any available questions
+        if questions.count() == 0:
+            logger.warning(f"No questions found for selected topics {selected_topics}")
+            
+            # Fallback: Get questions from any topics that have questions
+            available_topic_ids = Question.objects.values_list('topic_id', flat=True).distinct()
+            if available_topic_ids.exists():
+                # Randomly select from available topics
+                import random
+                fallback_topics = list(available_topic_ids)[:20]  # Limit to first 20 for performance
+                random.shuffle(fallback_topics)
+                questions = Question.objects.filter(topic_id__in=fallback_topics)
+                logger.info(f"Fallback: Using {questions.count()} questions from available topics {fallback_topics[:10]}")
+            else:
+                logger.error("No questions found in the entire database!")
+                return Question.objects.none()
         
         # If question_count is specified and we have more questions than needed,
         # randomly select the specified number
@@ -210,6 +229,9 @@ def generate_questions_for_topics(selected_topics, question_count=None):
                 # Also check options for patterns
                 all_options = question.option_a + question.option_b + question.option_c + question.option_d
                 needs_cleaning = any(pattern in all_options for pattern in patterns_to_check)
+            if not needs_cleaning and question.explanation:
+                # Also check explanation for patterns
+                needs_cleaning = any(pattern in question.explanation for pattern in patterns_to_check)
             
             if needs_cleaning:
                 question.question = clean_mathematical_text(question.question)
@@ -217,7 +239,9 @@ def generate_questions_for_topics(selected_topics, question_count=None):
                 question.option_b = clean_mathematical_text(question.option_b)
                 question.option_c = clean_mathematical_text(question.option_c)
                 question.option_d = clean_mathematical_text(question.option_d)
-                question.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d'])
+                if question.explanation:
+                    question.explanation = clean_mathematical_text(question.explanation)
+                question.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation'])
         
         logger.info(f"Generated {questions.count()} questions for topics {selected_topics}")
         return questions
@@ -228,249 +252,113 @@ def generate_questions_for_topics(selected_topics, question_count=None):
         return Question.objects.none()
 
 
-def sync_neo4j_to_postgresql(request):
+@api_view(['GET'])
+def sync_topics_from_database_question(request=None):
     """
-    Fetches data from Neo4j (Subjects, Chapters, Topics) and
-    stores it into the PostgreSQL 'topics' table.
+    Syncs unique topics from the database_question table to the Topic model.
+    Only creates new topics that don't already exist based on (name, subject, chapter) combination.
     """
-    if request.method != 'GET':
-        return JsonResponse({"error": "This endpoint only supports GET requests."}, status=405)
-
-    # Your provided Cypher query
-    cypher_query = """
-    MATCH (s:Subject)-[:CONTAINS]->(c:Chapter)-[:CONTAINS]->(t:Topic)
-    RETURN DISTINCT s.name AS Subject, c.name AS Chapter, t.name AS Topic
-    ORDER BY Subject, Chapter, Topic
-    """
-    
-    topics_synced_count = 0
-    topics_skipped_count = 0 # Will count skipped duplicates if unique_together is set
-    topics_failed_count = 0
-    errors = []
-
-    # Define a default icon value since your Neo4j query doesn't return one,
-    # and your PostgreSQL 'icon' field is not nullable.
-    DEFAULT_ICON = "📚" # You can change this to a more meaningful default like "default_icon.png" or ""
-
     try:
-        # Execute the Cypher query
-        results, columns = db.cypher_query(cypher_query)
-        
-        # Verify the columns returned by the query
-        expected_columns = ['Subject', 'Chapter', 'Topic']
-        if not all(col in columns for col in expected_columns):
-            raise ValueError(
-                f"Neo4j query did not return all expected columns. "
-                f"Expected: {expected_columns}, Got: {columns}"
+        # Get unique combinations of subject, chapter, topic from database_question table
+        unique_topics = (
+            DatabaseQuestion.objects
+            .values('subject', 'chapter', 'topic')
+            .distinct()
+            .filter(
+                subject__isnull=False,
+                topic__isnull=False
             )
+            .exclude(subject__exact='')
+            .exclude(topic__exact='')
+        )
 
-        subject_idx = columns.index('Subject')
-        chapter_idx = columns.index('Chapter')
-        topic_idx = columns.index('Topic')
+        topics_synced_count = 0
+        topics_skipped_count = 0
+        topics_failed_count = 0
+        errors = []
+        DEFAULT_ICON = "📚"
 
-        # Use a Django database transaction for atomicity when saving to PostgreSQL
         with transaction.atomic():
-            for row in results:
-                subject_name = row[subject_idx]
-                chapter_name = row[chapter_idx]
-                topic_name = row[topic_idx]
+            for entry in unique_topics:
+                subject_name = entry['subject'] or ""
+                chapter_name = entry['chapter'] or ""
+                topic_name = entry['topic'] or ""
+
+                if not topic_name.strip():
+                    errors.append(f"Skipping topic with empty name (Subject: '{subject_name}', Chapter: '{chapter_name}')")
+                    continue
 
                 try:
+                    # Check if topic already exists with same name, subject, and chapter
+                    existing_topic = Topic.objects.filter(
+                        name=topic_name.strip(),
+                        subject=subject_name.strip(),
+                        chapter=chapter_name.strip()
+                    ).first()
+                    
+                    if existing_topic:
+                        topics_skipped_count += 1
+                        continue
+                    
+                    # Create new topic only if it doesn't exist
                     Topic.objects.create(
-                        name=topic_name,
-                        subject=subject_name,
+                        name=topic_name.strip(),
+                        subject=subject_name.strip(),
                         icon=DEFAULT_ICON,
-                        chapter=chapter_name if chapter_name is not None else ""
+                        chapter=chapter_name.strip()
                     )
                     topics_synced_count += 1
-
+                    
                 except IntegrityError as e:
-                    # This block will ONLY be triggered if you have `unique_together`
-                    # set on your Topic model and a duplicate is attempted.
-                    logger.info(f"Skipping duplicate due to IntegrityError: Subject='{subject_name}', Chapter='{chapter_name}', Topic='{topic_name}' - Error: {e}")
+                    errors.append(f"IntegrityError creating topic '{topic_name}': {e}")
                     topics_skipped_count += 1
                 except Exception as e:
-                    error_msg = f"Error saving topic '{topic_name}' (Subject: '{subject_name}', Chapter: '{chapter_name}') to PostgreSQL: {e}"
-                    logger.error(error_msg)
-                    errors.append(error_msg)
+                    errors.append(f"Error saving topic '{topic_name}': {e}")
                     topics_failed_count += 1
 
+        response_data = {
+            "status": "success",
+            "message": "PostgreSQL topic sync completed.",
+            "topics_synced": topics_synced_count,
+            "topics_skipped_duplicates": topics_skipped_count,
+            "topics_failed_to_save": topics_failed_count,
+            "total_unique_topics_found": unique_topics.count(),
+            "errors": errors
+        }
+        
+        if request:
+            return JsonResponse(response_data)
+        return response_data
+
     except Exception as e:
-        error_msg = f"Overall error fetching data from Neo4j or during transaction: {e}"
+        error_msg = f"Error syncing topics from database_question: {e}"
         logger.error(error_msg)
-        errors.append(error_msg)
-        return JsonResponse({"status": "failed", "message": "An error occurred during synchronization.", "details": errors}, status=500)
-
-    response_data = {
-        "status": "success",
-        "message": "Neo4j data synchronization to PostgreSQL completed.",
-        "topics_synced": topics_synced_count,
-        "topics_skipped_duplicates": topics_skipped_count, # Only effective if unique_together is set
-        "topics_failed_to_save": topics_failed_count,
-        "errors": errors
-    }
-    return JsonResponse(response_data)
+        error_response = {"status": "failed", "message": error_msg}
+        
+        if request:
+            return JsonResponse(error_response, status=500)
+        return error_response
 
 
-def reset_chapter_structure():
+@api_view(['DELETE'])
+def reset_questions_and_topics(request=None):
     """
-    Resets the chapter structure in Neo4j by clearing all existing nodes and relationships.
-    Replicates the functionality from the original views.py reset utility.
+    Resets the Question and Topic tables by clearing all existing data.
+    This allows for a fresh sync from database_question table.
     """
     try:
-        # Clear all nodes and relationships
-        db.cypher_query("MATCH (n) DETACH DELETE n")
+        with transaction.atomic():
+            # Delete all questions first (due to foreign key constraints)
+            questions_deleted = Question.objects.all().delete()[0]
+            # Delete all topics
+            topics_deleted = Topic.objects.all().delete()[0]
         
-        return {
-            'status': 'success',
-            'message': 'Chapter structure reset successfully. All Neo4j nodes and relationships have been cleared.'
-        }
-    except Exception as e:
-        return {
-            'status': 'error',
-            'message': f'Error resetting chapter structure: {str(e)}'
-        }
-
-
-def sync_questions_from_neo4j(request=None):
-    """
-    Syncs questions from Neo4j to PostgreSQL Question model.
-    Fetches questions with their options, correct answers, and topics.
-    
-    IMPORTANT: This function assumes topics are already populated by sync_neo4j_to_postgresql.
-    It will NOT create new topics, only reference existing ones.
-    """
-    try:
-        # Cypher query to fetch questions from Neo4j
-        cypher_query = """
-        MATCH (q:Question)
-        RETURN 
-          q.question_text AS question_text,
-          q.options AS options,
-          q.correct_option AS correct_option,
-          q.topic_name AS topic_name
-        """
-        
-        # Execute the query
-        results, meta = db.cypher_query(cypher_query)
-        
-        if not results:
-            response_data = {
-                'status': 'success',
-                'message': 'No questions found in Neo4j database.',
-                'questions_processed': 0
-            }
-            if request:
-                return JsonResponse(response_data)
-            return response_data
-        
-        questions_created = 0
-        errors = []
-        topics_not_found = set()  # Track missing topics
-        
-        for row in results:
-            try:
-                question_text = row[0]
-                options = row[1]  # This should be a list of 4 options
-                correct_option = row[2]  # This should be the correct answer
-                topic_name = row[3]
-                
-                # Validate required fields
-                if not question_text or not question_text.strip():
-                    errors.append(f"Skipping question with empty text")
-                    continue
-                
-                if not topic_name or not topic_name.strip():
-                    errors.append(f"Skipping question '{question_text[:50]}...' - no topic name")
-                    continue
-                
-                # Handle options list validation
-                if not options or not isinstance(options, list) or len(options) != 4:
-                    errors.append(f"Skipping question '{question_text[:50]}...' - invalid options format (expected list of 4)")
-                    continue
-                
-                # Validate all options are non-empty
-                if not all(option and option.strip() for option in options):
-                    errors.append(f"Skipping question '{question_text[:50]}...' - one or more options are empty")
-                    continue
-                
-                # Extract and normalize correct_option
-                if correct_option and isinstance(correct_option, str):
-                    # Handle format like "(c) some text" or "(c)"
-                    if correct_option.startswith('(') and ')' in correct_option:
-                        correct_letter = correct_option[1:correct_option.index(')')].strip().lower()
-                    else:
-                        correct_letter = correct_option.strip().lower()
-                    
-                    # Normalize to uppercase A, B, C, D
-                    if correct_letter in ['a', '0']:
-                        correct_answer = 'A'
-                    elif correct_letter in ['b', '1']:
-                        correct_answer = 'B'
-                    elif correct_letter in ['c', '2']:
-                        correct_answer = 'C'
-                    elif correct_letter in ['d', '3']:
-                        correct_answer = 'D'
-                    else:
-                        errors.append(f"Skipping question '{question_text[:50]}...' - invalid correct_option: {correct_option}")
-                        continue
-                else:
-                    errors.append(f"Skipping question '{question_text[:50]}...' - missing correct_option")
-                    continue
-                
-                # ✅ FIXED: Only look for existing topics, don't create new ones
-                topic = Topic.objects.filter(name=topic_name.strip()).first()
-                
-                if not topic:
-                    # Track missing topics but don't create them
-                    topics_not_found.add(topic_name.strip())
-                    errors.append(f"Skipping question '{question_text[:50]}...' - topic '{topic_name}' not found in database. Run sync_neo4j_to_postgresql first.")
-                    continue
-                
-                # Clean and prepare question data with regex handling
-                question_text_clean = clean_mathematical_text(question_text.strip())
-                
-                # Clean all options
-                cleaned_options = [clean_mathematical_text(option.strip()) for option in options]
-                
-                question_data = {
-                    'topic': topic,
-                    'question': question_text_clean,
-                    'option_a': cleaned_options[0],
-                    'option_b': cleaned_options[1],
-                    'option_c': cleaned_options[2],
-                    'option_d': cleaned_options[3],
-                    'correct_answer': correct_answer,
-                    'explanation': 'Explanation not available'  # Default explanation
-                }
-                
-                # Create new question (no duplicate checking as per requirement)
-                Question.objects.create(**question_data)
-                questions_created += 1
-                    
-            except Exception as e:
-                error_msg = f"Error processing question: {str(e)}"
-                errors.append(error_msg)
-                continue
-        
-        # Prepare response
         response_data = {
             'status': 'success',
-            'message': f'Successfully created {questions_created} questions from Neo4j',
-            'questions_created': questions_created,
-            'total_processed': questions_created,
-            'errors_count': len(errors)
+            'message': f'Reset completed successfully. Deleted {questions_deleted} questions and {topics_deleted} topics.',
+            'questions_deleted': questions_deleted,
+            'topics_deleted': topics_deleted
         }
-        
-        if topics_not_found:
-            response_data['missing_topics'] = list(topics_not_found)
-            response_data['missing_topics_count'] = len(topics_not_found)
-            response_data['recommendation'] = 'Run sync_neo4j_to_postgresql first to populate topics'
-        
-        if errors:
-            response_data['errors'] = errors[:10]  # Limit errors to first 10
-            if len(errors) > 10:
-                response_data['additional_errors'] = f"... and {len(errors) - 10} more errors"
         
         if request:
             return JsonResponse(response_data)
@@ -479,8 +367,222 @@ def sync_questions_from_neo4j(request=None):
     except Exception as e:
         error_response = {
             'status': 'error',
-            'message': f'Failed to sync questions from Neo4j: {str(e)}',
+            'message': f'Error resetting questions and topics: {str(e)}'
+        }
+        
+        if request:
+            return JsonResponse(error_response, status=500)
+        return error_response
+
+
+@api_view(['GET'])
+def sync_questions_from_database_question(request=None):
+    """
+    Syncs questions from database_question table to PostgreSQL Question model.
+    Fetches questions with their options, correct answers, and topics.
+    
+    IMPORTANT: This function assumes topics are already populated by sync_topics_from_database_question.
+    It will NOT create new topics, only reference existing ones.
+    Only creates new questions that don't already exist based on question content and topic.
+    """
+    try:
+        # Get all questions from database_question table
+        source_questions = DatabaseQuestion.objects.filter(
+            question_text__isnull=False,
+            topic__isnull=False,
+            option_1__isnull=False,
+            option_2__isnull=False,
+            option_3__isnull=False,
+            option_4__isnull=False,
+            correct_answer__isnull=False
+        ).exclude(
+            question_text__exact=''
+        ).exclude(
+            topic__exact=''
+        )
+
+        if not source_questions.exists():
+            response_data = {
+                'status': 'success',
+                'message': 'No valid questions found in database_question table.',
+                'questions_processed': 0
+            }
+            if request:
+                return JsonResponse(response_data)
+            return response_data
+
+        questions_created = 0
+        questions_skipped = 0
+        errors = []
+        topics_not_found = set()  # Track missing topics
+
+        with transaction.atomic():
+            for q in source_questions:
+                try:
+                    question_text = q.question_text
+                    options = [q.option_1, q.option_2, q.option_3, q.option_4]
+                    correct_option = q.correct_answer
+                    topic_name = q.topic
+
+                    # Validate required fields
+                    if not question_text or not question_text.strip():
+                        errors.append("Skipping question with empty text")
+                        continue
+
+                    if not topic_name or not topic_name.strip():
+                        errors.append(f"Skipping question '{question_text[:50]}...' - no topic name")
+                        continue
+
+                    # Validate all options are non-empty
+                    if not all(options) or not all(opt and opt.strip() for opt in options):
+                        errors.append(f"Skipping question '{question_text[:50]}...' - invalid options")
+                        continue
+
+                    if not correct_option or not correct_option.strip():
+                        errors.append(f"Skipping question '{question_text[:50]}...' - missing correct_option")
+                        continue
+
+                    # Normalize correct_option to A, B, C, D
+                    correct_letter = correct_option.strip().lower()
+                    
+                    # Handle various formats like "(a)", "a", "1", etc.
+                    if correct_letter.startswith('(') and ')' in correct_letter:
+                        correct_letter = correct_letter[1:correct_letter.index(')')].strip().lower()
+                    
+                    if correct_letter in ['a', '1', 'option_1']:
+                        correct_answer = 'A'
+                    elif correct_letter in ['b', '2', 'option_2']:
+                        correct_answer = 'B'
+                    elif correct_letter in ['c', '3', 'option_3']:
+                        correct_answer = 'C'
+                    elif correct_letter in ['d', '4', 'option_4']:
+                        correct_answer = 'D'
+                    else:
+                        errors.append(f"Skipping question '{question_text[:50]}...' - invalid correct_option: {correct_option}")
+                        continue
+
+                    # Look for existing topic
+                    topic = Topic.objects.filter(name=topic_name.strip()).first()
+                    if not topic:
+                        topics_not_found.add(topic_name.strip())
+                        errors.append(f"Skipping question '{question_text[:50]}...' - topic '{topic_name}' not found.")
+                        continue
+
+                    # Clean question text and options
+                    question_text_clean = clean_mathematical_text(question_text.strip())
+                    cleaned_options = [clean_mathematical_text(opt.strip()) for opt in options]
+                    cleaned_explanation = clean_mathematical_text(q.explanation) if q.explanation else 'Explanation not available'
+
+                    # Check if question already exists (avoid duplicates)
+                    existing_question = Question.objects.filter(
+                        question=question_text_clean,
+                        topic=topic,
+                        option_a=cleaned_options[0],
+                        option_b=cleaned_options[1],
+                        option_c=cleaned_options[2],
+                        option_d=cleaned_options[3]
+                    ).first()
+                    
+                    if existing_question:
+                        questions_skipped += 1
+                        continue
+
+                    # Prepare question data
+                    question_data = {
+                        'topic': topic,
+                        'question': question_text_clean,
+                        'option_a': cleaned_options[0],
+                        'option_b': cleaned_options[1],
+                        'option_c': cleaned_options[2],
+                        'option_d': cleaned_options[3],
+                        'correct_answer': correct_answer,
+                        'explanation': cleaned_explanation
+                    }
+
+                    # Create new question
+                    Question.objects.create(**question_data)
+                    questions_created += 1
+
+                except Exception as e:
+                    error_msg = f"Error processing question: {str(e)}"
+                    errors.append(error_msg)
+                    continue
+
+        # Prepare response
+        response_data = {
+            'status': 'success',
+            'message': f'Successfully created {questions_created} questions from database_question table',
+            'questions_created': questions_created,
+            'questions_skipped': questions_skipped,
+            'total_processed': questions_created + questions_skipped,
+            'errors_count': len(errors)
+        }
+
+        if topics_not_found:
+            response_data['missing_topics'] = list(topics_not_found)
+            response_data['missing_topics_count'] = len(topics_not_found)
+            response_data['recommendation'] = 'Run sync_topics_from_database_question first to populate topics'
+
+        if errors:
+            response_data['errors'] = errors[:10]  # Limit errors to first 10
+            if len(errors) > 10:
+                response_data['additional_errors'] = f"... and {len(errors) - 10} more errors"
+
+        if request:
+            return JsonResponse(response_data)
+        return response_data
+
+    except Exception as e:
+        error_response = {
+            'status': 'error',
+            'message': f'Failed to sync questions from database_question: {str(e)}',
             'questions_processed': 0
+        }
+
+        if request:
+            return JsonResponse(error_response, status=500)
+        return error_response
+
+
+@api_view(['GET'])
+def sync_all_from_database_question(request=None):
+    """
+    Performs complete sync from database_question table to Topic and Question models.
+    First syncs topics, then syncs questions.
+    """
+    try:
+        # Step 1: Sync topics
+        topics_result = sync_topics_from_database_question()
+        
+        # Step 2: Sync questions
+        questions_result = sync_questions_from_database_question()
+        
+        # Combine results
+        combined_result = {
+            'status': 'success',
+            'message': 'Complete sync from database_question table completed',
+            'topics_sync': topics_result,
+            'questions_sync': questions_result,
+            'summary': {
+                'topics_created': topics_result.get('topics_synced', 0),
+                'topics_skipped': topics_result.get('topics_skipped_duplicates', 0),
+                'questions_created': questions_result.get('questions_created', 0),
+                'questions_skipped': questions_result.get('questions_skipped', 0),
+                'total_errors': (
+                    topics_result.get('errors_count', 0) + 
+                    questions_result.get('errors_count', 0)
+                )
+            }
+        }
+        
+        if request:
+            return JsonResponse(combined_result)
+        return combined_result
+        
+    except Exception as e:
+        error_response = {
+            'status': 'error',
+            'message': f'Failed to complete sync from database_question: {str(e)}'
         }
         
         if request:
@@ -495,8 +597,15 @@ def clean_existing_questions(request=None):
     """
     try:
         # Find questions that likely contain LaTeX/regex patterns OR simple chemical notations
+        # Check in question text, options, and explanation
+        from django.db.models import Q
         questions_to_clean = Question.objects.filter(
-            question__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^'
+            Q(question__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^') |
+            Q(option_a__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^') |
+            Q(option_b__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^') |
+            Q(option_c__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^') |
+            Q(option_d__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^') |
+            Q(explanation__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^')
         )
         
         total_questions = questions_to_clean.count()
@@ -526,6 +635,7 @@ def clean_existing_questions(request=None):
                         question.option_a, question.option_b, 
                         question.option_c, question.option_d
                     ]
+                    original_explanation = question.explanation
                     
                     # Clean the text
                     cleaned_question = clean_mathematical_text(question.question)
@@ -535,11 +645,13 @@ def clean_existing_questions(request=None):
                         clean_mathematical_text(question.option_c),
                         clean_mathematical_text(question.option_d)
                     ]
+                    cleaned_explanation = clean_mathematical_text(question.explanation) if question.explanation else question.explanation
                     
                     # Check if any changes were made
                     changes_made = (
                         original_question != cleaned_question or
-                        original_options != cleaned_options
+                        original_options != cleaned_options or
+                        original_explanation != cleaned_explanation
                     )
                     
                     if changes_made:
@@ -548,8 +660,9 @@ def clean_existing_questions(request=None):
                         question.option_b = cleaned_options[1]
                         question.option_c = cleaned_options[2]
                         question.option_d = cleaned_options[3]
+                        question.explanation = cleaned_explanation
                         question.save(update_fields=[
-                            'question', 'option_a', 'option_b', 'option_c', 'option_d'
+                            'question', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation'
                         ])
                         cleaned += 1
                     

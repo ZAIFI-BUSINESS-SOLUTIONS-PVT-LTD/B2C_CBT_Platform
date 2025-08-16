@@ -45,11 +45,11 @@ export default function Results() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 flex items-center justify-center">
         <div className="space-y-4">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-32 w-96" />
-          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-8 w-64 bg-[#E2E8F0]" />
+          <Skeleton className="h-32 w-96 bg-[#E2E8F0]" />
+          <Skeleton className="h-8 w-48 bg-[#E2E8F0]" />
         </div>
       </div>
     );
@@ -57,12 +57,12 @@ export default function Results() {
 
   if (!results) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-slate-900 mb-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 flex items-center justify-center">
+        <div className="text-center bg-white rounded-2xl shadow-lg border border-[#E2E8F0] p-8 max-w-md mx-4">
+          <h2 className="text-2xl font-bold text-[#1F2937] mb-4">
             Results Not Found
           </h2>
-          <p className="text-slate-600">
+          <p className="text-[#6B7280]">
             The test results you're looking for don't exist.
           </p>
         </div>
@@ -71,7 +71,7 @@ export default function Results() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50">
       <ResultsDisplay results={results} />
     </div>
   );

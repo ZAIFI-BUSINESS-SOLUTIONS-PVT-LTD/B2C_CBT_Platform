@@ -1,0 +1,3 @@
+# Ignore all JSON cache files but keep the directory
+*.json
+!.gitignore

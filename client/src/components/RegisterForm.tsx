@@ -201,188 +201,180 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto p-6 bg-white rounded shadow">
-      <h2 className="text-xl font-bold mb-4">Create Student Profile</h2>
-      
-      {/* Full Name with Username Availability */}
-      <div>
-        <Label htmlFor="fullName">Full Name (Username) *</Label>
-        <div className="relative">
-          <Input 
-            id="fullName"
-            name="fullName" 
-            placeholder="Enter your full name" 
-            value={form.fullName} 
-            onChange={handleChange} 
-            required 
-            className={usernameAvailable === false ? "border-red-500" : usernameAvailable === true ? "border-green-500" : ""}
-          />
-          {checkingUsername && <div className="absolute right-3 top-3 text-sm text-gray-500">Checking...</div>}
-          {usernameAvailable === true && <CheckCircle className="absolute right-3 top-3 h-4 w-4 text-green-500" />}
-          {usernameAvailable === false && <XCircle className="absolute right-3 top-3 h-4 w-4 text-red-500" />}
-        </div>
-        {usernameAvailable === false && <p className="text-red-600 text-sm mt-1">This username is already taken</p>}
-      </div>
-
-      {/* Email */}
-      <div>
-        <Label htmlFor="email">Email Address *</Label>
-        <Input 
-          id="email"
-          name="email" 
-          type="email" 
-          placeholder="Enter your email" 
-          value={form.email} 
-          onChange={handleChange} 
-          required 
-        />
-      </div>
-
-      {/* Password */}
-      <div>
-        <Label htmlFor="password">Password *</Label>
-        <div className="relative">
-          <Input 
-            id="password"
-            name="password" 
-            type={showPassword ? "text" : "password"}
-            placeholder="Enter your password" 
-            value={form.password} 
-            onChange={handleChange} 
-            required 
-            minLength={8}
-            maxLength={64}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-3 text-gray-500"
-          >
-            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
-        </div>
-        
-        {/* Password Strength Indicator */}
-        {form.password && (
-          <div className="mt-2">
-            <div className="flex justify-between text-sm">
-              <span>Password Strength:</span>
-              <span className={
-                passwordStrength.score >= 70 ? "text-green-600" :
-                passwordStrength.score >= 50 ? "text-yellow-600" : "text-red-600"
-              }>
-                {passwordStrength.label}
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-              <div 
-                className={`h-2 rounded-full transition-all ${
-                  passwordStrength.score >= 70 ? "bg-green-500" :
-                  passwordStrength.score >= 50 ? "bg-yellow-500" : "bg-red-500"
-                }`}
-                style={{ width: `${passwordStrength.score}%` }}
-              ></div>
-            </div>
-            {passwordStrength.errors.length > 0 && (
-              <ul className="text-red-600 text-xs mt-1">
-                {passwordStrength.errors.map((error, index) => (
-                  <li key={index}>• {error}</li>
-                ))}
-              </ul>
-            )}
+    <form onSubmit={handleSubmit} className="max-w-md mx-auto bg-white rounded-lg shadow p-0 flex flex-col font-sans" style={{ maxHeight: '80vh', minHeight: '500px', margin: '8px' }}>
+      <div className="flex-1 overflow-y-auto px-4 pb-2 pt-6 space-y-4">
+        {/* Full Name with Username Availability */}
+        <div>
+          <Label htmlFor="fullName">Full Name (Username) *</Label>
+          <div className="relative">
+            <Input 
+              id="fullName"
+              name="fullName" 
+              placeholder="Enter your full name" 
+              value={form.fullName} 
+              onChange={handleChange} 
+              required 
+              className={usernameAvailable === false ? "border-red-500" : usernameAvailable === true ? "border-green-500" : ""}
+            />
+            {checkingUsername && <div className="absolute right-3 top-3 text-sm text-gray-500">Checking...</div>}
+            {usernameAvailable === true && <CheckCircle className="absolute right-3 top-3 h-4 w-4 text-green-500" />}
+            {usernameAvailable === false && <XCircle className="absolute right-3 top-3 h-4 w-4 text-red-500" />}
           </div>
-        )}
-      </div>
-
-      {/* Password Confirmation */}
-      <div>
-        <Label htmlFor="passwordConfirmation">Confirm Password *</Label>
-        <div className="relative">
+          {usernameAvailable === false && <p className="text-red-600 text-sm mt-1">This username is already taken</p>}
+        </div>
+        {/* Email */}
+        <div>
+          <Label htmlFor="email">Email Address *</Label>
           <Input 
-            id="passwordConfirmation"
-            name="passwordConfirmation" 
-            type={showPasswordConfirmation ? "text" : "password"}
-            placeholder="Re-enter your password" 
-            value={form.passwordConfirmation} 
+            id="email"
+            name="email" 
+            type="email" 
+            placeholder="Enter your email" 
+            value={form.email} 
             onChange={handleChange} 
             required 
-            className={form.passwordConfirmation && form.password !== form.passwordConfirmation ? "border-red-500" : ""}
           />
-          <button
-            type="button"
-            onClick={() => setShowPasswordConfirmation(!showPasswordConfirmation)}
-            className="absolute right-3 top-3 text-gray-500"
-          >
-            {showPasswordConfirmation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
         </div>
-        {form.passwordConfirmation && form.password !== form.passwordConfirmation && (
-          <p className="text-red-600 text-sm mt-1">Passwords do not match</p>
-        )}
+        {/* Password */}
+        <div>
+          <Label htmlFor="password">Password *</Label>
+          <div className="relative">
+            <Input 
+              id="password"
+              name="password" 
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password" 
+              value={form.password} 
+              onChange={handleChange} 
+              required 
+              minLength={8}
+              maxLength={64}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-3 text-gray-500"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          {/* Password Strength Indicator */}
+          {form.password && (
+            <div className="mt-2">
+              <div className="flex justify-between text-sm">
+                <span>Password Strength:</span>
+                <span className={
+                  passwordStrength.score >= 70 ? "text-green-600" :
+                  passwordStrength.score >= 50 ? "text-yellow-600" : "text-red-600"
+                }>
+                  {passwordStrength.label}
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                <div 
+                  className={`h-2 rounded-full transition-all ${
+                    passwordStrength.score >= 70 ? "bg-green-500" :
+                    passwordStrength.score >= 50 ? "bg-yellow-500" : "bg-red-500"}
+                  `}
+                  style={{ width: `${passwordStrength.score}%` }}
+                ></div>
+              </div>
+              {passwordStrength.errors.length > 0 && (
+                <ul className="text-red-600 text-xs mt-1">
+                  {passwordStrength.errors.map((error, index) => (
+                    <li key={index}>• {error}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+        {/* Password Confirmation */}
+        <div>
+          <Label htmlFor="passwordConfirmation">Confirm Password *</Label>
+          <div className="relative">
+            <Input 
+              id="passwordConfirmation"
+              name="passwordConfirmation" 
+              type={showPasswordConfirmation ? "text" : "password"}
+              placeholder="Re-enter your password" 
+              value={form.passwordConfirmation} 
+              onChange={handleChange} 
+              required 
+              className={form.passwordConfirmation && form.password !== form.passwordConfirmation ? "border-red-500" : ""}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPasswordConfirmation(!showPasswordConfirmation)}
+              className="absolute right-3 top-3 text-gray-500"
+            >
+              {showPasswordConfirmation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          {form.passwordConfirmation && form.password !== form.passwordConfirmation && (
+            <p className="text-red-600 text-sm mt-1">Passwords do not match</p>
+          )}
+        </div>
+        {/* Phone Number */}
+        <div>
+          <Label htmlFor="phoneNumber">Phone Number</Label>
+          <Input 
+            id="phoneNumber"
+            name="phoneNumber" 
+            placeholder="Enter your phone number" 
+            value={form.phoneNumber} 
+            onChange={handleChange} 
+          />
+        </div>
+        {/* Date of Birth */}
+        <div>
+          <Label htmlFor="dateOfBirth">Date of Birth *</Label>
+          <Input 
+            id="dateOfBirth"
+            name="dateOfBirth" 
+            type="date" 
+            value={form.dateOfBirth} 
+            onChange={handleChange} 
+            required 
+          />
+        </div>
+        {/* School Name */}
+        <div>
+          <Label htmlFor="schoolName">School/College Name</Label>
+          <Input 
+            id="schoolName"
+            name="schoolName" 
+            placeholder="Enter your school name" 
+            value={form.schoolName} 
+            onChange={handleChange} 
+          />
+        </div>
+        {/* Target Exam Year */}
+        <div>
+          <Label htmlFor="targetExamYear">Target Exam Year</Label>
+          <Input 
+            id="targetExamYear"
+            name="targetExamYear" 
+            type="number" 
+            min="2024" 
+            max="2030" 
+            placeholder="2025" 
+            value={form.targetExamYear} 
+            onChange={handleChange} 
+          />
+        </div>
+        {error && <div className="text-red-600 text-sm mt-2 p-2 bg-red-50 rounded">{error}</div>}
+        {success && <div className="text-green-700 text-sm mt-2 p-2 bg-green-50 rounded">{success}</div>}
       </div>
-
-      {/* Phone Number */}
-      <div>
-        <Label htmlFor="phoneNumber">Phone Number</Label>
-        <Input 
-          id="phoneNumber"
-          name="phoneNumber" 
-          placeholder="Enter your phone number" 
-          value={form.phoneNumber} 
-          onChange={handleChange} 
-        />
+      <div className="bg-white px-4 pb-4 pt-2 shadow-none">
+        <Button 
+          type="submit" 
+          disabled={loading || passwordStrength.score < 50 || usernameAvailable === false} 
+          className="w-full text-lg py-3"
+        >
+          {loading ? "Creating Account..." : "Create Account"}
+        </Button>
       </div>
-
-      {/* Date of Birth */}
-      <div>
-        <Label htmlFor="dateOfBirth">Date of Birth *</Label>
-        <Input 
-          id="dateOfBirth"
-          name="dateOfBirth" 
-          type="date" 
-          value={form.dateOfBirth} 
-          onChange={handleChange} 
-          required 
-        />
-      </div>
-
-      {/* School Name */}
-      <div>
-        <Label htmlFor="schoolName">School/College Name</Label>
-        <Input 
-          id="schoolName"
-          name="schoolName" 
-          placeholder="Enter your school name" 
-          value={form.schoolName} 
-          onChange={handleChange} 
-        />
-      </div>
-
-      {/* Target Exam Year */}
-      <div>
-        <Label htmlFor="targetExamYear">Target Exam Year</Label>
-        <Input 
-          id="targetExamYear"
-          name="targetExamYear" 
-          type="number" 
-          min="2024" 
-          max="2030" 
-          placeholder="2025" 
-          value={form.targetExamYear} 
-          onChange={handleChange} 
-        />
-      </div>
-
-      <Button 
-        type="submit" 
-        disabled={loading || passwordStrength.score < 50 || usernameAvailable === false} 
-        className="w-full mt-6"
-      >
-        {loading ? "Creating Account..." : "Create Account"}
-      </Button>
-
-      {error && <div className="text-red-600 text-sm mt-2 p-2 bg-red-50 rounded">{error}</div>}
-      {success && <div className="text-green-700 text-sm mt-2 p-2 bg-green-50 rounded">{success}</div>}
     </form>
-  );
+  ); 
 }

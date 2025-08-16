@@ -3,11 +3,35 @@ Custom JWT Authentication for NEET Practice Platform
 """
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from django.contrib.auth.hashers import check_password
 from .models import StudentProfile
 from .serializers import StudentProfileSerializer
+
+
+class StudentUser:
+    """
+    Custom user class for JWT authentication with StudentProfile
+    """
+    def __init__(self, student_profile):
+        self.student_profile = student_profile
+        self.id = student_profile.student_id  # Use student_id as the ID for the token
+        self.pk = student_profile.student_id  
+        self.username = student_profile.student_id
+        self.email = student_profile.email
+        self.full_name = student_profile.full_name
+        self.is_authenticated = True
+        self.is_active = True
+        self.is_anonymous = False
+        self.student_id = student_profile.student_id
+        
+    def __str__(self):
+        return f"StudentUser: {self.student_id}"
+        
+    def get_username(self):
+        return self.student_id
 
 
 class StudentTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -63,32 +87,6 @@ class StudentTokenObtainPairSerializer(TokenObtainPairSerializer):
         student.save(update_fields=['last_login'])
         
         # Create a dummy user object for JWT token generation
-        # We'll use the student_id as the user identifier in the token
-        class StudentUser:
-            def __init__(self, student_profile):
-                self.id = student_profile.student_id  # Use student_id as the ID for the token
-                self.pk = student_profile.student_id  
-                self.student_profile = student_profile
-                self.username = student_profile.student_id  
-                self._is_authenticated = True
-                self._is_active = student_profile.is_active
-                self._is_anonymous = False
-            
-            @property
-            def is_authenticated(self):
-                return self._is_authenticated
-            
-            @property
-            def is_active(self):
-                return self._is_active
-            
-            @property
-            def is_anonymous(self):
-                return self._is_anonymous
-            
-            def __str__(self):
-                return f"Student-{self.student_profile.student_id}"
-        
         user = StudentUser(student)
         
         # Generate tokens with student_id as the user_id

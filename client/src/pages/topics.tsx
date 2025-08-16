@@ -30,22 +30,22 @@ export default function Topics() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50">
       {/* Header with Navigation */}
-      <div className="w-full bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
+      <div className="w-full bg-white/95 backdrop-blur-sm border-b border-blue-100 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-[#4F83FF] rounded-lg flex items-center justify-center shadow-md">
                 <BookOpen className="h-5 w-5 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900">NEET Practice Platform</h1>
+              <h1 className="text-2xl font-bold text-[#1F2937]">NEET Practice Platform</h1>
             </div>
             
             {/* Navigation Buttons */}
             <div className="flex items-center space-x-3">
               <Link href="/">
-                <Button variant="outline" className="flex items-center gap-2">
+                <Button variant="outline" className="flex items-center gap-2 border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]">
                   <Home className="h-4 w-4" />
                   Home
                 </Button>
@@ -53,7 +53,7 @@ export default function Topics() {
               
               {hasData && (
                 <Link href="/landing-dashboard">
-                  <Button variant="outline" className="flex items-center gap-2">
+                  <Button variant="outline" className="flex items-center gap-2 border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]">
                     <BarChart3 className="h-4 w-4" />
                     Analytics Dashboard
                   </Button>
@@ -61,7 +61,7 @@ export default function Topics() {
               )}
               
               <Link href="/dashboard">
-                <Button variant="outline" className="flex items-center gap-2">
+                <Button variant="outline" className="flex items-center gap-2 border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]">
                   <TrendingUp className="h-4 w-4" />
                   Test History
                 </Button>
@@ -69,7 +69,7 @@ export default function Topics() {
               
               <Button 
                 variant="outline" 
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]"
                 onClick={() => navigate('/chatbot')}
               >
                 <MessageCircle className="h-4 w-4" />
@@ -85,17 +85,16 @@ export default function Topics() {
       {/* Welcome Section */}
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="text-center mb-8">
-          <h2 className="text-4xl font-bold text-gray-800 mb-4">
+          <h2 className="text-4xl font-bold text-[#1F2937] mb-4">
             Create Your Practice Test
           </h2>
-          <p className="text-xl text-gray-600 mb-6">
+          <p className="text-xl text-[#6B7280] mb-6">
             Select topics from Physics, Chemistry, Botany, and Zoology to create a personalized NEET practice test
           </p>
-          
           {hasData && (
             <div className="flex justify-center gap-4 mb-8">
               <Link href="/landing-dashboard">
-                <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button size="lg" className="bg-[#4F83FF] hover:bg-[#3B82F6] text-white shadow-md">
                   <BarChart3 className="h-5 w-5 mr-2" />
                   View Analytics Dashboard
                 </Button>
@@ -103,68 +102,6 @@ export default function Topics() {
             </div>
           )}
         </div>
-
-        {/* Quick Stats Cards (if user has data) */}
-        {hasData && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card className="bg-white/80 backdrop-blur-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-blue-600" />
-                  Your Progress
-                </CardTitle>
-                <CardDescription>
-                  Track your improvement over time
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Link href="/landing-dashboard">
-                  <Button variant="outline" className="w-full">
-                    View Detailed Analytics
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white/80 backdrop-blur-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-green-600" />
-                  Performance History
-                </CardTitle>
-                <CardDescription>
-                  Review your past test results
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Link href="/dashboard">
-                  <Button variant="outline" className="w-full">
-                    View Test History
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white/80 backdrop-blur-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-purple-600" />
-                  Study Areas
-                </CardTitle>
-                <CardDescription>
-                  Focus on challenging topics
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Link href="/landing-dashboard">
-                  <Button variant="outline" className="w-full">
-                    Get Recommendations
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </div>
-        )}
       </div>
 
       {/* Main Chapter Selection Interface */}

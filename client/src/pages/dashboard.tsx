@@ -97,11 +97,11 @@ export default function Dashboard() {
   });  // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 p-6">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-neet-blue border-t-transparent mx-auto mb-4"></div>
-            <h2 className="text-xl font-semibold text-gray-800">Loading Dashboard...</h2>
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#4F83FF] border-t-transparent mx-auto mb-4"></div>
+            <h2 className="text-xl font-semibold text-[#1F2937]">Loading Dashboard...</h2>
           </div>
         </div>
       </div>
@@ -112,13 +112,13 @@ export default function Dashboard() {
   const hasData = dashboardData && dashboardData.totalTests > 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Your NEET preparation progress</p>
+          <h1 className="text-3xl font-bold text-[#1F2937] mb-2">Dashboard</h1>
+          <p className="text-[#6B7280]">Your NEET preparation progress</p>
         </div>
 
         {/* Navigation */}
@@ -126,7 +126,7 @@ export default function Dashboard() {
           <Button
             onClick={() => navigate('/')}
             variant="outline"
-            className="mr-4"
+            className="mr-4 border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]"
           >
             <Home className="h-4 w-4 mr-2" />
             Back to Home
@@ -134,7 +134,7 @@ export default function Dashboard() {
           <Button
             onClick={() => navigate('/chatbot')}
             variant="outline"
-            className="mr-4"
+            className="mr-4 border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]"
           >
             <MessageCircle className="h-4 w-4 mr-2" />
             AI Tutor
@@ -143,16 +143,16 @@ export default function Dashboard() {
 
         {/* Empty State */}
         {!hasData && (
-          <Card className="bg-white">
+          <Card className="bg-white shadow-md border border-[#E2E8F0]">
             <CardContent className="p-8 text-center">
-              <BarChart3 className="h-16 w-16 text-neet-blue mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No Data Yet</h3>
-              <p className="text-gray-600 mb-6">
+              <BarChart3 className="h-16 w-16 text-[#4F83FF] mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-[#1F2937] mb-2">No Data Yet</h3>
+              <p className="text-[#6B7280] mb-6">
                 Complete your first practice test to see analytics here
               </p>
               <Button
                 onClick={() => navigate('/')}
-                className="btn-primary"
+                className="bg-[#4F83FF] hover:bg-[#3B82F6] text-white"
               >
                 Take First Test
               </Button>
@@ -167,87 +167,80 @@ export default function Dashboard() {
             {/* Key Metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               
-              <Card className="bg-white">
+              <Card className="bg-white shadow-md border border-[#E2E8F0]">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Tests</p>
-                      <p className="text-2xl font-bold text-gray-900">{dashboardData.totalTests}</p>
+                      <p className="text-sm text-[#6B7280]">Tests</p>
+                      <p className="text-2xl font-bold text-[#1F2937]">{dashboardData.totalTests}</p>
                     </div>
-                    <BookOpen className="h-8 w-8 text-neet-blue" />
+                    <BookOpen className="h-8 w-8 text-[#4F83FF]" />
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-white">
+              <Card className="bg-white shadow-md border border-[#E2E8F0]">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Accuracy</p>
-                      <p className="text-2xl font-bold text-gray-900">{dashboardData.overallAccuracy.toFixed(1)}%</p>
+                      <p className="text-sm text-[#6B7280]">Accuracy</p>
+                      <p className="text-2xl font-bold text-[#1F2937]">{dashboardData.overallAccuracy.toFixed(1)}%</p>
                     </div>
-                    <Target className="h-8 w-8 text-neet-green" />
+                    <Target className="h-8 w-8 text-[#10B981]" />
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-white">
+              <Card className="bg-white shadow-md border border-[#E2E8F0]">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Avg Score</p>
-                      {/* averageScore removed: field no longer exists */}
+                      <p className="text-sm text-[#6B7280]">Questions</p>
+                      <p className="text-2xl font-bold text-[#1F2937]">{dashboardData.totalQuestions}</p>
                     </div>
-                    <Award className="h-8 w-8 text-neet-purple" />
+                    <Brain className="h-8 w-8 text-[#8B5CF6]" />
                   </div>
                 </CardContent>
               </Card>
 
-                <Card className="bg-white">
+              <Card className="bg-white shadow-md border border-[#E2E8F0]">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-gray-600">Questions</p>
-                      <p className="text-2xl font-bold text-gray-900">{dashboardData.totalQuestions}</p>
+                      <p className="text-sm text-[#6B7280]">Avg Score</p>
+                      <p className="text-2xl font-bold text-[#1F2937]">{dashboardData.averageScore.toFixed(1)}</p>
                     </div>
-                    <Brain className="h-8 w-8 text-neet-amber" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Avg Score</p>
-                      <p className="text-2xl font-bold text-gray-900">{dashboardData.averageScore.toFixed(1)}</p>
-                    </div>
-                    <Award className="h-8 w-8 text-green-600" />
+                    <Award className="h-8 w-8 text-[#F59E0B]" />
                   </div>
                 </CardContent>
               </Card>
             </div>            {/* Subject Performance Chart */}
-            <Card className="bg-white">
+            <Card className="bg-white shadow-md border border-[#E2E8F0]">
               <CardHeader>
-                <CardTitle>Subject Performance</CardTitle>
+                <CardTitle className="text-[#1F2937]">Subject Performance</CardTitle>
               </CardHeader>
               <CardContent>
                 {dashboardData.subjectPerformance.length > 0 ? (
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={dashboardData.subjectPerformance}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="subject" />
-                        <YAxis />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                        <XAxis dataKey="subject" stroke="#6B7280" />
+                        <YAxis stroke="#6B7280" />
                         <Tooltip 
                           formatter={(value: number) => [`${value.toFixed(1)}%`, 'Accuracy']}
+                          contentStyle={{ 
+                            backgroundColor: 'white', 
+                            border: '1px solid #E2E8F0',
+                            borderRadius: '8px'
+                          }}
                         />
-                        <Bar dataKey="accuracy" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="accuracy" fill="#4F83FF" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <div className="h-64 flex items-center justify-center text-gray-500">
+                  <div className="h-64 flex items-center justify-center text-[#94A3B8]">
                     <p>Subject performance data will be available after completing tests</p>
                   </div>
                 )}
@@ -255,28 +248,28 @@ export default function Dashboard() {
             </Card>
 
             {/* Chapter Performance List */}
-            <Card className="bg-white">
+            <Card className="bg-white shadow-md border border-[#E2E8F0]">
               <CardHeader>
-                <CardTitle>Chapter Performance</CardTitle>
+                <CardTitle className="text-[#1F2937]">Chapter Performance</CardTitle>
               </CardHeader>
               <CardContent>
                 {dashboardData.chapterPerformance.length > 0 ? (
                   <div className="space-y-3">
                     {dashboardData.chapterPerformance.slice(0, 10).map((chapter: any, index: number) => (
-                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div key={index} className="flex items-center justify-between p-3 border border-[#E2E8F0] rounded-lg bg-[#F8FAFC]">
                         <div>
-                          <h4 className="font-medium text-sm">{chapter.chapter}</h4>
-                          <p className="text-xs text-gray-500">{chapter.subject}</p>
+                          <h4 className="font-medium text-sm text-[#1F2937]">{chapter.chapter}</h4>
+                          <p className="text-xs text-[#6B7280]">{chapter.subject}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-medium">{chapter.accuracy.toFixed(1)}%</p>
-                          <p className="text-xs text-gray-500">{chapter.questionsAttempted} questions</p>
+                          <p className="text-sm font-medium text-[#1F2937]">{chapter.accuracy.toFixed(1)}%</p>
+                          <p className="text-xs text-[#6B7280]">{chapter.questionsAttempted} questions</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-[#94A3B8]">
                     <p>Chapter-wise analysis will be available after completing more tests</p>
                   </div>
                 )}
@@ -287,7 +280,7 @@ export default function Dashboard() {
             <div className="text-center">
               <Button
                 onClick={() => navigate('/')}
-                className="btn-primary mr-4"
+                className="bg-[#4F83FF] hover:bg-[#3B82F6] text-white mr-4"
               >
                 Take Another Test
               </Button>

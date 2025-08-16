@@ -17,18 +17,28 @@ class StudentJWTAuthentication(JWTAuthentication):
         Get the user from the token and return a StudentUser object
         """
         try:
+            # Extract student_id from token payload
             student_id = validated_token.get('student_id')
             if not student_id:
+                print(f"❌ JWT Authentication - No student_id in token payload")
                 return None
                 
+            print(f"🔍 JWT Authentication - Looking for student: {student_id}")
+            
             # Get the actual student profile
             student = StudentProfile.objects.get(student_id=student_id)
+            
+            if not student.is_active:
+                print(f"❌ JWT Authentication - Student {student_id} is not active")
+                return None
+            
+            print(f"✅ JWT Authentication - Found student: {student_id} - {student.full_name}")
             
             # Create a StudentUser object that mimics Django's User model
             class StudentUser:
                 def __init__(self, student_profile):
                     self.student_id = student_profile.student_id
-                    self.id = student_profile.student_id  # For token compatibility
+                    self.id = student_profile.student_id
                     self.pk = student_profile.student_id
                     self.student_profile = student_profile
                     self.username = student_profile.student_id
@@ -57,6 +67,8 @@ class StudentJWTAuthentication(JWTAuthentication):
             return StudentUser(student)
             
         except StudentProfile.DoesNotExist:
+            print(f"❌ JWT Authentication - Student {student_id} not found in database")
             return None
-        except (KeyError, TypeError):
+        except (KeyError, TypeError) as e:
+            print(f"❌ JWT Authentication - Token format error: {e}")
             return None

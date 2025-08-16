@@ -55,11 +55,15 @@ class SQLAgent:
     def _create_llm_with_timeouts(self):
         """Create or update LLM with Grok API using Llama 3.3 70B Versatile model"""
         try:
+            import os
             from langchain_groq import ChatGroq
             
             # Use Grok API with Llama 3.3 70B Versatile model
-            grok_api_key = "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"
-            
+            grok_api_key = os.getenv('GROQ_API_KEY')
+            if not grok_api_key:
+                print("⚠️ GROQ_API_KEY not found in environment variables")
+                return False
+
             # Create LLM with Grok API
             self.llm = ChatGroq(
                 model="llama-3.3-70b-versatile",
@@ -77,6 +81,8 @@ class SQLAgent:
             print(f"⚠️ LLM creation failed: {e}")
             self.llm = None
             return False
+    
+    
     
     def _create_sql_agent(self):
         """Create SQL agent using existing LLM and database connection"""

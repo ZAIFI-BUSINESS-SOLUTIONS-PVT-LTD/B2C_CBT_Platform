@@ -5,6 +5,43 @@ from django.contrib.auth.hashers import make_password, check_password
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
 
+class DatabaseQuestion(models.Model):
+    """
+    Source table containing all questions data. Used as the source for syncing to Topic and Question models.
+    Maps to the database_question table shown in the image.
+    """
+    id = models.AutoField(primary_key=True)
+    question_number = models.IntegerField(null=True, blank=True)
+    question_text = models.TextField(null=True, blank=True)
+    question_type = models.TextField(null=True, blank=True)
+    option_1 = models.TextField(null=True, blank=True)
+    option_2 = models.TextField(null=True, blank=True)
+    option_3 = models.TextField(null=True, blank=True)
+    option_4 = models.TextField(null=True, blank=True)
+    subject = models.TextField(null=True, blank=True)
+    chapter = models.TextField(null=True, blank=True)
+    topic = models.TextField(null=True, blank=True)
+    year = models.IntegerField(null=True, blank=True)
+    source = models.TextField(null=True, blank=True)
+    source_page = models.IntegerField(null=True, blank=True)
+    correct_answer = models.TextField(null=True, blank=True)
+    explanation = models.TextField(null=True, blank=True)
+    difficulty = models.TextField(null=True, blank=True)
+    explanation_image = models.TextField(null=True, blank=True)
+    option_1_image = models.TextField(null=True, blank=True)
+    option_2_image = models.TextField(null=True, blank=True)
+    option_3_image = models.TextField(null=True, blank=True)
+    option_4_image = models.TextField(null=True, blank=True)
+    question_image = models.TextField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'database_question'
+        verbose_name = 'Database Question'
+        verbose_name_plural = 'Database Questions'
+
+    def __str__(self):
+        return f"Q{self.id}: {self.question_text[:50] if self.question_text else 'No text'}..."
+
 class Topic(models.Model):
     """
     Replicates the 'topics' table from the Drizzle ORM schema.
@@ -20,6 +57,8 @@ class Topic(models.Model):
         db_table = 'topics' # Ensures the table name in DB is 'topics'
         verbose_name = 'Topic'
         verbose_name_plural = 'Topics'
+        # Add unique constraint to prevent duplicate topics
+        unique_together = [['name', 'subject', 'chapter']]
 
     def __str__(self):
         return self.name
@@ -45,6 +84,8 @@ class Question(models.Model):
         db_table = 'questions' # Ensures the table name in DB is 'questions'
         verbose_name = 'Question'
         verbose_name_plural = 'Questions'
+        # Add unique constraint to prevent duplicate questions based on content and topic
+        unique_together = [['question', 'topic', 'option_a', 'option_b', 'option_c', 'option_d']]
 
     def __str__(self):
         return f"Q{self.id}: {self.question[:50]}..."
@@ -110,13 +151,8 @@ class TestSession(models.Model):
 
     def update_subject_classification(self):
         """Classify selected topics by subjects and update respective fields"""
-        from .utils.topic_utils import classify_topics_by_subject
-        
         if not self.selected_topics:
             return
-        
-        # Get all topics and their classification
-        classification = classify_topics_by_subject()
         
         # Reset subject topic lists
         self.physics_topics = []
@@ -124,20 +160,34 @@ class TestSession(models.Model):
         self.botany_topics = []
         self.zoology_topics = []
         
-        # Get topic names for selected topic IDs
+        # Get topic objects for selected topic IDs with their subjects
         selected_topic_objects = Topic.objects.filter(id__in=self.selected_topics)
-        selected_topic_names = [topic.name for topic in selected_topic_objects]
         
-        # Classify selected topics
-        for topic_name in selected_topic_names:
-            if topic_name in classification.get('Physics', []):
+        # Classify selected topics by their actual subject field
+        for topic in selected_topic_objects:
+            topic_name = topic.name
+            subject = topic.subject
+            
+            # Normalize subject names and classify
+            if subject.lower() in ['physics']:
                 self.physics_topics.append(topic_name)
-            elif topic_name in classification.get('Chemistry', []):
+            elif subject.lower() in ['chemistry']:
                 self.chemistry_topics.append(topic_name)
-            elif topic_name in classification.get('Botany', []):
+            elif subject.lower() in ['botany', 'biology', 'plant biology']:
                 self.botany_topics.append(topic_name)
-            elif topic_name in classification.get('Zoology', []):
+            elif subject.lower() in ['zoology', 'animal biology']:
                 self.zoology_topics.append(topic_name)
+            else:
+                # Handle edge cases - try to map based on common patterns
+                if 'physics' in subject.lower():
+                    self.physics_topics.append(topic_name)
+                elif 'chemistry' in subject.lower() or 'chemical' in subject.lower():
+                    self.chemistry_topics.append(topic_name)
+                elif 'plant' in subject.lower() or 'botany' in subject.lower():
+                    self.botany_topics.append(topic_name)
+                elif 'animal' in subject.lower() or 'zoology' in subject.lower():
+                    self.zoology_topics.append(topic_name)
+                # If no match, the topic won't be classified (which is fine)
 
     def calculate_and_update_subject_scores(self):
         """

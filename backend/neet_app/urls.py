@@ -7,13 +7,19 @@ from .views import (
     TopicViewSet, QuestionViewSet, TestSessionViewSet, TestAnswerViewSet,
     StudentProfileViewSet, ReviewCommentViewSet, TimeTrackingViewSet,
     ChatSessionViewSet, chat_statistics,
-    dashboard_analytics, dashboard_comprehensive_analytics, 
-    sync_neo4j_to_postgresql, reset_chapter_structure, sync_questions_from_neo4j
+    dashboard_analytics, dashboard_comprehensive_analytics
 )
-from .views.utils import clean_existing_questions
+from .views.utils import (
+    clean_existing_questions, sync_topics_from_database_question, 
+    sync_questions_from_database_question, sync_all_from_database_question,
+    reset_questions_and_topics
+)
 from .views.test_views import (
     create_test_student, test_login, test_topic_classification,
     create_test_session, system_status
+)
+from .views.insights_views import (
+    get_student_insights, get_topic_details, get_insights_config, get_insights_cache
 )
 from .authentication import StudentTokenObtainPairView
 
@@ -45,10 +51,13 @@ urlpatterns = [
     
     # Dashboard endpoints
     path('dashboard/analytics/', dashboard_analytics, name='dashboard-analytics'),
-    path('dashboard/reset-chapter-structure/', reset_chapter_structure, name='reset-chapter-structure'),
-    path('dashboard/sync-neo4j-to-postgresql/', sync_neo4j_to_postgresql, name='sync-neo4j-to-postgresql'),
     path('dashboard/comprehensive-analytics/', dashboard_comprehensive_analytics, name='dashboard-comprehensive-analytics'),
-    path('dashboard/sync-questions-from-neo4j/', sync_questions_from_neo4j, name='sync-questions-from-neo4j'),
+    
+    # PostgreSQL-based sync endpoints (new)
+    path('dashboard/sync-topics/', sync_topics_from_database_question, name='sync-topics-from-database-question'),
+    path('dashboard/sync-questions/', sync_questions_from_database_question, name='sync-questions-from-database-question'),
+    path('dashboard/sync-all/', sync_all_from_database_question, name='sync-all-from-database-question'),
+    path('dashboard/reset-data/', reset_questions_and_topics, name='reset-questions-and-topics'),
     path('dashboard/clean-existing-questions/', clean_existing_questions, name='clean-existing-questions'),
     
     # Test endpoints for new authentication system
@@ -57,4 +66,10 @@ urlpatterns = [
     path('test/classify-topics/', test_topic_classification, name='test-classify-topics'),
     path('test/create-session/', create_test_session, name='test-create-session'),
     path('test/status/', system_status, name='test-status'),
+    
+    # Insights endpoints for student performance analysis
+    path('insights/student/', get_student_insights, name='student-insights'),
+    path('insights/cache/', get_insights_cache, name='insights-cache'),
+    path('insights/topics/', get_topic_details, name='topic-details'),
+    path('insights/config/', get_insights_config, name='insights-config'),
 ]

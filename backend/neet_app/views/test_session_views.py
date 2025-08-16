@@ -190,6 +190,9 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 # Also check options for patterns
                 all_options = q.option_a + q.option_b + q.option_c + q.option_d
                 needs_cleaning = any(pattern in all_options for pattern in ['\\', '$', '^{', '_{', '\\frac', '^ -', '^ +', '^-', '^+', 'x 10^'])
+            if not needs_cleaning and q.explanation:
+                # Also check explanation for patterns
+                needs_cleaning = any(pattern in q.explanation for pattern in ['\\', '$', '^{', '_{', '\\frac', '^ -', '^ +', '^-', '^+', 'x 10^'])
             
             if needs_cleaning:
                 from .utils import clean_mathematical_text
@@ -198,7 +201,9 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 q.option_b = clean_mathematical_text(q.option_b)
                 q.option_c = clean_mathematical_text(q.option_c)
                 q.option_d = clean_mathematical_text(q.option_d)
-                q.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d'])
+                if q.explanation:
+                    q.explanation = clean_mathematical_text(q.explanation)
+                q.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation'])
             question_map[q.id] = q
 
         # Process all TestAnswer objects (now includes all assigned questions)

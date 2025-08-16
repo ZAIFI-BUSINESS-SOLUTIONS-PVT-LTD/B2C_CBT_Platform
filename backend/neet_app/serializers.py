@@ -70,6 +70,14 @@ class TestSessionCreateSerializer(serializers.Serializer):
         default='question_count',  # Default to existing behavior
         help_text="How to determine test length"
     )
+    
+    # New field for test type
+    test_type = serializers.ChoiceField(
+        choices=[('random', 'Random Test'), ('custom', 'Custom Selection'), ('search', 'Search Topics')],
+        required=False,
+        default='search',  # Default to search mode for backward compatibility
+        help_text="Type of test selection method"
+    )
 
     def validate_selected_topics(self, value):
         # Ensure all topic IDs exist
@@ -86,7 +94,18 @@ class TestSessionCreateSerializer(serializers.Serializer):
     def validate(self, data):
         """Enhanced validation to handle both question count and time-based selection"""
         selection_mode = data.get('selection_mode', 'question_count')
+        test_type = data.get('test_type', 'search')
         
+        # For random tests, we don't need to validate topics as they will be generated
+        if test_type == 'random':
+            question_count = data.get('question_count')
+            time_limit = data.get('time_limit')
+            if not question_count or not time_limit:
+                raise serializers.ValidationError("Both question count and time limit are required for random tests")
+            # For random tests, we'll generate topics on the backend
+            return data
+        
+        # For custom and search modes, validate normally
         if selection_mode == 'time_limit':
             time_limit = data.get('time_limit')
             if not time_limit:
@@ -98,8 +117,10 @@ class TestSessionCreateSerializer(serializers.Serializer):
             question_count = data.get('question_count')
             if not question_count:
                 raise serializers.ValidationError("Question count is required when using count-based selection")
-            # Calculate time limit: 1 minute per question
-            data['time_limit'] = question_count
+            # Don't override time_limit if it's provided by the frontend
+            # Only calculate time limit if it's not provided
+            if not data.get('time_limit'):
+                data['time_limit'] = question_count
         
         return data
 
@@ -112,12 +133,19 @@ class TestSessionCreateSerializer(serializers.Serializer):
         
         student_id = request.user.student_id
         
-        # Generate questions for selected topics
-        from .views.utils import generate_questions_for_topics
-        
-        selected_topics = validated_data['selected_topics']
+        # Handle different test types
+        test_type = validated_data.get('test_type', 'search')
+        selected_topics = validated_data.get('selected_topics', [])
         time_limit = validated_data.get('time_limit')
         question_count = validated_data.get('question_count')
+        
+        # For random tests, generate topics automatically
+        if test_type == 'random':
+            selected_topics = self._generate_random_topics(question_count)
+            validated_data['selected_topics'] = selected_topics
+        
+        # Generate questions for selected topics
+        from .views.utils import generate_questions_for_topics
         
         # Generate questions
         questions = generate_questions_for_topics(selected_topics, question_count)
@@ -134,6 +162,21 @@ class TestSessionCreateSerializer(serializers.Serializer):
         
         # The signals will automatically handle topic classification
         return test_session
+    
+    def _generate_random_topics(self, question_count):
+        """Generate random topics from all subjects equally"""
+        subjects = ["Physics", "Chemistry", "Botany", "Zoology"]
+        topics_per_subject = max(1, question_count // 4)  # At least 1 topic per subject
+        
+        random_topics = []
+        for subject in subjects:
+            subject_topics = Topic.objects.filter(subject=subject)
+            if subject_topics.exists():
+                # Randomly select topics from this subject
+                selected = subject_topics.order_by('?')[:topics_per_subject]
+                random_topics.extend([str(topic.id) for topic in selected])
+        
+        return random_topics
 
 class TestAnswerSerializer(serializers.ModelSerializer):
     question_details = QuestionSerializer(source='question', read_only=True)
@@ -169,6 +212,9 @@ class TestAnswerCreateSerializer(serializers.Serializer):
                 # Also check options for patterns
                 all_options = question.option_a + question.option_b + question.option_c + question.option_d
                 needs_cleaning = any(pattern in all_options for pattern in ['\\', '$', '^{', '_{', '\\frac', '^ -', '^ +', '^-', '^+', 'x 10^'])
+            if not needs_cleaning and question.explanation:
+                # Also check explanation for patterns
+                needs_cleaning = any(pattern in question.explanation for pattern in ['\\', '$', '^{', '_{', '\\frac', '^ -', '^ +', '^-', '^+', 'x 10^'])
             
             if needs_cleaning:
                 from .views.utils import clean_mathematical_text
@@ -177,7 +223,9 @@ class TestAnswerCreateSerializer(serializers.Serializer):
                 question.option_b = clean_mathematical_text(question.option_b)
                 question.option_c = clean_mathematical_text(question.option_c)
                 question.option_d = clean_mathematical_text(question.option_d)
-                question.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d'])
+                if question.explanation:
+                    question.explanation = clean_mathematical_text(question.explanation)
+                question.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation'])
         except TestSession.DoesNotExist:
             raise serializers.ValidationError({"session_id": "Test session not found."})
         except Question.DoesNotExist:

@@ -4,6 +4,10 @@ Django signals for automatic data processing in NEET app models
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from .models import StudentProfile, TestSession
+from .views.insights_views import get_student_insights
+
+# Global set to track processed sessions to prevent infinite loops
+_processed_sessions = set()
 
 
 @receiver(post_save, sender=TestSession)
@@ -11,8 +15,13 @@ def update_subject_scores_on_completion(sender, instance, created, **kwargs):
     """
     Automatically update subject scores when a test session is marked as completed
     """
-    # Only process if the session is completed and has answers
-    if instance.is_completed:
+    # Create unique key for this session and operation
+    session_key = f"scores_{instance.id}_{instance.is_completed}"
+    
+    # Only process if the session is completed and hasn't been processed yet
+    if instance.is_completed and session_key not in _processed_sessions:
+        _processed_sessions.add(session_key)
+        
         try:
             # Check if there are any test answers for this session
             from .models import TestAnswer
@@ -22,11 +31,51 @@ def update_subject_scores_on_completion(sender, instance, created, **kwargs):
                 print(f"🔄 Auto-updating subject scores for completed session {instance.id}")
                 instance.calculate_and_update_subject_scores()
                 print(f"✅ Subject scores updated for session {instance.id}")
+
+                # Generate insights after score calculation (only once per completion)
+                insights_key = f"insights_{instance.id}_{instance.student_id}"
+                if insights_key not in _processed_sessions:
+                    _processed_sessions.add(insights_key)
+                    
+                    try:
+                        # Create a mock request object with the student user
+                        from rest_framework.test import APIRequestFactory
+                        import json
+                        factory = APIRequestFactory()
+                        
+                        # Force regeneration of insights by setting force_regenerate=True
+                        request_data = {'force_regenerate': True}
+                        request = factory.post('/api/insights/student/', 
+                                             data=json.dumps(request_data),
+                                             content_type='application/json')
+                        
+                        # Set up a mock user object with student_id
+                        class MockUser:
+                            def __init__(self, student_id):
+                                self.student_id = student_id
+                                self.is_authenticated = True
+                                self.is_active = True
+                        request.user = MockUser(instance.student_id)
+                        
+                        print(f"🔄 Forcing fresh insights generation for student {instance.student_id} after test {instance.id}")
+                        
+                        # Call the insights view to generate and cache fresh insights
+                        response = get_student_insights(request)
+                        if response.status_code == 200:
+                            print(f"✅ Fresh insights generated and cached for student {instance.student_id} after test completion.")
+                        else:
+                            print(f"⚠️ Insights generation returned status {response.status_code} for student {instance.student_id}")
+                    except Exception as e:
+                        print(f"❌ Failed to trigger insights for student {instance.student_id}: {e}")
             else:
                 print(f"⚠️ No answers found for session {instance.id}, skipping score calculation")
                 
         except Exception as e:
             print(f"❌ Failed to auto-update subject scores for session {instance.id}: {e}")
+        finally:
+            # Clean up old entries to prevent memory issues
+            if len(_processed_sessions) > 1000:
+                _processed_sessions.clear()
 
 
 @receiver(pre_save, sender=StudentProfile)
@@ -45,20 +94,28 @@ def classify_test_session_topics(sender, instance, created, **kwargs):
     """
     Classify selected topics by subjects after TestSession is saved
     """
-    if created or not all([
+    # Create unique key for this session and operation
+    classify_key = f"classify_{instance.id}_{created}"
+    
+    if classify_key not in _processed_sessions and (created or not all([
         instance.physics_topics,
         instance.chemistry_topics,
         instance.botany_topics,
         instance.zoology_topics
-    ]):
-        instance.update_subject_classification()
-        # Use update() to avoid triggering signals again
-        TestSession.objects.filter(id=instance.id).update(
-            physics_topics=instance.physics_topics,
-            chemistry_topics=instance.chemistry_topics,
-            botany_topics=instance.botany_topics,
-            zoology_topics=instance.zoology_topics
-        )
+    ])):
+        _processed_sessions.add(classify_key)
+        
+        try:
+            instance.update_subject_classification()
+            # Use update() to avoid triggering signals again
+            TestSession.objects.filter(id=instance.id).update(
+                physics_topics=instance.physics_topics,
+                chemistry_topics=instance.chemistry_topics,
+                botany_topics=instance.botany_topics,
+                zoology_topics=instance.zoology_topics
+            )
+        except Exception as e:
+            print(f"❌ Failed to classify topics for session {instance.id}: {e}")
 
 
 @receiver(post_save, sender=TestSession)
@@ -66,7 +123,12 @@ def update_student_statistics(sender, instance, **kwargs):
     """
     Update student statistics when a test session is completed
     """
-    if instance.is_completed:
+    # Create unique key for this session and operation
+    stats_key = f"stats_{instance.id}_{instance.is_completed}"
+    
+    if instance.is_completed and stats_key not in _processed_sessions:
+        _processed_sessions.add(stats_key)
+        
         try:
             student_profile = StudentProfile.objects.get(student_id=instance.student_id)
             # Update last login timestamp when a test is completed
@@ -76,3 +138,5 @@ def update_student_statistics(sender, instance, **kwargs):
             )
         except StudentProfile.DoesNotExist:
             pass  # Student profile doesn't exist, skip statistics update
+        except Exception as e:
+            print(f"❌ Failed to update statistics for session {instance.id}: {e}")

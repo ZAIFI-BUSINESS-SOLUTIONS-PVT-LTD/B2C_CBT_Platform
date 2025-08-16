@@ -52,7 +52,11 @@ class SQLAgentGrok:
     def _create_llm(self):
         """Create LLM with Grok API"""
         try:
-            grok_api_key = "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"
+            import os
+            grok_api_key = os.getenv('GROQ_API_KEY')
+            if not grok_api_key:
+                print("⚠️ GROQ_API_KEY not found in environment variables")
+                return False
             
             self.llm = ChatGroq(
                 model="llama-3.3-70b-versatile",

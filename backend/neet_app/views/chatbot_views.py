@@ -35,6 +35,21 @@ class ChatSessionViewSet(mixins.ListModelMixin,
     permission_classes = [IsAuthenticated]
     lookup_field = 'chat_session_id'  # Use chat_session_id instead of pk
     
+    def _generate_session_title_from_message(self, message):
+        """Generate a session title from the first message, like ChatGPT"""
+        if not message:
+            return 'New Chat'
+        
+        # Clean and truncate message
+        trimmed = message.strip()
+        if len(trimmed) > 40:
+            trimmed = trimmed[:40].strip() + '...'
+        
+        # Capitalize first letter
+        if trimmed:
+            return trimmed[0].upper() + trimmed[1:]
+        return 'New Chat'
+    
     def get_queryset(self):
         """Return chat sessions for the authenticated student only"""
         if hasattr(self.request.user, 'student_id'):
@@ -98,6 +113,14 @@ class ChatSessionViewSet(mixins.ListModelMixin,
             # Process message with chatbot service  
             user_message = message_serializer.validated_data['message']
             print(f"📝 Processing message: '{user_message}'")
+            
+            # Update session title if this is the first message (no existing messages)
+            if chat_session.messages.count() == 0:
+                # Generate title from first message like ChatGPT
+                title = self._generate_session_title_from_message(user_message)
+                chat_session.session_title = title
+                chat_session.save()
+                print(f"📋 Updated session title to: '{title}'")
             
             chatbot_service = NeetChatbotService()
             
