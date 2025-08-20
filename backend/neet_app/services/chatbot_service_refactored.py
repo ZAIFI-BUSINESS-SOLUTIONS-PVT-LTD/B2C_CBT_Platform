@@ -108,8 +108,12 @@ Your response must:
 - Maintain a friendly, motivating, and clear tone.
 - Do not include raw data formatting (e.g., asterisks, markdown tables, or code blocks) in your response.
 - Do not mention session IDs or any internal identifiers in your answer.
-- Present information in clear, readable sentences suitable for students.
-
+- Present information in clear, readable sentences suitable for students
+- Please respond in plain text only, without any Markdown formatting (no bold, italics, headings, or symbols like *, , #, etc.).
+- If the student asks for performance-based insights or advice but has not yet taken any test (i.e., no performance data is provided in the input), politely inform them that they need to take their first test to know their performance.
+- If the student asks for complete syllabus explanations, inform them that explanations can only be given topic-wise or chapter-wise based on specific requests.
+- If the student asks for exact mark or rank prediction, inform them that exact predictions are not possible, but improvement suggestions can be shared based on performance.
+- If the student's query is outside the NEET syllabus (e.g., JEE topics or general career guidance), politely refuse and remind them that you are limited to NEET syllabus only.
 Do not provide insights outside the NEET syllabus."""
         
     def _initialize_grok_client(self):
@@ -322,7 +326,10 @@ When answering:
 2. Use simple language and examples
 3. Focus on NEET-specific concepts and patterns
 4. Include formulas, equations, or diagrams when helpful
-5. Connect topics to real-world applications when possible"""
+5. Connect topics to real-world applications when possible
+6. Do not include raw data formatting (e.g., asterisks, markdown tables, or code blocks) in your response.
+7. Do not mention session IDs or any internal identifiers in your answer.
+8.Please respond in plain text only, without any Markdown formatting (no bold, italics, headings, or symbols like *, , #, etc.)."""
                     
                     full_prompt = f"{general_prompt}\n\nStudent Query: {query}\n\nProvide a helpful response:"
                     print(f"   Using general prompt (length: {len(full_prompt)} chars)")

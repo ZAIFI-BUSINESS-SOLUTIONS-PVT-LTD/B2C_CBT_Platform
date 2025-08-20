@@ -45,6 +45,7 @@ import {
   Area,
   AreaChart
 } from 'recharts';
+import { Label } from 'recharts';
 import { 
   Target, 
   TrendingUp, 
@@ -268,7 +269,7 @@ export default function LandingDashboard() {
               <Separator orientation="vertical" className="h-6 bg-[#E2E8F0]" />
               <div className="flex items-center space-x-2">
                 <BarChart3 className="h-6 w-6 text-[#4F83FF]" />
-                <h1 className="text-2xl font-bold text-[#1F2937]">Performance Dashboard</h1>
+                <h1 className="text-xl font-medium text-[#1F2937]">Performance Dashboard</h1>
               </div>
             </div>
             
@@ -307,100 +308,7 @@ export default function LandingDashboard() {
 
   {/* Insights Container */}
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 mb-8" style={{gridAutoRows: '1fr'}}>
-          <InsightCard
-            title="Strengths"
-            description="AI insights on your strongest topics."
-            icon={<Star className="h-6 w-6" />}
-            isLocked={!analytics || analytics.totalTests === 0}
-            lockMessage="Complete practice tests to unlock your strengths!"
-          >
-            <div className="mt-2 space-y-3">
-              {insights?.data?.llmInsights?.strengths?.insights ? (
-                <div className="space-y-2">
-                  {insights.data.llmInsights.strengths.insights.map((insight: string, idx: number) => (
-                    <div key={idx} className="p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
-                      <p className="text-sm text-green-800">{insight}</p>
-                    </div>
-                  ))}
-                  <div className="mt-2">
-                    {insights.cacheInfo && (
-                      <p className="text-xs text-gray-500">
-                        Updated: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ) : insights?.data?.strengthTopics && insights.data.strengthTopics.length > 0 ? (
-                <div>
-                  <p className="text-sm text-green-700 mb-2">Your top performing topics:</p>
-                  <ul className="space-y-1 text-sm">
-                    {insights.data.strengthTopics.slice(0, 3).map((topic: any, idx: number) => (
-                      <li key={idx} className="flex justify-between">
-                        <span className="truncate mr-2">{topic.topic}</span>
-                        <span className="font-semibold text-green-600">{topic.accuracy.toFixed(1)}%</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {insights.cacheInfo && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      Cache: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
-                  <p className="text-sm text-green-800">Take some tests to get AI analysis of your strengths!</p>
-                </div>
-              )}
-            </div>
-          </InsightCard>
-          <InsightCard
-            title="Weaknesses"
-            description="AI insights on areas needing improvement."
-            icon={<AlertCircle className="h-6 w-6" />}
-            isLocked={false}
-            lockMessage=""
-          >
-            <div className="mt-2 space-y-3">
-              {insights?.data?.llmInsights?.weaknesses?.insights ? (
-                <div className="space-y-2">
-                  {insights.data.llmInsights.weaknesses.insights.map((insight: string, idx: number) => (
-                    <div key={idx} className="p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
-                      <p className="text-sm text-red-800">{insight}</p>
-                    </div>
-                  ))}
-                  <div className="mt-2">
-                    {insights.cacheInfo && (
-                      <p className="text-xs text-gray-500">
-                        Updated: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
-                <div>
-                  <p className="text-sm text-red-700 mb-2">Topics needing focus:</p>
-                  <ul className="space-y-1 text-sm">
-                    {insights.data.weakTopics.slice(0, 3).map((topic: any, idx: number) => (
-                      <li key={idx} className="flex justify-between">
-                        <span className="truncate mr-2">{topic.topic}</span>
-                        <span className="font-semibold text-red-600">{topic.accuracy.toFixed(1)}%</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {insights.cacheInfo && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      Cache: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
-                  <p className="text-sm text-red-800">Take some tests to get AI analysis of your weaknesses!</p>
-                </div>
-              )}
-            </div>
-          </InsightCard>
+          
           <InsightCard
             title="Study Plan"
             description="AI-generated personalized study recommendations."
@@ -512,6 +420,100 @@ export default function LandingDashboard() {
               )}
             </div>
           </InsightCard>
+          <InsightCard
+            title="Strengths"
+            description="AI insights on your strongest topics."
+            icon={<Star className="h-6 w-6" />}
+            isLocked={!analytics || analytics.totalTests === 0}
+            lockMessage="Complete practice tests to unlock your strengths!"
+          >
+            <div className="mt-2 space-y-3">
+              {insights?.data?.llmInsights?.strengths?.insights ? (
+                <div className="space-y-2">
+                  {insights.data.llmInsights.strengths.insights.map((insight: string, idx: number) => (
+                    <div key={idx} className="p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
+                      <p className="text-sm text-green-800">{insight}</p>
+                    </div>
+                  ))}
+                  <div className="mt-2">
+                    {insights.cacheInfo && (
+                      <p className="text-xs text-gray-500">
+                        Updated: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : insights?.data?.strengthTopics && insights.data.strengthTopics.length > 0 ? (
+                <div>
+                  <p className="text-sm text-green-700 mb-2">Your top performing topics:</p>
+                  <ul className="space-y-1 text-sm">
+                    {insights.data.strengthTopics.slice(0, 3).map((topic: any, idx: number) => (
+                      <li key={idx} className="flex justify-between">
+                        <span className="truncate mr-2">{topic.topic}</span>
+                        <span className="font-semibold text-green-600">{topic.accuracy.toFixed(1)}%</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {insights.cacheInfo && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Cache: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
+                  <p className="text-sm text-green-800">Take some tests to get AI analysis of your strengths!</p>
+                </div>
+              )}
+            </div>
+          </InsightCard>
+          <InsightCard
+            title="Weaknesses"
+            description="AI insights on areas needing improvement."
+            icon={<AlertCircle className="h-6 w-6" />}
+            isLocked={false}
+            lockMessage=""
+          >
+            <div className="mt-2 space-y-3">
+              {insights?.data?.llmInsights?.weaknesses?.insights ? (
+                <div className="space-y-2">
+                  {insights.data.llmInsights.weaknesses.insights.map((insight: string, idx: number) => (
+                    <div key={idx} className="p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
+                      <p className="text-sm text-red-800">{insight}</p>
+                    </div>
+                  ))}
+                  <div className="mt-2">
+                    {insights.cacheInfo && (
+                      <p className="text-xs text-gray-500">
+                        Updated: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
+                <div>
+                  <p className="text-sm text-red-700 mb-2">Topics needing focus:</p>
+                  <ul className="space-y-1 text-sm">
+                    {insights.data.weakTopics.slice(0, 3).map((topic: any, idx: number) => (
+                      <li key={idx} className="flex justify-between">
+                        <span className="truncate mr-2">{topic.topic}</span>
+                        <span className="font-semibold text-red-600">{topic.accuracy.toFixed(1)}%</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {insights.cacheInfo && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Cache: {insights.cacheInfo.lastModified ? new Date(insights.cacheInfo.lastModified).toLocaleString() : 'N/A'}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
+                  <p className="text-sm text-red-800">Take some tests to get AI analysis of your weaknesses!</p>
+                </div>
+              )}
+            </div>
+          </InsightCard>
         </div>
 
         {/* Overview Cards */}
@@ -521,12 +523,6 @@ export default function LandingDashboard() {
             value={analytics.totalTests}
             icon={<Trophy className="h-5 w-5" />}
             color="bg-[#4F83FF]"
-          />
-          <MetricCard
-            title="Questions Attempted"
-            value={analytics.totalQuestions}
-            icon={<BookOpen className="h-5 w-5" />}
-            color="bg-[#10B981]"
           />
           <MetricCard
             title="Overall Accuracy"
@@ -543,9 +539,9 @@ export default function LandingDashboard() {
         </div>
 
         {/* Main Dashboard Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Charts and Analytics */}
-          <div className="lg:col-span-2 space-y-6">
+        <div className="w-full">
+          {/* Performance Overview - Full Width */}
+          <div className="w-full space-y-6">
             {/* Performance Overview */}
             <Card>
               <CardHeader>
@@ -556,60 +552,17 @@ export default function LandingDashboard() {
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="subjects" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
                     <TabsTrigger value="subjects">Subjects</TabsTrigger>
                     <TabsTrigger value="trends">Trends</TabsTrigger>
-                    <TabsTrigger value="speed">Speed Analysis</TabsTrigger>
                   </TabsList>
-                  
                   <TabsContent value="subjects" className="space-y-4">
                     <SubjectPerformanceChart data={analytics.subjectPerformance} />
                   </TabsContent>
-                  
                   <TabsContent value="trends" className="space-y-4">
                     <PerformanceTrendsChart data={analytics.timeBasedTrends} />
                   </TabsContent>
-                  
-                  <TabsContent value="speed" className="space-y-4">
-                    <SpeedAnalysisCard speedData={analytics.speedVsAccuracy} />
-                  </TabsContent>
                 </Tabs>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right Column - Calendar and Quick Stats */}
-          <div className="space-y-6">
-            {/* Performance Calendar */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CalendarIcon className="h-5 w-5" />
-                  Performance Calendar
-                </CardTitle>
-                <CardDescription>
-                  View your test history and performance over time
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  className="rounded-md border"
-                />
-                <div className="mt-4 space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Tests this month</span>
-                    <Badge variant="outline">{analytics.totalTests}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Best accuracy</span>
-                    <Badge variant="outline" className="text-green-600">
-                      {analytics.overallAccuracy.toFixed(1)}%
-                    </Badge>
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </div>
@@ -774,8 +727,12 @@ function SubjectPerformanceChart({ data }: { data: any[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="subject" />
-          <YAxis />
+          <XAxis dataKey="subject">
+            <Label value="Subject" offset={-5} position="insideBottom" />
+          </XAxis>
+          <YAxis>
+            <Label value="Accuracy (%)" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} />
+          </YAxis>
           <Tooltip />
           <Bar dataKey="accuracy" fill={COLORS.primary} />
         </BarChart>
@@ -793,8 +750,12 @@ function PerformanceTrendsChart({ data }: { data: any[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" />
-          <YAxis />
+          <XAxis dataKey="date">
+            <Label value="Date" offset={-5} position="insideBottom" />
+          </XAxis>
+          <YAxis>
+            <Label value="Accuracy (%)" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} />
+          </YAxis>
           <Tooltip />
           <Line type="monotone" dataKey="accuracy" stroke={COLORS.primary} />
         </LineChart>

@@ -19,7 +19,6 @@ import Home from "@/pages/home";
 import Test from "@/pages/test";
 import Results from "@/pages/results";
 import Topics from "@/pages/topics";
-import Dashboard from "@/pages/dashboard";
 import LandingDashboard from "@/pages/landing-dashboard";
 import Chatbot from "@/pages/chatbot";
 import { FloatingChatbot } from "@/components/floating-chatbot";
@@ -33,8 +32,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />                           {/* Home page with topic selection */}
       <Route path="/topics" component={Topics} />                  {/* Topics overview page */}
-      <Route path="/dashboard" component={Dashboard} />            {/* Student performance dashboard */}
-      <Route path="/landing-dashboard" component={LandingDashboard} />  {/* Comprehensive landing dashboard */}
+      <Route path="/dashboard" component={LandingDashboard} />  {/* Comprehensive landing dashboard */}
       <Route path="/chatbot" component={Chatbot} />               {/* AI Chatbot tutor page */}
       <Route path="/test/:sessionId" component={Test} />           {/* Test taking interface */}
       <Route path="/results/:sessionId" component={Results} />     {/* Test results and analytics */}

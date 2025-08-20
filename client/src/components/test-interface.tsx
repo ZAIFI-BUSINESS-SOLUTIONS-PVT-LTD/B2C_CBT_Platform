@@ -35,7 +35,8 @@ import {
   Bookmark, 
   Check,
   AlertTriangle,
-  Clock
+  Clock,
+  Info
 } from "lucide-react";
 import {
   AlertDialog,
@@ -627,6 +628,41 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   }
 
   if (!testData || !currentQuestion) {
+      // If testData exists but has no questions, or not enough questions, show a themed popup
+      if (
+        testData &&
+        testData.questions &&
+        (
+          testData.questions.length === 0 ||
+          (testData.session && testData.questions.length < testData.session.totalQuestions)
+        )
+      ) {
+        return (
+          <AlertDialog open={true}>
+            <AlertDialogContent className="bg-white border border-[#E2E8F0] rounded-2xl shadow-lg max-w-md mx-auto">
+              <AlertDialogHeader>
+                <div className="flex flex-col items-center justify-center">
+                  <Info className="h-14 w-14 text-blue-500 mb-2" />
+                  <AlertDialogTitle className="text-[#1F2937] font-bold text-lg text-center mb-1">Insufficient Questions</AlertDialogTitle>
+                  <AlertDialogDescription className="text-[#6B7280] text-center">
+                    Not enough questions are available for your selected topics.<br />
+                    Please choose different topics or broaden your selection.
+                  </AlertDialogDescription>
+                </div>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex justify-center mt-4">
+                <AlertDialogAction 
+                  className="bg-[#4F83FF] text-white rounded-xl hover:bg-[#3B82F6] px-6 py-2 font-medium"
+                  onClick={() => window.location.href = '/topics'}
+                >
+                  Return to Topic Selection
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        );
+      }
+    // Fallback for other errors
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 flex items-center justify-center">
         <div className="text-center bg-white rounded-2xl shadow-lg border border-[#E2E8F0] p-8 max-w-md mx-4">
@@ -878,13 +914,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
       {/* Quit Exam Confirmation Dialog */}
       <AlertDialog open={showQuitDialog} onOpenChange={() => {}}>
-        <AlertDialogContent className="border-[#FCD34D] bg-[#FEF3C7] rounded-2xl shadow-lg">
+        <AlertDialogContent className="border-[#4F83FF] bg-[#E8F0FF] rounded-2xl shadow-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#F59E0B] flex items-center font-bold">
-              <AlertTriangle className="h-5 w-5 mr-2" />
+            <AlertDialogTitle className="text-[#2563EB] flex items-center font-bold">
+              <AlertTriangle className="h-5 w-5 mr-2 text-[#4F83FF]" />
               Quit Exam?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-[#F59E0B]">
+            <AlertDialogDescription className="text-[#2563EB]">
               Are you sure you want to quit the exam? Your test will be marked as incomplete and 
               you won't be able to resume it later. You have answered{" "}
               {Object.keys(answers).length} out of {totalQuestions} questions.
@@ -899,7 +935,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleQuitConfirm}
-              className="bg-[#DC2626] hover:bg-[#B91C1C] text-white"
+              className="bg-[#4F83FF] hover:bg-[#2563EB] text-white"
               disabled={quitTestMutation.isPending}
             >
               {quitTestMutation.isPending ? (

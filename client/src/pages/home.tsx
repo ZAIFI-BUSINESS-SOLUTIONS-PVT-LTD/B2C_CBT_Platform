@@ -269,7 +269,7 @@ export default function Home() {
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Welcome Section */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-8 mt-14">
           <h2 className="text-2xl font-bold text-[#1F2937] mb-4">
             Welcome to NEET Practice Platform! 🎯
           </h2>
@@ -297,7 +297,7 @@ export default function Home() {
               title="Dashboard"
               description="View your performance analytics"
               icon={<BarChart3 className="h-8 w-8" />}
-              href="/landing-dashboard"
+              href="/dashboard"
               isLocked={!hasData}
               color="bg-[#8B5CF6]"
               hoverColor="hover:bg-[#7C3AED]"
@@ -341,95 +341,11 @@ export default function Home() {
             </div>
           </div>
         </div>
-
-        {/* Image Carousel */}
-        <ImageCarousel />
       </div>
     </div>
   );
 }
 
-/**
- * Image Carousel Component with continuous auto-scroll
- */
-function ImageCarousel() {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const images = [
-    'src/assets/img1.png',
-    'src/assets/img2.png',
-    'src/assets/img3.png',
-    'src/assets/img4.png',
-    'src/assets/img5.png'
-  ];
-  const imagesWithClone = [...images, images[0]];
-  const [current, setCurrent] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(true);
-
-  useEffect(() => {
-    if (!isTransitioning) return;
-    const interval = setInterval(() => {
-      setCurrent((prev) => prev + 1);
-    }, 2500);
-    return () => clearInterval(interval);
-  }, [isTransitioning]);
-
-  const handleTransitionEnd = () => {
-    if (current === images.length) {
-      setIsTransitioning(false);
-      setCurrent(0);
-    }
-  };
-
-  useEffect(() => {
-    if (!isTransitioning) {
-      const id = setTimeout(() => setIsTransitioning(true), 20);
-      return () => clearTimeout(id);
-    }
-  }, [isTransitioning]);
-
-  const handleDotClick = (idx: number) => {
-    setCurrent(idx);
-    setIsTransitioning(true);
-  };
-
-  return (
-    <div className="w-full max-w-xl mx-auto mb-8">
-      <div className="relative h-48 md:h-64 overflow-hidden rounded-2xl shadow-lg bg-white border-2 border-blue-100">
-        <div
-          className={`flex h-full${isTransitioning ? ' transition-transform duration-700 ease-in-out' : ''}`}
-          style={{ transform: `translateX(-${current * 100}%)` }}
-          onTransitionEnd={handleTransitionEnd}
-        >
-          {imagesWithClone.map((image, idx) => (
-            <div key={idx} className="min-w-full h-full flex items-center justify-center">
-              <img
-                src={image}
-                alt={`Slide ${idx % images.length + 1}`}
-                className="max-w-full max-h-full object-contain"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            </div>
-          ))}
-        </div>
-        {/* Dots indicator */}
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-          {images.map((_, idx) => (
-            <button
-              key={idx}
-              className={`w-2 h-2 rounded-full transition-colors duration-300 ${
-                idx === (current % images.length) ? 'bg-[#4F83FF]' : 'bg-white/50'
-              }`}
-              onClick={() => handleDotClick(idx)}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-    
-}
 
 
 /**

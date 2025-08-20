@@ -1,7 +1,8 @@
+// import { Input } from '@/components/ui/input';
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Send, Bot, User, Loader2, RotateCcw, Plus, Menu, Mic, MicOff, Check, Pencil, X } from 'lucide-react';
+import { MessageCircle, Send, Bot, User, Loader2, RotateCcw, Plus, Menu, Mic, MicOff, Check, Pencil, X, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,6 +29,100 @@ interface ChatSession {
   updatedAt: string;
   messageCount: number;
   lastMessage: string | null;
+}
+
+// Message Content Component with better formatting
+interface MessageContentProps {
+  content: string;
+  isUser: boolean;
+}
+
+function MessageContent({ content, isUser }: MessageContentProps) {
+  const formatContent = (text: string) => {
+    // Split content into paragraphs
+    const paragraphs = text.split('\n\n');
+    
+    return paragraphs.map((paragraph, pIndex) => {
+      if (paragraph.trim() === '') return null;
+      
+      // Check if it's a bullet point section
+      if (paragraph.includes('•') || paragraph.includes('*') || paragraph.includes('-')) {
+        const lines = paragraph.split('\n').filter(line => line.trim());
+        const bulletPoints: string[] = [];
+        const regularLines: string[] = [];
+        
+        lines.forEach(line => {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('•') || trimmed.startsWith('*') || trimmed.startsWith('-')) {
+            bulletPoints.push(trimmed.replace(/^[•*-]\s*/, ''));
+          } else {
+            regularLines.push(trimmed);
+          }
+        });
+        
+        return (
+          <div key={pIndex} className="mb-4 last:mb-0">
+            {regularLines.length > 0 && (
+              <div className="mb-3">
+                {regularLines.map((line, lIndex) => (
+                  <p key={lIndex} className="mb-2 last:mb-0">
+                    {line}
+                  </p>
+                ))}
+              </div>
+            )}
+            {bulletPoints.length > 0 && (
+              <ul className="space-y-2 ml-0">
+                {bulletPoints.map((point, bIndex) => (
+                  <li key={bIndex} className="flex items-start">
+                    <span className={`inline-block w-1.5 h-1.5 rounded-full mr-3 mt-2.5 flex-shrink-0 ${
+                      isUser ? 'bg-blue-200' : 'bg-gray-400'
+                    }`}></span>
+                    <span className="flex-1 leading-relaxed">{point}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      }
+      
+      // Check if it's a heading (contains colons or all caps words)
+      if (paragraph.includes(':') && paragraph.split('\n').length === 1) {
+        const parts = paragraph.split(':');
+        if (parts.length === 2 && parts[0].trim().length < 50) {
+          return (
+            <div key={pIndex} className="mb-4 last:mb-0">
+              <h3 className={`font-semibold mb-2 ${isUser ? 'text-blue-100' : 'text-gray-800'}`}>
+                {parts[0].trim()}:
+              </h3>
+              <p className="leading-relaxed pl-2">
+                {parts[1].trim()}
+              </p>
+            </div>
+          );
+        }
+      }
+      
+      // Regular paragraph
+      const lines = paragraph.split('\n').filter(line => line.trim());
+      return (
+        <div key={pIndex} className="mb-4 last:mb-0">
+          {lines.map((line, lIndex) => (
+            <p key={lIndex} className="mb-2 last:mb-0 leading-relaxed">
+              {line.trim()}
+            </p>
+          ))}
+        </div>
+      );
+    }).filter(Boolean);
+  };
+
+  return (
+    <div className="space-y-0">
+      {formatContent(content)}
+    </div>
+  );
 }
 
 export default function ChatbotPage() {
@@ -79,7 +174,7 @@ export default function ChatbotPage() {
   const [recognitionLanguage, setRecognitionLanguage] = useState(SPEECH_CONFIG.DEFAULT_LANGUAGE);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
 
   // Redirect if not authenticated
@@ -575,7 +670,7 @@ export default function ChatbotPage() {
                           }
                         }}
                       >
-                        <Input
+                        <input
                           value={newTitle}
                           onChange={e => setNewTitle(e.target.value)}
                           autoFocus
@@ -584,6 +679,7 @@ export default function ChatbotPage() {
                           onBlur={() => setEditingTitleId(null)}
                           maxLength={40}
                           disabled={renaming}
+                          type="text"
                         />
                         <button type="submit" className="ml-1 text-[#4F83FF] hover:text-[#2563EB]" disabled={renaming}>
                           <Check className="h-4 w-4" />
@@ -630,6 +726,15 @@ export default function ChatbotPage() {
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => navigate('/')}
+              className="text-[#4F83FF] hover:text-[#2563EB] hover:bg-[#F0F7FF]"
+              title="Go to Home"
+            >
+              <Home className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="text-[#6B7280] hover:text-[#1F2937] hover:bg-[#F8FAFC]"
             >
@@ -650,14 +755,28 @@ export default function ChatbotPage() {
                     <div className="rounded-2xl bg-white border border-[#E2E8F0] shadow-lg px-6 py-8 flex flex-col items-center">
                       <form className="w-full" onSubmit={e => { e.preventDefault(); sendMessage(); }}>
                         <div className={`flex items-center w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-2 transition-shadow duration-200 ${isRecording ? 'ring-2 ring-[#10B981] ring-offset-2 chatbot-glow' : ''}`}> 
-                          <Input
+                          <textarea
                             ref={inputRef}
                             value={inputMessage}
-                            onChange={(e) => setInputMessage(e.target.value)}
-                            onKeyPress={handleKeyPress}
+                            onChange={e => {
+                              setInputMessage(e.target.value);
+                              if (inputRef.current) {
+                                inputRef.current.style.height = 'auto';
+                                inputRef.current.style.height = inputRef.current.scrollHeight + 'px';
+                              }
+                            }}
+                            onInput={() => {
+                              if (inputRef.current) {
+                                inputRef.current.style.height = 'auto';
+                                inputRef.current.style.height = inputRef.current.scrollHeight + 'px';
+                              }
+                            }}
+                            onKeyDown={handleKeyPress}
                             placeholder="Ask anything..."
                             disabled={isLoading}
-                            className="flex-1 bg-transparent border-none outline-none shadow-none text-lg placeholder-[#6B7280]"
+                            rows={1}
+                            className="flex-1 rounded-md bg-transparent border-none outline-none shadow-none text-lg placeholder-[#6B7280] min-h-[44px] max-h-40 resize-none overflow-hidden whitespace-pre-wrap"
+                            style={{lineHeight: '1.6'}}
                           />
                           {speechSupported && (
                             <button
@@ -701,9 +820,9 @@ export default function ChatbotPage() {
                       key={message.id || index}
                       className={`group relative flex ${message.messageType === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div className={`flex items-end gap-3 max-w-[80%] ${message.messageType === 'user' ? 'flex-row-reverse' : ''}`}>
+                      <div className={`flex items-start gap-4 max-w-[85%] ${message.messageType === 'user' ? 'flex-row-reverse' : ''}`}>
                         {/* Avatar */}
-                        <div className="flex-shrink-0">
+                        <div className="flex-shrink-0 mt-1">
                           {message.messageType === 'user' ? (
                             <div className="w-8 h-8 bg-[#4F83FF] rounded-full flex items-center justify-center shadow-md">
                               <User className="h-4 w-4 text-white" />
@@ -715,13 +834,16 @@ export default function ChatbotPage() {
                           )}
                         </div>
                         {/* Bubble */}
-                        <div className={`rounded-2xl px-5 py-4 text-base shadow-md ${
+                        <div className={`rounded-2xl px-6 py-5 text-base shadow-sm border ${
                           message.messageType === 'user' 
-                            ? 'bg-[#4F83FF] text-white' 
-                            : 'bg-white text-[#1F2937] border border-[#E2E8F0]'
+                            ? 'bg-[#4F83FF] text-white border-[#4F83FF]' 
+                            : 'bg-white text-[#1F2937] border-[#E2E8F0] hover:border-[#CBD5E1] transition-colors'
                         }`}>
-                          {message.messageContent}
-                          <div className={`text-xs mt-2 text-right ${
+                          <MessageContent 
+                            content={message.messageContent} 
+                            isUser={message.messageType === 'user'} 
+                          />
+                          <div className={`text-xs mt-3 text-right ${
                             message.messageType === 'user' ? 'text-blue-100' : 'text-[#6B7280]'
                           }`}>
                             {new Date(message.createdAt).toLocaleTimeString()}
@@ -737,11 +859,11 @@ export default function ChatbotPage() {
                   ))}
                   {isLoading && (
                     <div className="flex justify-start">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-[#10B981] to-[#4F83FF] rounded-full flex items-center justify-center shadow-md">
+                      <div className="flex items-start gap-4">
+                        <div className="w-8 h-8 bg-gradient-to-br from-[#10B981] to-[#4F83FF] rounded-full flex items-center justify-center shadow-md mt-1">
                           <Bot className="h-4 w-4 text-white" />
                         </div>
-                        <div className="rounded-2xl px-5 py-4 bg-white text-[#1F2937] shadow-md border border-[#E2E8F0] flex items-center gap-3">
+                        <div className="rounded-2xl px-6 py-5 bg-white text-[#1F2937] shadow-sm border border-[#E2E8F0] flex items-center gap-3">
                           <Loader2 className="h-4 w-4 animate-spin text-[#4F83FF]" />
                           <span className="text-sm text-[#6B7280]">Thinking...</span>
                         </div>
@@ -777,14 +899,33 @@ export default function ChatbotPage() {
           100% { box-shadow: 0 0 0 0 #10B98133, 0 0 0 0 #10B98133; }
         }
       `}</style>
-                  <Input
+                  <textarea
                     ref={inputRef}
                     value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onChange={e => {
+                      setInputMessage(e.target.value);
+                      if (inputRef.current) {
+                        inputRef.current.style.height = 'auto';
+                        inputRef.current.style.height = inputRef.current.scrollHeight + 'px';
+                      }
+                    }}
+                    onInput={() => {
+                      if (inputRef.current) {
+                        inputRef.current.style.height = 'auto';
+                        inputRef.current.style.height = inputRef.current.scrollHeight + 'px';
+                      }
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
                     placeholder="Ask anything..."
                     disabled={isLoading}
-                    className="flex-1 bg-transparent border-none outline-none shadow-none text-lg placeholder-[#6B7280]"
+                    rows={1}
+                    className="flex-1 rounded-md bg-transparent border-none outline-none shadow-none text-lg placeholder-[#6B7280] min-h-[44px] max-h-40 resize-none overflow-hidden whitespace-pre-wrap"
+                    style={{lineHeight: '1.6'}}
                   />
                   {speechSupported && (
                     <button

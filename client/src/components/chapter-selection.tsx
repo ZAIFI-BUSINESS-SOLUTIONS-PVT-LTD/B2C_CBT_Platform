@@ -511,11 +511,11 @@ export function ChapterSelection() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen">
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-4xl mx-auto">
             <Card className="shadow-xl">
-              <CardHeader>
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
                 <Skeleton className="h-8 w-64" />
                 <Skeleton className="h-4 w-96" />
               </CardHeader>
@@ -551,38 +551,25 @@ export function ChapterSelection() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen">
+      <div className="container mx-auto px-2.5 py-3">
+        <div className="max-w-4xl mx-auto">
           <Card className="shadow-xl">
             <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex-1"></div>
-                <CardTitle className="text-3xl font-bold text-center flex-1">
+              <div className="flex-1"></div>
+                <CardTitle className="text-xl font-bold text-center flex-1">
                   Create Your NEET Practice Test
                 </CardTitle>
-                <div className="flex-1 flex justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate("/dashboard")}
-                    className="flex items-center gap-2 text-white border-white bg-blue-600"
-                  >
-                    <BarChart3 className="h-4 w-4" />
-                    Dashboard
-                  </Button>
-                </div>
-              </div>
-              <p className="text-center text-blue-100 mt-2">
+              <p className="text-center text-blue-100 mt-1 text-sm">
                 Select chapters and topics to create a personalized test experience
               </p>
             </CardHeader>
-            <CardContent className="p-8">
+            <CardContent className="p-5">
               
               {/* Test Type Selection */}
               <div className="mb-8">
-                <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
-                  <Target className="h-6 w-6 mr-3 text-blue-600" />
+                <h3 className="text-base font-semibold text-gray-800 mb-3.5 flex items-center">
+                  <Target className="h-4.5 w-4.5 mr-1.5 text-blue-600" />
                   Choose Test Mode
                 </h3>
                 
@@ -596,12 +583,12 @@ export function ChapterSelection() {
                     }`}
                     onClick={() => handleTestTypeChange("random")}
                   >
-                    <CardHeader className="text-center pb-4">
-                      <div className="flex justify-center mb-3">
-                        <Shuffle className="h-8 w-8 text-blue-600" />
+                    <CardHeader className="text-center pb-2.5">
+                      <div className="flex justify-center mb-1.5">
+                        <Shuffle className="h-5 w-5 text-blue-600" />
                       </div>
-                      <CardTitle className="text-lg font-bold">Random Test</CardTitle>
-                      <p className="text-sm text-gray-600">
+                      <CardTitle className="text-sm font-bold">Random Test</CardTitle>
+                      <p className="text-[11px] text-gray-600">
                         Randomly generated questions
                       </p>
                     </CardHeader>
@@ -617,11 +604,11 @@ export function ChapterSelection() {
                     onClick={() => handleTestTypeChange("custom")}
                   >
                     <CardHeader className="text-center pb-4">
-                      <div className="flex justify-center mb-3">
-                        <Target className="h-8 w-8 text-green-600" />
+                      <div className="flex justify-center mb-1.5">
+                        <Target className="h-5 w-5 text-green-600" />
                       </div>
-                      <CardTitle className="text-lg font-bold">Select Subject</CardTitle>
-                      <p className="text-sm text-gray-600">
+                      <CardTitle className="text-sm font-bold">Select Subject</CardTitle>
+                      <p className="text-[11px] text-gray-600">
                         Choose specific topics
                       </p>
                     </CardHeader>
@@ -637,11 +624,11 @@ export function ChapterSelection() {
                     onClick={() => handleTestTypeChange("search")}
                   >
                     <CardHeader className="text-center pb-4">
-                      <div className="flex justify-center mb-3">
-                        <Search className="h-8 w-8 text-purple-600" />
+                      <div className="flex justify-center mb-1.5">
+                        <Search className="h-5 w-5 text-purple-600" />
                       </div>
-                      <CardTitle className="text-lg font-bold">Search Topics</CardTitle>
-                      <p className="text-sm text-gray-600">
+                      <CardTitle className="text-sm font-bold">Search Topics</CardTitle>
+                      <p className="text-[11px] text-gray-600">
                         Find specific topics
                       </p>
                     </CardHeader>
@@ -650,8 +637,8 @@ export function ChapterSelection() {
               </div>
               {/* Search Topics Section */}
               <div className="mb-6">
-                <h5 className="text-md font-semibold text-gray-800 mb-3 flex items-center">
-                  <Search className="h-4 w-4 mr-2 text-green-600" />
+                <h5 className="text-xs font-semibold text-gray-800 mb-1.5 flex items-center">
+                  <Search className="h-3 w-3 mr-1 text-green-600" />
                   Search Topics
                 </h5>
                 <SearchBar
@@ -667,14 +654,14 @@ export function ChapterSelection() {
               {/* Custom Subject Selection */}
               {testType === "custom" && (
                 <div className="mb-8">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                  <h4 className="text-sm font-semibold text-gray-800 mb-2.5">
                     Select Subject, Chapter, and Topics
                   </h4>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     {/* Subject Dropdown */}
                     <div>
-                      <Label className="text-sm font-medium text-gray-700 mb-2 block">Subject</Label>
+                      <Label className="text-[11px] font-medium text-gray-700 mb-1 block">Subject</Label>
                       <Select value={selectedSubject} onValueChange={handleSubjectChange}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select subject" />
@@ -690,7 +677,7 @@ export function ChapterSelection() {
 
                     {/* Chapter Dropdown */}
                     <div>
-                      <Label className="text-sm font-medium text-gray-700 mb-2 block">Chapter</Label>
+                      <Label className="text-[11px] font-medium text-gray-700 mb-1 block">Chapter</Label>
                       <Select 
                         value={selectedChapter} 
                         onValueChange={handleChapterChange}
@@ -709,13 +696,13 @@ export function ChapterSelection() {
 
                     {/* Topics Multi-select */}
                     <div>
-                      <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                      <Label className="text-[11px] font-medium text-gray-700 mb-1 block">
                         Topics ({selectedTopicsCustom.length} selected)
                       </Label>
                       <div className="border rounded-md p-2 max-h-32 overflow-y-auto bg-white">
                         {selectedSubject && selectedChapter ? (
                           getTopicsForChapter(selectedSubject, selectedChapter).map((topic) => (
-                            <div key={topic.id} className="flex items-center space-x-2 p-1">
+                            <div key={topic.id} className="flex items-center space-x-1 p-0.5">
                               <Checkbox
                                 id={`custom-topic-${topic.id}`}
                                 checked={selectedTopicsCustom.includes(topic.id.toString())}
@@ -724,14 +711,14 @@ export function ChapterSelection() {
                               />
                               <Label 
                                 htmlFor={`custom-topic-${topic.id}`} 
-                                className="text-xs cursor-pointer flex-1"
+                                className="text-[11px] cursor-pointer flex-1"
                               >
                                 {topic.name}
                               </Label>
                             </div>
                           ))
                         ) : (
-                          <p className="text-xs text-gray-500 text-center py-2">
+                          <p className="text-[11px] text-gray-500 text-center py-1">
                             Select subject and chapter first
                           </p>
                         )}
@@ -744,7 +731,7 @@ export function ChapterSelection() {
                   {selectedTopicsCustom.length > 0 && (
                     <div className="mt-4">
                       <div className="flex items-center justify-between mb-2">
-                        <Label className="text-sm font-medium text-gray-700">
+                        <Label className="text-[11px] font-medium text-gray-700">
                           All Selected Topics ({selectedTopicsCustom.length})
                         </Label>
                         <Button
@@ -952,7 +939,7 @@ export function ChapterSelection() {
                               })
                             ) : (
                               // Fallback for subjects without chapters
-                              <div className="text-center py-6">
+                              <div className="text-center py-3">
                                 <p className="text-sm text-gray-500">Loading chapters...</p>
                                 <Button 
                                   variant="outline" 
@@ -982,7 +969,7 @@ export function ChapterSelection() {
                   ) || (
                     testType === "custom" && selectedTopicsCustom.length === 0
                   )}
-                  className="bg-blue-600 hover:bg-blue-700 px-8 py-3 text-lg font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                  className="bg-blue-600 hover:bg-blue-700 px-6 py-2 text-lg font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
                 >
                   {createTestMutation.isPending ? (
                     <>

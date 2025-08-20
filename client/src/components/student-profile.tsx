@@ -60,7 +60,6 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { 
   User, 
-  Settings, 
   Mail, 
   Phone, 
   Calendar,
@@ -213,9 +212,12 @@ export function StudentProfile() {
       <div className="flex items-center space-x-2">
         <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
           <DialogTrigger asChild>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Create Profile
+            <Button variant="ghost" className="p-1 rounded-full hover:bg-gray-100">
+              <Avatar className="h-10 w-10 cursor-pointer">
+                <AvatarFallback className="bg-blue-600 text-white">
+                  <Plus className="h-5 w-5" />
+                </AvatarFallback>
+              </Avatar>
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
@@ -238,10 +240,6 @@ export function StudentProfile() {
     return (
       <div className="flex items-center space-x-2">
         <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
-        <div className="space-y-2">
-          <div className="w-20 h-3 bg-gray-200 rounded animate-pulse"></div>
-          <div className="w-16 h-2 bg-gray-200 rounded animate-pulse"></div>
-        </div>
       </div>
     );
   }
@@ -249,30 +247,16 @@ export function StudentProfile() {
   // Main profile display
   return (
     <div className="flex items-center space-x-3">
-      {/* Profile Avatar and Info */}
-      <div className="flex items-center space-x-3">
-        <Avatar className="h-10 w-10">
-          {/* AvatarImage removed: profilePicture field no longer exists */}
-          <AvatarFallback className="bg-blue-600 text-white">
-            {profile?.fullName ? getInitials(profile.fullName) : "ST"}
-          </AvatarFallback>
-        </Avatar>
-        
-        <div className="hidden md:block">
-          <p className="text-sm font-medium text-gray-900">
-            {profile?.fullName || "Student"}
-          </p>
-          <p className="text-xs text-gray-500">
-            {profile?.schoolName || "NEET Aspirant"}
-          </p>
-        </div>
-      </div>
-
-      {/* Profile Menu */}
+      {/* Profile Menu - triggered by avatar click */}
       <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
         <DialogTrigger asChild>
-          <Button variant="ghost" size="sm" className="p-2">
-            <Settings className="h-4 w-4" />
+          <Button variant="ghost" className="p-1 rounded-full hover:bg-gray-100">
+            <Avatar className="h-10 w-10 cursor-pointer">
+              {/* AvatarImage removed: profilePicture field no longer exists */}
+              <AvatarFallback className="bg-blue-600 text-white">
+                {profile?.fullName ? getInitials(profile.fullName) : "ST"}
+              </AvatarFallback>
+            </Avatar>
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[500px]">
