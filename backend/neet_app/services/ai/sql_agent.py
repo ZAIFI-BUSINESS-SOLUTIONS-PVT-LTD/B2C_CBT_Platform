@@ -367,8 +367,8 @@ class SQLAgent:
         6. NO NESTED AGGREGATES - never use AVG(SUM(...)) or similar patterns
         7. For averages: use simple SUM(...)/COUNT(...) calculations
         8. For UNION queries: ALL SELECT statements MUST have the same number of columns and compatible data types
-        7. Use NULL or appropriate placeholder values to match column counts in UNION operations
-        
+        9. Use NULL or appropriate placeholder values to match column counts in UNION operations
+
         SAFETY:
         - ONLY SELECT queries allowed
         - NO UPDATE, DELETE, INSERT, or DROP operations

@@ -1,0 +1,18 @@
+<html>
+  <body>
+    <p>Hi {{ full_name }},</p>
+    <p>You've completed <strong>Test #{{ session_id }}</strong>.</p>
+    <h3>Summary</h3>
+    <ul>
+      <li>Total questions: {{ total_questions }}</li>
+      <li>Correct answers: {{ correct_answers }}</li>
+      <li>Incorrect answers: {{ incorrect_answers }}</li>
+      <li>Unanswered questions: {{ unanswered_questions }}</li>
+      <li>Time taken (seconds): {{ time_taken }}</li>
+      <li>Score: {{ score_percentage }}%</li>
+    </ul>
+    <p><a href="{{ results_url }}">View full results</a></p>
+    <p>If you have questions, reach out at {{ support_email }}.</p>
+    <p>Thanks,<br/>The Inzighted Team</p>
+  </body>
+</html>

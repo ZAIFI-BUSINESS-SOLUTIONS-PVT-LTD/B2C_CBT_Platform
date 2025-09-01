@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Mic, Check, Send } from 'lucide-react';
 
 interface HomeChatInputProps {
@@ -21,23 +21,42 @@ export const HomeChatInput: React.FC<HomeChatInputProps> = ({
   inputMessage,
   setInputMessage,
 }) => {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (inputMessage.trim()) onSend(inputMessage.trim());
+      if (inputMessage.trim()) {
+        onSend(inputMessage.trim());
+        
+        // Reset textarea height after sending
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.style.height = 'auto';
+            inputRef.current.style.height = inputRef.current.scrollHeight + 'px';
+          }
+        }, 0);
+      }
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputMessage.trim()) {
+      onSend(inputMessage.trim());
+      
+      // Reset textarea height after sending
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.style.height = 'auto';
+          inputRef.current.style.height = inputRef.current.scrollHeight + 'px';
+        }
+      }, 0);
     }
   };
 
   return (
-    <form
-      className="w-full"
-      onSubmit={e => {
-        e.preventDefault();
-        if (inputMessage.trim()) onSend(inputMessage.trim());
-      }}
-    >
+    <form className="w-full" onSubmit={handleSubmit}>
       <div className={`flex items-center w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-2 transition-shadow duration-200 ${isRecording ? 'ring-2 ring-[#10B981] ring-offset-2 chatbot-glow' : ''}`}> 
         {/* Smooth green glow animation for mic listening */}
         <style>{`
@@ -50,14 +69,30 @@ export const HomeChatInput: React.FC<HomeChatInputProps> = ({
             100% { box-shadow: 0 0 0 0 #10B98133, 0 0 0 0 #10B98133; }
           }
         `}</style> 
-        <Input
+        <Textarea
           ref={inputRef}
           value={inputMessage}
-          onChange={e => setInputMessage(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onChange={e => {
+            setInputMessage(e.target.value);
+            // Auto-resize textarea based on content
+            if (inputRef.current) {
+              inputRef.current.style.height = 'auto';
+              inputRef.current.style.height = inputRef.current.scrollHeight + 'px';
+            }
+          }}
+          onInput={() => {
+            // Additional resize trigger for edge cases
+            if (inputRef.current) {
+              inputRef.current.style.height = 'auto';
+              inputRef.current.style.height = inputRef.current.scrollHeight + 'px';
+            }
+          }}
+          onKeyDown={handleKeyPress}
           placeholder="Ask anything..."
           disabled={isLoading}
-          className="flex-1 bg-transparent border-none outline-none shadow-none text-lg placeholder-[#6B7280]"
+          rows={1}
+          className="flex-1 bg-transparent border-none outline-none shadow-none text-lg placeholder-[#6B7280] min-h-[44px] max-h-40 resize-none overflow-hidden whitespace-pre-wrap"
+          style={{lineHeight: '1.6'}}
         />
         {speechSupported && (
           <button

@@ -1,0 +1,14 @@
+Hi {{ full_name }},
+
+We noticed you haven't taken a test recently.
+
+{% if last_test_date %}
+Your last test was on: {{ last_test_date }}
+{% endif %}
+
+Regular practice helps improve retention. Log in now to take a quick test: {{ dashboard_url }}
+
+If you need help, contact {{ support_email }}.
+
+Thanks,
+The Inzighted Team

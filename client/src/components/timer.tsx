@@ -23,13 +23,14 @@ interface TimerProps {
   initialMinutes: number;  // Initial time in minutes
   onTimeUp: () => void;    // Callback function when timer reaches zero
   className?: string;      // Additional CSS classes
+  paused?: boolean;        // Pause the countdown when true
 }
 
 /**
  * Timer Component
  * Displays a countdown timer with visual feedback
  */
-export function Timer({ initialMinutes, onTimeUp, className = "" }: TimerProps) {
+export function Timer({ initialMinutes, onTimeUp, className = "", paused = false }: TimerProps) {
   // === TIMER STATE ===
   const [timeLeft, setTimeLeft] = useState((initialMinutes || 0) * 60);  // Time left in seconds
 
@@ -40,6 +41,9 @@ export function Timer({ initialMinutes, onTimeUp, className = "" }: TimerProps) 
       onTimeUp();
       return;
     }
+
+    // If paused, don't start the interval
+    if (paused) return;
 
     // Set up interval to decrement time every second
     const timer = setInterval(() => {

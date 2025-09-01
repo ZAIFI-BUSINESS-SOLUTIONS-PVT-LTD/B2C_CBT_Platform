@@ -264,6 +264,14 @@ export default function ChatbotPage() {
         // Update input field with transcribed text (real-time)
         setInputMessage(transcript);
         
+        // Manually adjust textarea height after setting the transcribed text
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.style.height = 'auto';
+            inputRef.current.style.height = inputRef.current.scrollHeight + 'px';
+          }
+        }, 0);
+        
         // Don't auto-stop recording - let user manually stop with check icon
       };
       
@@ -564,6 +572,15 @@ export default function ChatbotPage() {
 
     const messageToSend = inputMessage.trim();
     setInputMessage('');
+    
+    // Reset textarea height after clearing input
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.style.height = 'auto';
+        inputRef.current.style.height = inputRef.current.scrollHeight + 'px';
+      }
+    }, 0);
+    
     setIsNewSession(false); // Hide "Where should we begin?" after first message
 
     // If no current session, create one first and send message after
@@ -620,6 +637,15 @@ export default function ChatbotPage() {
         try {
           // Clear previous input before starting new recording
           setInputMessage('');
+          
+          // Reset textarea height after clearing input
+          setTimeout(() => {
+            if (inputRef.current) {
+              inputRef.current.style.height = 'auto';
+              inputRef.current.style.height = inputRef.current.scrollHeight + 'px';
+            }
+          }, 0);
+          
           recognitionRef.current.start();
         } catch (error) {
           console.error('🎤 Failed to start speech recognition:', error);

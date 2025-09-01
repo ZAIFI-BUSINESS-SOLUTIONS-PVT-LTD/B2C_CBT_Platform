@@ -17,6 +17,8 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   login: (credentials: LoginCredentials) => Promise<LoginResponse>;
+  loginWithGoogle: (idToken: string) => Promise<any>;
+  setAuthFromTokens: (tokens: { access: string; refresh: string }, student: StudentProfile) => void;
   logout: () => void;
   setStudent: (student: StudentProfile | null) => void;
 }
@@ -87,6 +89,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async (idToken: string) => {
+    try {
+      // Send the ID token to your backend using API_BASE_URL
+      const response = await fetch(`${API_BASE_URL}/auth/google/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          idToken: idToken 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Google sign-in failed');
+      }
+
+      // Store tokens
+      setTokens({
+        access: data.access,
+        refresh: data.refresh
+      });
+      
+      // Set student data and authentication state
+      setStudent(data.student);
+      setIsAuthenticated(true);
+      setError(null);
+      console.log("AuthContext: Google authentication state updated");
+      
+      return data;
+    } catch (error) {
+      setError('Google sign-in failed');
+      console.error('Google sign-in error:', error);
+      throw error;
+    }
+  };
+
+  const setAuthFromTokens = (tokens: { access: string; refresh: string }, studentData: StudentProfile) => {
+    // Store tokens
+    setTokens(tokens);
+    
+    // Set student data and authentication state
+    setStudent(studentData);
+    setIsAuthenticated(true);
+    setError(null);
+    console.log("AuthContext: Authentication state updated with provided tokens");
+  };
+
   const logout = async () => {
     try {
       const refreshToken = localStorage.getItem('refreshToken');
@@ -131,6 +183,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         login,
+        loginWithGoogle,
+        setAuthFromTokens,
         logout,
         setStudent,
       }}

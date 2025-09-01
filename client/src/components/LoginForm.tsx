@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { RegisterForm } from "@/components/RegisterForm";
+import GoogleSignIn from "@/components/google-signin";
 
 import { AlertCircle, Eye, EyeOff } from "lucide-react";
 import loginImg from "@/assets/images/login.png";
@@ -66,6 +68,14 @@ export function LoginForm() {
     }
   };
 
+  // Show forgot link only for server/auth errors (not form validation)
+  const showForgotLink = !!error && (
+    error.includes("invalid") ||
+    error.includes("credentials") ||
+    error.includes("non_field_errors") ||
+    error.includes("401") ||
+    error.includes("unauthorized")
+  );
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden font-sans">
@@ -143,6 +153,16 @@ export function LoginForm() {
                 <span>{getCleanErrorMessage()}</span>
               </div>
             )}
+            
+            {/* Forgot password link shown for authentication errors */}
+            {showForgotLink && (
+              <div className="w-full text-left mt-2">
+                <Link href="/forgot-password" className="text-blue-600 underline p-0 h-auto min-h-0 hover:text-blue-700 transition-colors duration-200 text-sm">
+                  Forgotten your password?
+                </Link>
+              </div>
+            )}
+
             {/* Login Button */}
             <Button 
               type="submit" 
@@ -158,6 +178,29 @@ export function LoginForm() {
                 "Login"
               )}
             </Button>
+
+            {/* OR Divider */}
+            <div className="relative flex items-center justify-center my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative bg-white px-4 text-sm text-gray-500 font-medium">
+                OR
+              </div>
+            </div>
+
+            {/* Google Sign-In Button */}
+            <GoogleSignIn 
+              onSuccess={(data) => {
+                console.log("Google sign-in successful:", data);
+              }}
+              onError={(error) => {
+                console.error("Google sign-in error:", error);
+                setFormError(error);
+              }}
+              className="text-lg py-3"
+              disabled={loading}
+            />
             {/* Create Profile Link */}
             <div className="text-center mt-4">
               <Dialog open={showRegister} onOpenChange={setShowRegister}>

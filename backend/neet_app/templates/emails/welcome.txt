@@ -1,0 +1,15 @@
+Hi {{ full_name }},
+
+Welcome to Inzighted — your AI-powered NEET prep partner.
+
+Key features to explore:
+- Adaptive tests
+- Performance analytics
+- AI tutor & chatbot
+
+Jump in at {{ login_url }} and start your first test.
+
+If you have questions email {{ support_email }}.
+
+Thanks,
+The Inzighted Team

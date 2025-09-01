@@ -71,9 +71,16 @@ class TimeTrackingViewSet(viewsets.GenericViewSet):
                     'is_correct': False,
                     'time_taken': 0,
                     'answered_at': None,
-                    'marked_for_review': False
+                    'marked_for_review': False,
+                    'visit_count': 1  # Set to 1 for first visit
                 }
             )
+            
+            # Update visit count - increment on each visit (including first time)
+            if not created:
+                # If the record already existed, increment visit count
+                test_answer.visit_count = (test_answer.visit_count or 1) + 1
+            # If created=True, visit_count is already set to 1 in defaults
             
             # Update time tracking - accumulate all visit times
             current_time = test_answer.time_taken or 0
@@ -88,7 +95,7 @@ class TimeTrackingViewSet(viewsets.GenericViewSet):
             elif not test_answer.answered_at:
                 test_answer.answered_at = timezone.now()
             
-            test_answer.save(update_fields=['time_taken', 'answered_at'])
+            test_answer.save(update_fields=['time_taken', 'answered_at', 'visit_count'])
             
             logger.info(f"✅ Successfully logged {time_spent} seconds for question {question_id} in session {session_id}. Total time: {test_answer.time_taken}")
             
@@ -96,6 +103,7 @@ class TimeTrackingViewSet(viewsets.GenericViewSet):
                 "status": "success",
                 "message": f"Logged {time_spent} seconds for question {question_id}",
                 "totalTime": test_answer.time_taken,
+                "visitCount": test_answer.visit_count,
                 "questionId": question_id,
                 "sessionId": session_id
             }, status=status.HTTP_200_OK)

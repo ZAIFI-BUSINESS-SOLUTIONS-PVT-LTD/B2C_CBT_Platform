@@ -1,0 +1,18 @@
+Hi {{ full_name }},
+
+You've completed Test #{{ session_id }}.
+
+Summary:
+- Total questions: {{ total_questions }}
+- Correct answers: {{ correct_answers }}
+- Incorrect answers: {{ incorrect_answers }}
+- Unanswered questions: {{ unanswered_questions }}
+- Time taken (seconds): {{ time_taken }}
+- Score: {{ score_percentage }}%
+
+View full results: {{ results_url }}
+
+If you have questions, reach out at {{ support_email }}.
+
+Thanks,
+The Inzighted Team

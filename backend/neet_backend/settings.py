@@ -78,6 +78,17 @@ DATABASES = {
         'PORT': os.environ.get('DB_PORT', '5433'),
     }
 }
+
+# Optional secondary database for external source (database_question)
+if os.environ.get('SRC_DB_NAME'):
+    DATABASES['source'] = {
+        'ENGINE': os.environ.get('SRC_DB_ENGINE', 'django.db.backends.postgresql'),
+        'NAME': os.environ.get('SRC_DB_NAME'),
+        'USER': os.environ.get('SRC_DB_USER', DATABASES['default']['USER']),
+        'PASSWORD': os.environ.get('SRC_DB_PASSWORD', DATABASES['default']['PASSWORD']),
+        'HOST': os.environ.get('SRC_DB_HOST', DATABASES['default']['HOST']),
+        'PORT': os.environ.get('SRC_DB_PORT', DATABASES['default']['PORT']),
+    }
 NEO4J_BOLT_URL = os.environ.get('NEO4J_BOLT_URL', 'bolt://neo4j:vishal4j@localhost:7687/neo4j')
 config.DATABASE_URL = NEO4J_BOLT_URL
 # Password validation
@@ -203,6 +214,20 @@ SESSION_COOKIE_AGE = int(os.environ.get('SESSION_COOKIE_AGE', '86400'))  # 24 ho
 # URL Configuration
 APPEND_SLASH = os.environ.get('APPEND_SLASH', 'False') == 'True'  # Disable automatic trailing slash redirect for API consistency
 
+# FRONTEND URL to include in password reset emails. Replace with your frontend domain in production.
+FRONTEND_RESET_URL = os.environ.get('FRONTEND_RESET_URL', 'https://neet.inzighted.com/reset-password')
+
+# Email backend configuration (placeholder/defaults)
+# Update these environment variables in production with real SMTP or provider credentials.
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.example.com')  # <-- UPDATE: replace with your SMTP host
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'your-smtp-username')  # <-- UPDATE: replace with SMTP username
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'your-smtp-password')  # <-- UPDATE: replace with SMTP password
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@inzighted.com')
+EMAIL_PROVIDER = os.environ.get('EMAIL_PROVIDER', 'django')  # 'django' | 'smtp' | 'zeptomail'
+
 # AI Chatbot Configuration
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
@@ -235,6 +260,28 @@ LANGCHAIN_API_KEY = os.environ.get('LANGCHAIN_API_KEY', '')
 CHATBOT_MAX_SESSIONS = int(os.environ.get('CHATBOT_MAX_SESSIONS', '10'))
 CHATBOT_MAX_MESSAGES = int(os.environ.get('CHATBOT_MAX_MESSAGES', '1000'))
 CHATBOT_SESSION_TIMEOUT = int(os.environ.get('CHATBOT_SESSION_TIMEOUT', '86400'))  # 24 hours
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://neet.inzighted.com",  # for production
+]
+# NEET App specific settings
+NEET_SETTINGS = {
+    # Number of recent test sessions to check for question repetition prevention
+    'RECENT_TESTS_COUNT_FOR_EXCLUSION': 1,
+    
+    # Adaptive question selection ratios (percentages)
+    'ADAPTIVE_SELECTION_ENABLED': False,  # Feature flag to enable adaptive selection
+    'ADAPTIVE_RATIO_NEW': 60,            # Percentage for new (never attempted) questions
+    'ADAPTIVE_RATIO_WRONG': 30,          # Percentage for wrong/unanswered questions
+    'ADAPTIVE_RATIO_CORRECT': 10,        # Percentage for correctly answered questions
+}
 
 # Logging configuration
 LOGGING = {

@@ -1,0 +1,12 @@
+<html>
+  <body>
+    <p>Hi {{ full_name }},</p>
+    <p>We noticed you haven't taken a test recently.</p>
+    {% if last_test_date %}
+    <p>Your last test was on: {{ last_test_date }}</p>
+    {% endif %}
+    <p><a href="{{ dashboard_url }}">Log in to take a short test</a> — regular practice helps retention.</p>
+    <p>If you need help, contact {{ support_email }}.</p>
+    <p>Thanks,<br/>The Inzighted Team</p>
+  </body>
+</html>

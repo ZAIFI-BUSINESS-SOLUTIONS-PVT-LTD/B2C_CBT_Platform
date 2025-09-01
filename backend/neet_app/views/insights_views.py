@@ -18,7 +18,7 @@ import google.generativeai as genai
 from django.conf import settings
 import os
 
-from ..models import StudentProfile, TestSession, TestAnswer, Question, Topic
+from ..models import StudentProfile, TestSession, TestAnswer, Question, Topic, StudentInsight
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,91 @@ def get_insights_file_path(student_id):
     print(f"📁 PATH_LOG: Absolute path: {os.path.abspath(file_path)}")
     return file_path
 
+def save_insights_to_database(student_id, insights_data, test_session_id=None):
+    """Save insights data to the database."""
+    try:
+        # Get the student profile
+        student = StudentProfile.objects.get(student_id=student_id)
+        
+        # Get test session if provided
+        test_session = None
+        if test_session_id:
+            try:
+                test_session = TestSession.objects.get(id=test_session_id)
+            except TestSession.DoesNotExist:
+                print(f"⚠️ Test session {test_session_id} not found, saving without session link")
+        
+        # Extract data from the insights_data structure
+        data = insights_data.get('data', insights_data)
+        
+        # Create new StudentInsight record
+        insight = StudentInsight.objects.create(
+            student=student,
+            test_session=test_session,
+            strength_topics=data.get('strength_topics', []),
+            weak_topics=data.get('weak_topics', []),
+            improvement_topics=data.get('improvement_topics', []),
+            unattempted_topics=data.get('unattempted_topics', []),
+            last_test_topics=data.get('last_test_topics', []),
+            llm_strengths=data.get('llm_insights', {}).get('strengths', {}),
+            llm_weaknesses=data.get('llm_insights', {}).get('weaknesses', {}),
+            llm_study_plan=data.get('llm_insights', {}).get('study_plan', {}),
+            llm_last_test_feedback=data.get('llm_insights', {}).get('last_test_feedback', {}),
+            thresholds_used=data.get('thresholds_used', {}),
+            summary=data.get('summary', {}),
+            insight_type='overall'
+        )
+        
+        print(f"💾 Insights saved to database for student {student_id} (ID: {insight.id})")
+        return True
+    except StudentProfile.DoesNotExist:
+        print(f"❌ Student {student_id} not found")
+        logger.error(f"Student {student_id} not found when saving insights")
+        return False
+    except Exception as e:
+        print(f"❌ Failed to save insights to database for student {student_id}: {e}")
+        logger.error(f"Failed to save insights to database for student {student_id}: {e}")
+        return False
+
+def load_insights_from_database(student_id):
+    """Load the most recent insights data from the database."""
+    try:
+        # Get the most recent insight for this student
+        insight = StudentInsight.objects.filter(student_id=student_id).order_by('-created_at').first()
+        
+        if not insight:
+            print(f"📂 No insights found in database for student {student_id}")
+            return None
+        
+        # Reconstruct the data structure to match the original format
+        insights_data = {
+            'status': 'success',
+            'data': {
+                'strength_topics': insight.strength_topics,
+                'weak_topics': insight.weak_topics,
+                'improvement_topics': insight.improvement_topics,
+                'unattempted_topics': insight.unattempted_topics,
+                'last_test_topics': insight.last_test_topics,
+                'llm_insights': {
+                    'strengths': insight.llm_strengths,
+                    'weaknesses': insight.llm_weaknesses,
+                    'study_plan': insight.llm_study_plan,
+                    'last_test_feedback': insight.llm_last_test_feedback
+                },
+                'thresholds_used': insight.thresholds_used,
+                'summary': insight.summary,
+                'cached': True
+            }
+        }
+        
+        print(f"📂 Insights loaded from database for student {student_id} (created: {insight.created_at})")
+        return insights_data
+    except Exception as e:
+        print(f"❌ Failed to load insights from database for student {student_id}: {e}")
+        logger.error(f"Failed to load insights from database for student {student_id}: {e}")
+        return None
+
+# Keep the old file functions for backward compatibility during transition
 def save_insights_to_file(student_id, insights_data):
     """Save insights data to a JSON file."""
     try:
@@ -167,12 +252,12 @@ Topics data: {data}
 Act as a highly personalized NEET exam tutor. Carefully analyze the provided student data and deliver feedback with a warm, supportive, and individualized touch. For each metric or insight:
 - Avoid using raw formatting like asterisks (**).
 - Each point must be concise, specific, and limited to 18–20 words.
-- Ensure every suggestion or observation is actionable, encouraging, and tailored to the student’s unique strengths and areas for improvement.
+- Ensure every suggestion or observation is actionable, encouraging, and tailored to the student's unique strengths and areas for improvement.
 
 You are a strategic NEET exam tutor creating a personalized study plan. Based on the student's performance across topics, provide exactly 2 actionable study suggestions that:
-1. Mix targeted revision for weak topics with speed improvement strategies
-2. Include balanced revision to keep strong topics sharp
-Be specific and practical. Keep each suggestion to 1-2 sentences.
+1. Mix targeted revision for weak topics with speed improvement strategies, and address topics with many unattempted questions (if any)
+2. Include balanced revision to keep strong topics sharp while focusing on avoided or skipped topic areas
+Be specific and practical. Consider unattempted topics as areas needing confidence building. Keep each suggestion to 1-2 sentences.
 
 Performance data: {data}
 """,
@@ -346,22 +431,22 @@ def generate_llm_insights(insight_type, data):
         # Provide fallback insights based on type
         fallback_insights = {
             'strengths': [
-                'You are performing well in these topics - keep up the good work!',
-                'Your accuracy and speed in these areas show strong understanding.'
+                "I couldn’t identify your strong areas yet, but with consistent practice and effort, your strengths will surely become visible soon."
             ],
             'weaknesses': [
-                'These topics need more focused practice and revision.',
-                'Consider reviewing fundamental concepts and practicing more questions.'
+                "No clear weaknesses are visible from this data, but continued practice and deeper learning will help uncover improvement opportunities ahead."
             ],
             'study_plan': [
-                'Focus on weak topics while maintaining practice in strong areas.',
-                'Balance conceptual understanding with speed improvement exercises.'
+                "Currently, there isn’t enough data to design a study plan, but attempting more tests will allow personalized guidance soon."
             ],
             'last_test_feedback': [
-                'Your recent test shows areas for improvement.',
-                'Keep practicing and reviewing to build consistency.'
+                "I don’t have sufficient recent test data to provide feedback, but once you attempt another test, insights will be available."
+            ],
+            'no_data': [
+                "There’s no test data available yet, but once you take your first test, personalized strengths and weaknesses will be generated."
             ]
         }
+
         
         return {
             'status': 'error',
@@ -403,7 +488,8 @@ def calculate_topic_metrics(student_id, session_ids=None):
             'total_time': 0,
             'topic_name': '',
             'subject': '',
-            'chapter': ''
+            'chapter': '',
+            'total_questions': 0
         })
         
         total_attempted = 0
@@ -433,6 +519,18 @@ def calculate_topic_metrics(student_id, session_ids=None):
                 if answer.is_correct:
                     topic_data[topic_key]['correct'] += 1
         
+        # Get total questions per topic for unattempted calculation
+        from django.db.models import Count
+        topic_question_counts = Question.objects.values('topic__id', 'topic__name').annotate(
+            total_questions=Count('id')
+        )
+        
+        # Map topic question counts
+        topic_totals = {}
+        for item in topic_question_counts:
+            topic_key = f"{item['topic__id']}_{item['topic__name']}"
+            topic_totals[topic_key] = item['total_questions']
+        
         # Calculate metrics for each topic
         topic_metrics = {}
         overall_avg_time = total_time / total_attempted if total_attempted > 0 else 0
@@ -441,6 +539,8 @@ def calculate_topic_metrics(student_id, session_ids=None):
             if data['attempted'] > 0:
                 accuracy = (data['correct'] / data['attempted']) * 100
                 avg_time = data['total_time'] / data['attempted']
+                total_questions = topic_totals.get(topic_key, data['attempted'])
+                unattempted = max(0, total_questions - data['attempted'])
                 
                 topic_metrics[topic_key] = {
                     'topic': data['topic_name'],
@@ -450,7 +550,9 @@ def calculate_topic_metrics(student_id, session_ids=None):
                     'avg_time_sec': round(avg_time, 2),
                     'attempted': data['attempted'],
                     'correct': data['correct'],
-                    'total_time': data['total_time']
+                    'total_time': data['total_time'],
+                    'total_questions': total_questions,
+                    'unattempted': unattempted
                 }
         
         return {
@@ -526,6 +628,36 @@ def classify_topics(topic_metrics, overall_avg_time, thresholds):
         'weak_topics': weaknesses,
         'improvement_topics': improvements
     }
+
+def get_unattempted_topics(topic_metrics, unattempted_threshold=5):
+    """
+    Identify topics with high number of unattempted questions.
+    
+    Args:
+        topic_metrics: Dict of topic metrics from calculate_topic_metrics
+        unattempted_threshold: Minimum unattempted questions to be considered
+        
+    Returns:
+        list: Topics with high unattempted counts
+    """
+    unattempted_topics = []
+    
+    for topic_key, metrics in topic_metrics.items():
+        if metrics.get('unattempted', 0) >= unattempted_threshold:
+            unattempted_topics.append({
+                'topic': metrics['topic'],
+                'subject': metrics['subject'],
+                'chapter': metrics['chapter'],
+                'unattempted': metrics['unattempted'],
+                'total_questions': metrics['total_questions'],
+                'attempted': metrics['attempted'],
+                'unattempted_percentage': round((metrics['unattempted'] / metrics['total_questions']) * 100, 2) if metrics['total_questions'] > 0 else 0
+            })
+    
+    # Sort by unattempted count (descending)
+    unattempted_topics.sort(key=lambda x: x['unattempted'], reverse=True)
+    
+    return unattempted_topics
 
 def get_last_test_metrics(student_id, thresholds):
     """
@@ -640,9 +772,9 @@ def get_student_insights(request):
                 'message': f'Student with ID {student_id} not found'
             }, status=status.HTTP_404_NOT_FOUND)
         
-        # Try to load from cache first (unless force_regenerate is True)
+        # Try to load from database first (unless force_regenerate is True)
         if not force_regenerate:
-            cached_insights = load_insights_from_file(student_id)
+            cached_insights = load_insights_from_database(student_id)
             if cached_insights:
                 # Add cached flag to the response
                 cached_insights['cached'] = True
@@ -665,17 +797,19 @@ def get_student_insights(request):
                     'weak_topics': [],
                     'improvement_topics': [],
                     'last_test_topics': [],
+                    'unattempted_topics': [],
                     'thresholds_used': thresholds,
                     'summary': {
                         'total_topics_analyzed': 0,
                         'total_tests_taken': 0,
+                        'unattempted_topics_count': 0,
                         'message': 'No test data available for analysis'
                     },
                     'cached': False
                 }
             }
-            # Save empty response to cache
-            save_insights_to_file(student_id, empty_response)
+            # Save empty response to database
+            save_insights_to_database(student_id, empty_response)
             return Response(empty_response)
         
         # Classify topics based on all test data
@@ -700,10 +834,12 @@ def get_student_insights(request):
             llm_insights['weaknesses'] = generate_llm_insights('weaknesses', classification['weak_topics'])
         
         # Generate study plan insights
+        unattempted_topics = get_unattempted_topics(all_metrics['topics'])
         study_plan_data = {
             'weak_topics': classification['weak_topics'],
             'improvement_topics': classification['improvement_topics'],
-            'strength_topics': classification['strength_topics']
+            'strength_topics': classification['strength_topics'],
+            'unattempted_topics': unattempted_topics
         }
         llm_insights['study_plan'] = generate_llm_insights('study_plan', study_plan_data)
         
@@ -731,6 +867,7 @@ def get_student_insights(request):
             'strengths_count': len(classification['strength_topics']),
             'weaknesses_count': len(classification['weak_topics']),
             'improvements_count': len(classification['improvement_topics']),
+            'unattempted_topics_count': len(unattempted_topics),
             'overall_avg_time': round(all_metrics['overall_avg_time'], 2),
             'last_session_id': latest_session_id  # Add this for tracking
         }
@@ -740,6 +877,7 @@ def get_student_insights(request):
             'data': {
                 **classification,
                 **last_test_data,
+                'unattempted_topics': unattempted_topics,
                 'llm_insights': llm_insights,
                 'thresholds_used': thresholds,
                 'summary': summary,
@@ -747,8 +885,8 @@ def get_student_insights(request):
             }
         }
         
-        # Save the generated insights to cache
-        save_insights_to_file(student_id, response_data)
+        # Save the generated insights to database
+        save_insights_to_database(student_id, response_data, latest_session_id)
         
         return Response(response_data)
         
@@ -850,8 +988,8 @@ def get_topic_details(request):
 @permission_classes([IsAuthenticated])
 def get_insights_cache(request):
     """
-    Get cached insights data directly from the JSON file for the authenticated student.
-    This endpoint reads the cached insights file and returns the data without regeneration.
+    Get cached insights data directly from the database for the authenticated student.
+    This endpoint reads the cached insights from the database and returns the data without regeneration.
     
     Returns:
     {
@@ -859,9 +997,9 @@ def get_insights_cache(request):
         "data": {...},           // Cached insights data
         "cached": true,
         "cache_info": {
-            "file_exists": true,
-            "file_size": 1234,
-            "last_modified": "2025-08-13T12:40:00Z"
+            "record_exists": true,
+            "created_at": "2025-08-13T12:40:00Z",
+            "test_session_id": 123
         }
     }
     """
@@ -877,29 +1015,24 @@ def get_insights_cache(request):
         
         print(f"📂 CACHE_ENDPOINT: Loading cached insights for student {student_id}")
         
-        # Try to load from cache file
-        cached_insights = load_insights_from_file(student_id)
+        # Try to load from database
+        cached_insights = load_insights_from_database(student_id)
         
         if cached_insights:
-            # Get file info for debugging
-            file_path = get_insights_file_path(student_id)
-            file_info = {
-                'file_exists': os.path.exists(file_path),
-                'file_size': os.path.getsize(file_path) if os.path.exists(file_path) else 0,
-                'last_modified': None
+            # Get the actual record for cache info
+            insight_record = StudentInsight.objects.filter(student_id=student_id).order_by('-created_at').first()
+            cache_info = {
+                'record_exists': True,
+                'created_at': insight_record.created_at.isoformat() if insight_record else None,
+                'test_session_id': insight_record.test_session.id if insight_record and insight_record.test_session else None
             }
-            
-            if os.path.exists(file_path):
-                import datetime
-                mod_time = os.path.getmtime(file_path)
-                file_info['last_modified'] = datetime.datetime.fromtimestamp(mod_time).isoformat()
             
             # Add cache info to response
             response_data = {
                 'status': 'success',
                 'data': cached_insights.get('data', cached_insights),  # Handle nested data structure
                 'cached': True,
-                'cache_info': file_info
+                'cache_info': cache_info
             }
             
             print(f"📂 CACHE_ENDPOINT: Successfully loaded cached insights for student {student_id}")
@@ -914,6 +1047,7 @@ def get_insights_cache(request):
                     'weak_topics': [],
                     'improvement_topics': [],
                     'last_test_topics': [],
+                    'unattempted_topics': [],
                     'llm_insights': {
                         'strengths': {
                             'status': 'info',
@@ -941,20 +1075,117 @@ def get_insights_cache(request):
                         'total_tests_taken': 0,
                         'strengths_count': 0,
                         'weaknesses_count': 0,
-                        'improvements_count': 0
+                        'improvements_count': 0,
+                        'unattempted_topics_count': 0
                     }
                 },
                 'cached': False,
                 'cache_info': {
-                    'file_exists': False,
-                    'file_size': 0,
-                    'last_modified': None
+                    'record_exists': False,
+                    'created_at': None,
+                    'test_session_id': None
                 }
             })
         
     except Exception as e:
         logger.error(f"Error in get_insights_cache: {str(e)}")
         print(f"❌ CACHE_ENDPOINT: Error loading cached insights: {str(e)}")
+        return Response({
+            'status': 'error',
+            'message': f'Internal server error: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_insights_history(request):
+    """
+    Get historical insights for the authenticated student.
+    
+    Query Parameters:
+    - limit: Number of records to return (default: 10)
+    - test_session_id: Filter by specific test session (optional)
+    
+    Returns:
+    {
+        "status": "success",
+        "data": {
+            "insights": [...],    // List of historical insights
+            "total_count": 25,    // Total number of insights available
+            "page_info": {...}    // Pagination info
+        }
+    }
+    """
+    try:
+        # Get the authenticated student
+        if not hasattr(request.user, 'student_id'):
+            return Response({
+                'status': 'error',
+                'message': 'User not properly authenticated'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        student_id = request.user.student_id
+        
+        # Get query parameters
+        limit = int(request.GET.get('limit', 10))
+        test_session_id = request.GET.get('test_session_id')
+        
+        # Build query
+        query = StudentInsight.objects.filter(student_id=student_id)
+        
+        if test_session_id:
+            query = query.filter(test_session_id=test_session_id)
+        
+        # Get total count
+        total_count = query.count()
+        
+        # Get limited results
+        insights = query.order_by('-created_at')[:limit]
+        
+        # Format results
+        insights_data = []
+        for insight in insights:
+            insights_data.append({
+                'id': insight.id,
+                'created_at': insight.created_at.isoformat(),
+                'test_session_id': insight.test_session.id if insight.test_session else None,
+                'insight_type': insight.insight_type,
+                'summary': insight.summary,
+                'strengths_count': len(insight.strength_topics),
+                'weaknesses_count': len(insight.weak_topics),
+                'improvements_count': len(insight.improvement_topics),
+                # Include full data if needed
+                'data': {
+                    'strength_topics': insight.strength_topics,
+                    'weak_topics': insight.weak_topics,
+                    'improvement_topics': insight.improvement_topics,
+                    'unattempted_topics': insight.unattempted_topics,
+                    'last_test_topics': insight.last_test_topics,
+                    'llm_insights': {
+                        'strengths': insight.llm_strengths,
+                        'weaknesses': insight.llm_weaknesses,
+                        'study_plan': insight.llm_study_plan,
+                        'last_test_feedback': insight.llm_last_test_feedback
+                    },
+                    'thresholds_used': insight.thresholds_used
+                }
+            })
+        
+        return Response({
+            'status': 'success',
+            'data': {
+                'insights': insights_data,
+                'total_count': total_count,
+                'page_info': {
+                    'limit': limit,
+                    'returned_count': len(insights_data),
+                    'has_more': total_count > limit
+                }
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in get_insights_history: {str(e)}")
         return Response({
             'status': 'error',
             'message': f'Internal server error: {str(e)}'

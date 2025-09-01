@@ -15,7 +15,7 @@
  * with automatic submission when time expires.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Timer } from "@/components/timer";
 import { useToast } from "@/hooks/use-toast";
+import useFullscreenEnforcement from "@/hooks/useFullscreenEnforcement";
 import { API_CONFIG } from "@/config/api";
 import { apiRequest } from "@/lib/queryClient";
 import { authenticatedFetch } from "@/lib/auth";
@@ -100,8 +101,19 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);            // Submit confirmation dialog visibility
   const [showTimeOverDialog, setShowTimeOverDialog] = useState(false);        // Time over dialog visibility
   const [timeOverAutoSubmit, setTimeOverAutoSubmit] = useState<NodeJS.Timeout | null>(null); // Auto-submit timeout
+  const [timeOverHandled, setTimeOverHandled] = useState(false); // Track if time over has been handled
   const [showQuitDialog, setShowQuitDialog] = useState(false);                // Quit exam confirmation dialog visibility
   const [isNavigationBlocked, setIsNavigationBlocked] = useState(true);       // Block navigation during test
+  const [started, setStarted] = useState(false); // Has the user started the test (entered fullscreen)
+  const [isAwaitingFocusReturn, setIsAwaitingFocusReturn] = useState(false);   // Track if user tried to leave and needs to return
+  const [lastFocusTime, setLastFocusTime] = useState<number>(Date.now());     // Track when window was last focused
+  const [suppressFullscreenExitDialog, setSuppressFullscreenExitDialog] = useState(false); // Temporarily suppress quit dialog (e.g. during intentional submit)
+  const [paused, setPaused] = useState(false); // Is the test paused by user
+  const [pauseStartTime, setPauseStartTime] = useState<number | null>(null); // When the current pause started
+  const [accumulatedPauseMs, setAccumulatedPauseMs] = useState<number>(0); // Total paused ms to subtract from timers
+  
+  // Prevent state updates / handlers from running while a submit is in progress
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // === TIME TRACKING ===
   const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now()); // When current question started
@@ -114,6 +126,28 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     endTime?: number;
     duration?: number;
   }>>>({});  // Track all visits to each question
+
+  // Track mounted state to avoid updating state after unmount
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // Keep a ref mirror of isSubmitting to avoid stale closures in effects/cleanup
+  const isSubmittingRef = useRef(isSubmitting);
+  useEffect(() => { isSubmittingRef.current = isSubmitting; }, [isSubmitting]);
+
+  // Ref for synchronous fullscreen exit suppression (to avoid race conditions)
+  const suppressFullscreenExitDialogRef = useRef(suppressFullscreenExitDialog);
+  useEffect(() => { suppressFullscreenExitDialogRef.current = suppressFullscreenExitDialog; }, [suppressFullscreenExitDialog]);
+
+  // Track last logged visit start per question to prevent duplicate logs
+  const lastLoggedVisitStartRef = useRef<Record<number, number>>({});
+  // Track which question currently has an active visit (ref avoids stale closures)
+  const currentVisitQuestionRef = useRef<number | null>(null);
+  // Track current visit start time with ref for immediate access
+  const currentVisitStartTimeRef = useRef<number>(0);
 
   // === DATA FETCHING ===
   // Fetch test session data and questions from the database
@@ -141,6 +175,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     },
     enabled: !!sessionId, // Only fetch if sessionId is available
   });
+
+  // Reset time over handled flag when new test data loads
+  useEffect(() => {
+    if (testData) {
+      setTimeOverHandled(false);
+    }
+  }, [testData]);
 
   // === ANSWER SUBMISSION MUTATION ===
   // This mutation handles real-time answer submission as students answer questions
@@ -182,6 +223,12 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       return response;
     },
     onSuccess: () => {
+      // Exit fullscreen (best-effort) before navigating away
+      // Only exit if we're still in fullscreen and not already exiting
+      if (document.fullscreenElement && !suppressFullscreenExitDialogRef.current) {
+        try { exitFullscreen(); } catch (e) { /* ignore */ }
+      }
+
       // Disable navigation blocking before navigating away
       setIsNavigationBlocked(false);
       
@@ -209,6 +256,9 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       
       // Navigate to results
       navigate(`/results/${sessionId}`);
+  // Clean up state after navigation
+  setIsSubmitting(false);
+  setSuppressFullscreenExitDialog(false);
     },
     onError: () => {
       toast({
@@ -216,6 +266,10 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         description: "Failed to submit test. Please try again.",
         variant: "destructive",
       });
+  // Clear suppression if submission failed
+  setSuppressFullscreenExitDialog(false);
+  setIsSubmitting(false);
+  setTimeOverHandled(false); // Reset time over handled flag on error
     },
   });
 
@@ -227,7 +281,11 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       return response;
     },
     onSuccess: () => {
-      // Invalidate all relevant queries to refresh dashboard data
+  setSuppressFullscreenExitDialog(true);
+  // Exit fullscreen (best-effort) before navigating away
+  try { exitFullscreen(); } catch (e) { /* ignore */ }
+
+  // Invalidate all relevant queries to refresh dashboard data
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/analytics/'] }); // Main dashboard
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/comprehensive-analytics/'] }); // Landing dashboard
       queryClient.invalidateQueries({ queryKey: [`testSession-${sessionId}`] }); // Current test session
@@ -251,6 +309,9 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       // Disable navigation blocking and navigate away
       setIsNavigationBlocked(false);
       navigate("/dashboard");
+  // Clean up state after navigation
+  setIsSubmitting(false);
+  setSuppressFullscreenExitDialog(false);
     },
     onError: () => {
       toast({
@@ -258,6 +319,9 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         description: "Failed to quit test. Please try again.",
         variant: "destructive",
       });
+  setSuppressFullscreenExitDialog(false);
+  setIsSubmitting(false);
+  setTimeOverHandled(false); // Reset time over handled flag on error
     },
   });
 
@@ -281,12 +345,35 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
    */
   const logCurrentQuestionTime = (questionId: number, endTime: number = Date.now()) => {
     // Don't log if visit hasn't started or if we don't have a valid session
-    if (currentVisitStartTime === 0 || !sessionId) {
-      console.log(`⏱️ Enhanced: Skipping log - visit not started or no session (visitStart: ${currentVisitStartTime}, sessionId: ${sessionId})`);
+    // Only log if this question currently has an active visit start recorded
+    if (currentVisitQuestionRef.current !== questionId || currentVisitStartTimeRef.current === 0 || !sessionId) {
+      console.log(`⏱️ Enhanced: Skipping log - no active visit for question ${questionId} (visitStart: ${currentVisitStartTimeRef.current}, activeQuestion: ${currentVisitQuestionRef.current}, sessionId: ${sessionId})`);
+      // Reset visit marker cleanly
+      currentVisitStartTimeRef.current = 0;
+      currentVisitQuestionRef.current = null;
+      if (mountedRef.current) {
+        setCurrentVisitStartTime(0);
+      }
       return;
     }
-    
-    const duration = Math.round((endTime - currentVisitStartTime) / 1000);
+
+    // Prevent duplicate logs for the same question visit start
+    const lastLoggedStart = lastLoggedVisitStartRef.current[questionId];
+    if (lastLoggedStart && lastLoggedStart === currentVisitStartTimeRef.current) {
+      console.log(`⏱️ Enhanced: Duplicate log suppressed for question ${questionId} (start ${currentVisitStartTimeRef.current})`);
+      // Reset visit marker to allow fresh starts later
+      currentVisitStartTimeRef.current = 0;
+      currentVisitQuestionRef.current = null;
+      if (mountedRef.current) {
+        setCurrentVisitStartTime(0);
+      }
+      return;
+    }
+
+    // Subtract paused duration that occurred during this visit
+    const effectiveEnd = endTime - accumulatedPauseMs;
+    const effectiveStart = currentVisitStartTimeRef.current;
+    const duration = Math.round((effectiveEnd - effectiveStart) / 1000);
     
     // Only log if user spent at least 1 second on question
     if (duration >= 1) {
@@ -294,28 +381,41 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         sessionId: parseInt(sessionId.toString()),
         questionId,
         timeSpent: duration,
-        visitStartTime: new Date(currentVisitStartTime).toISOString(),
+        visitStartTime: new Date(currentVisitStartTimeRef.current).toISOString(),
         visitEndTime: new Date(endTime).toISOString()
       };
       
       console.log(`⏱️ Enhanced: Sending time log payload:`, payload);
       
+      // Mark as logged for this visit start before mutating to avoid races
+      lastLoggedVisitStartRef.current[questionId] = currentVisitStartTimeRef.current;
       logTimeMutation.mutate(payload);
 
-      // Update local visit tracking for analytics
-      setQuestionVisits(prev => ({
-        ...prev,
-        [questionId]: [
-          ...(prev[questionId] || []),
-          {
-            startTime: currentVisitStartTime,
-            endTime,
-            duration
-          }
-        ]
-      }));
-      
-      console.log(`⏱️ Enhanced: Logged ${duration} seconds for question ${questionId}`);
+      // Update local visit tracking for analytics (guard with mountedRef)
+      if (mountedRef.current) {
+        setQuestionVisits(prev => ({
+          ...prev,
+          [questionId]: [
+            ...(prev[questionId] || []),
+            {
+              startTime: currentVisitStartTimeRef.current,
+              endTime,
+              duration
+            }
+          ]
+        }));
+
+        console.log(`⏱️ Enhanced: Logged ${duration} seconds for question ${questionId}`);
+      }
+    }
+
+    // Reset current visit marker so next question visit can start cleanly.
+    // Do this outside the duration branch to avoid carrying start timestamps
+    // into subsequent visits when duration < 1s.
+    currentVisitStartTimeRef.current = 0;
+    currentVisitQuestionRef.current = null;
+    if (mountedRef.current) {
+      setCurrentVisitStartTime(0);
     }
   };
 
@@ -325,6 +425,12 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const startQuestionTimer = (questionId: number) => {
     const now = Date.now();
     setCurrentVisitStartTime(now);
+    currentVisitStartTimeRef.current = now;
+    // mark which question we are actively tracking
+    currentVisitQuestionRef.current = questionId;
+    // Reset pause accounting for the new visit
+    setAccumulatedPauseMs(0);
+    setPauseStartTime(null);
     
     console.log(`⏱️ Enhanced: Started timer for question ${questionId} at ${new Date(now).toISOString()}`);
   };
@@ -332,8 +438,9 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   // No need to pre-create answers - they will be created when user interacts
 
   const handleAnswerChange = (questionId: number, answer: string) => {
-    // Prevent answering if time is over
-    if (showTimeOverDialog) {
+    // Prevent answering if time is over or fullscreen is not active
+  if (showTimeOverDialog || !isFullscreenActive || !started || paused) {
+      if ((!isFullscreenActive || !started) && !showQuitDialog) setShowQuitDialog(true);
       return;
     }
 
@@ -359,7 +466,10 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   };
 
   const handleMarkForReview = () => {
-    if (!currentQuestion || showTimeOverDialog) return; // Prevent interaction when time is over
+    if (!currentQuestion || showTimeOverDialog || !isFullscreenActive || !started || paused) {
+      if ((!isFullscreenActive || !started) && !showQuitDialog) setShowQuitDialog(true);
+      return; // Prevent interaction when time is over or not fullscreen
+    }
 
     const newMarkedSet = new Set(markedForReview);
     if (newMarkedSet.has(currentQuestion.id)) {
@@ -387,83 +497,43 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   };
 
   const handleNextQuestion = () => {
-    if (currentQuestionIndex < totalQuestions - 1 && !showTimeOverDialog) { // Prevent navigation when time is over
-      // Enhanced time tracking: log current question visit
-      if (currentQuestion) {
-        logCurrentQuestionTime(currentQuestion.id);
-        
-        // Original time tracking - keep for compatibility
-        const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
-        setQuestionTimes(prev => ({
-          ...prev,
-          [currentQuestion.id]: (prev[currentQuestion.id] || 0) + timeSpent
-        }));
-      }
-      
-      const nextIndex = currentQuestionIndex + 1;
-      setCurrentQuestionIndex(nextIndex);
-      setQuestionStartTime(Date.now()); // Reset timer for next question
-      
-      // Enhanced time tracking: start timer for new question
-      const nextQuestion = testData?.questions[nextIndex];
-      if (nextQuestion) {
-        startQuestionTimer(nextQuestion.id);
-      }
+  if (currentQuestionIndex < totalQuestions - 1 && !showTimeOverDialog && isFullscreenActive && started && !paused) { // Prevent navigation when time is over or not fullscreen
+  // Only change the current index and reset local start time.
+  // Actual logging and visit-start for the previous/new question
+  // is handled centrally in the effect that watches `currentQuestionIndex`.
+  const nextIndex = currentQuestionIndex + 1;
+  setCurrentQuestionIndex(nextIndex);
+  setQuestionStartTime(Date.now()); // Reset local timer for next question
     }
   };
 
   const handlePreviousQuestion = () => {
-    if (currentQuestionIndex > 0 && !showTimeOverDialog) { // Prevent navigation when time is over
-      // Enhanced time tracking: log current question visit
-      if (currentQuestion) {
-        logCurrentQuestionTime(currentQuestion.id);
-        
-        // Original time tracking - keep for compatibility
-        const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
-        setQuestionTimes(prev => ({
-          ...prev,
-          [currentQuestion.id]: (prev[currentQuestion.id] || 0) + timeSpent
-        }));
-      }
-      
-      const prevIndex = currentQuestionIndex - 1;
-      setCurrentQuestionIndex(prevIndex);
-      setQuestionStartTime(Date.now()); // Reset timer for previous question
-      
-      // Enhanced time tracking: start timer for new question
-      const prevQuestion = testData?.questions[prevIndex];
-      if (prevQuestion) {
-        startQuestionTimer(prevQuestion.id);
-      }
+  if (currentQuestionIndex > 0 && !showTimeOverDialog && isFullscreenActive && started && !paused) { // Prevent navigation when time is over or not fullscreen
+  // Only change the current index and reset local start time.
+  // Centralized effect will log the previous visit and start tracking the new one.
+  const prevIndex = currentQuestionIndex - 1;
+  setCurrentQuestionIndex(prevIndex);
+  setQuestionStartTime(Date.now()); // Reset local timer for previous question
     }
   };
 
   const navigateToQuestion = (index: number) => {
-    if (!showTimeOverDialog) { // Prevent navigation when time is over
-      // Enhanced time tracking: log current question visit before navigation
-      if (currentQuestion && index !== currentQuestionIndex) {
-        logCurrentQuestionTime(currentQuestion.id);
-        
-        // Original time tracking - keep for compatibility
-        const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
-        setQuestionTimes(prev => ({
-          ...prev,
-          [currentQuestion.id]: (prev[currentQuestion.id] || 0) + timeSpent
-        }));
-      }
-      
-      setCurrentQuestionIndex(index);
-      setQuestionStartTime(Date.now()); // Reset timer for target question
-      
-      // Enhanced time tracking: start timer for new question
-      const targetQuestion = testData?.questions[index];
-      if (targetQuestion) {
-        startQuestionTimer(targetQuestion.id);
+  if (!showTimeOverDialog && isFullscreenActive && started && !paused) { // Prevent navigation when time is over or not fullscreen
+      // Only change index and reset start time. The index-change effect
+      // will handle logging the previous visit and starting the new visit.
+      if (index !== currentQuestionIndex) {
+        setCurrentQuestionIndex(index);
+        setQuestionStartTime(Date.now()); // Reset local timer for target question
       }
     }
   };
 
   const handleSubmitTest = () => {
+    if (!isFullscreenActive || !started) {
+      if (!showQuitDialog) setShowQuitDialog(true);
+      return;
+    }
+
     setShowSubmitDialog(true);
   };
 
@@ -472,9 +542,27 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     if (currentQuestion) {
       logCurrentQuestionTime(currentQuestion.id);
     }
-    
-    submitTestMutation.mutate();
+
+    // Suppress fullscreen-exit dialog while performing intentional submit
+    suppressFullscreenExitDialogRef.current = true;
+    setSuppressFullscreenExitDialog(true);
+    setIsSubmitting(true);
+
+    // Close submit dialog immediately
     setShowSubmitDialog(false);
+
+    // If paused, resume before submitting so timers and logs are consistent
+    if (paused) {
+      // end pause accounting
+      const now = Date.now();
+      if (pauseStartTime) setAccumulatedPauseMs(prev => prev + (now - pauseStartTime));
+      setPaused(false);
+      setPauseStartTime(null);
+    }
+
+    // Submit the test immediately without exiting fullscreen here
+    // The fullscreen exit will be handled in the mutation success callback
+    submitTestMutation.mutate();
   };
 
   const handleTimeUp = () => {
@@ -487,9 +575,19 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     setShowTimeOverDialog(true);
     
     // Set auto-submit after 10 seconds if user doesn't manually submit
+    // Suppress fullscreen-exit dialogs while auto-submitting to avoid
+    // fullscreen change handlers from opening modals or toggling state
+    suppressFullscreenExitDialogRef.current = true;
+    setSuppressFullscreenExitDialog(true);
+    // mark submitting to prevent other handlers from running
+    setIsSubmitting(true);
     const autoSubmitTimeout = setTimeout(() => {
       submitTestMutation.mutate();
-      setShowTimeOverDialog(false);
+      // only update state if still mounted
+      if (mountedRef.current) {
+        setShowTimeOverDialog(false);
+        setTimeOverHandled(true); // Mark that time over has been handled
+      }
     }, 10000); // 10 seconds delay
     
     setTimeOverAutoSubmit(autoSubmitTimeout);
@@ -501,13 +599,28 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       clearTimeout(timeOverAutoSubmit);
       setTimeOverAutoSubmit(null);
     }
-    
-    // Submit the test
-    submitTestMutation.mutate();
-    setShowTimeOverDialog(false);
-  };
 
-  // Clean up timeout on component unmount
+    // Submit the test (intentional) - suppress exit dialog
+    // Set suppression flags synchronously to prevent race conditions
+    suppressFullscreenExitDialogRef.current = true;
+    setSuppressFullscreenExitDialog(true);
+    setIsSubmitting(true);
+    setTimeOverHandled(true); // Mark that time over has been handled
+
+    // Close the time over dialog immediately to prevent re-showing
+    setShowTimeOverDialog(false);
+
+    if (paused) {
+      const now = Date.now();
+      if (pauseStartTime) setAccumulatedPauseMs(prev => prev + (now - pauseStartTime));
+      setPaused(false);
+      setPauseStartTime(null);
+    }
+
+    // Submit the test immediately without exiting fullscreen here
+    // The fullscreen exit will be handled in the mutation success callback
+    submitTestMutation.mutate();
+  };  // Clean up timeout on component unmount
   useEffect(() => {
     return () => {
       if (timeOverAutoSubmit) {
@@ -517,57 +630,332 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   }, [timeOverAutoSubmit]);
 
   // === NAVIGATION GUARD IMPLEMENTATION ===
-  // Prevent browser navigation (back/forward/refresh/close tab) during test
+  // Enhanced but functional browser navigation prevention
   useEffect(() => {
+    if (!isNavigationBlocked) return;
+
+    // === AGGRESSIVE EVENT HANDLERS ===
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isNavigationBlocked) {
         e.preventDefault();
-        e.returnValue = "Are you sure you want to leave? Your test progress will be lost.";
-        return "Are you sure you want to leave? Your test progress will be lost.";
+        e.returnValue = "TEST IN PROGRESS - You cannot leave during the exam!";
+        return "TEST IN PROGRESS - You cannot leave during the exam!";
       }
     };
 
     const handlePopState = (e: PopStateEvent) => {
       if (isNavigationBlocked) {
         e.preventDefault();
-        // Push the current state back to prevent navigation
         window.history.pushState(null, "", window.location.href);
+        if (!isSubmitting) setShowQuitDialog(true);
+        window.focus();
+      }
+    };
+
+    // Detect when user switches tabs or minimizes window
+    const handleWindowBlur = () => {
+      if (isNavigationBlocked && !showQuitDialog && !showSubmitDialog && !showTimeOverDialog && !isSubmitting) {
+        // Show quit dialog immediately - no delay
         setShowQuitDialog(true);
+        document.title = "🚨 RETURN TO TEST - NEET Ninja";
+      }
+    };
+
+    const handleWindowFocus = () => {
+      if (isNavigationBlocked) {
+        document.title = "NEET Test - NEET Ninja";
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (isNavigationBlocked && document.hidden && !showQuitDialog && !showSubmitDialog && !showTimeOverDialog && !isSubmitting) {
+        // Show quit dialog immediately when tab becomes hidden - no delay
+        setShowQuitDialog(true);
+        document.title = "🚨 RETURN TO TEST - NEET Ninja";
+      } else if (isNavigationBlocked && !document.hidden) {
+        document.title = "NEET Test - NEET Ninja";
+      }
+    };
+
+    // Block common navigation keyboard shortcuts
+    const handleKeyDown = (e: KeyboardEvent) => {
+  if (isNavigationBlocked) {
+        // Block critical navigation shortcuts including tab switching
+        const shouldBlock = (
+          (e.ctrlKey && ['w', 'W', 't', 'T', 'n', 'N'].includes(e.key)) ||
+          (e.altKey && e.key === 'F4') ||
+          (e.metaKey && ['w', 'W', 't', 'T', 'n', 'N'].includes(e.key)) ||
+          e.key === 'F5' ||
+          (e.ctrlKey && e.key === 'r') ||
+          (e.ctrlKey && e.key === 'R') ||
+          (e.ctrlKey && e.shiftKey && e.key === 'Tab') || // Ctrl+Shift+Tab
+          (e.ctrlKey && e.key === 'Tab') || // Ctrl+Tab
+          (e.altKey && e.key === 'Tab')    // Alt+Tab
+        );
+        
+        if (shouldBlock) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Show quit dialog immediately for keyboard shortcuts
+          if (!showQuitDialog && !showSubmitDialog && !showTimeOverDialog && !isSubmitting) {
+            setShowQuitDialog(true);
+          }
+          
+          // Show warning toast
+          toast({
+            title: "🚫 Navigation Blocked",
+            description: "You cannot leave the test. Choose 'Return to Test' or 'End Test'.",
+            variant: "destructive",
+            duration: 2000,
+          });
+        }
+      }
+    };
+
+    // Block right-click context menu
+    const handleContextMenu = (e: MouseEvent) => {
+      if (isNavigationBlocked) {
+        e.preventDefault();
+        return false;
+      }
+    };
+
+    // === SETUP EVENT LISTENERS ===
+    if (isNavigationBlocked) {
+      // Setup history blocking
+      window.history.pushState(null, "", window.location.href);
+      window.addEventListener("popstate", handlePopState);
+      
+      // Setup unload blocking
+      window.addEventListener("beforeunload", handleBeforeUnload);
+      
+      // Setup focus management (less aggressive)
+      window.addEventListener("blur", handleWindowBlur);
+      window.addEventListener("focus", handleWindowFocus);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      
+      // Setup keyboard blocking (only critical shortcuts)
+      document.addEventListener("keydown", handleKeyDown);
+      
+      // Block context menu
+      document.addEventListener("contextmenu", handleContextMenu);
+      
+      // Set initial page title
+      document.title = "NEET Test - NEET Ninja";
+    }
+
+    return () => {
+      // Cleanup all event listeners
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("contextmenu", handleContextMenu);
+    };
+  }, [isNavigationBlocked, showQuitDialog, showSubmitDialog, showTimeOverDialog, isSubmitting]);
+
+  // === QUIT DIALOG HANDLERS ===
+  const handleQuitConfirm = () => {
+    // Disable navigation blocking since user is intentionally leaving
+    setIsNavigationBlocked(false);
+    setShowQuitDialog(false);
+    suppressFullscreenExitDialogRef.current = true;
+    setSuppressFullscreenExitDialog(true);
+  try { exitFullscreen(); } catch (e) { /* ignore */ }
+  quitTestMutation.mutate();
+  };
+
+  // === FULLSCREEN ENFORCEMENT ===
+  // Request fullscreen on test start and detect exits
+  const onFullscreenExit = () => {
+    // When fullscreen exit detected, show quit dialog and pause interactions
+    // If suppression flag is set (we're intentionally submitting), do nothing
+    // Use ref for synchronous check to avoid race conditions
+    if (suppressFullscreenExitDialogRef.current || isSubmittingRef.current || timeOverHandled) {
+      console.log('Fullscreen exit suppressed - intentional submission in progress or time over handled', {
+        suppressFullscreenExitDialogRef: suppressFullscreenExitDialogRef.current,
+        isSubmitting: isSubmittingRef.current,
+        timeOverHandled
+      });
+      return;
+    }
+
+    // Don't show quit dialog if we're already handling time over or submit dialogs
+    // Also check if time over dialog was just closed (prevent re-showing)
+    if (!showQuitDialog && !showSubmitDialog && !showTimeOverDialog) {
+      console.log('Showing quit dialog due to fullscreen exit');
+      setShowQuitDialog(true);
+    } else {
+      console.log('Quit dialog not shown - another dialog is active:', {
+        showQuitDialog,
+        showSubmitDialog,
+        showTimeOverDialog,
+        timeOverHandled
+      });
+    }
+  };
+
+  const onFullscreenAutoSubmit = () => {
+    // Auto-submit when grace period expires
+    if (isSubmittingRef.current) return; // already submitting
+    if (!showTimeOverDialog) {
+      // Log current question time first
+      if (currentQuestion) {
+        logCurrentQuestionTime(currentQuestion.id);
+      }
+      // Suppress fullscreen-exit dialogs while auto-submitting to avoid
+      // the fullscreen exit handler from showing dialogs and causing
+      // conflicting state updates.
+      // Set ref synchronously to prevent race conditions
+      suppressFullscreenExitDialogRef.current = true;
+      setSuppressFullscreenExitDialog(true);
+      setIsSubmitting(true);
+      setTimeOverHandled(true); // Mark that time over has been handled
+      submitTestMutation.mutate();
+      if (mountedRef.current) setShowTimeOverDialog(false);
+      if (mountedRef.current) setShowQuitDialog(false);
+    }
+  };
+
+  const { isFullscreenActive, requestFullscreen, exitFullscreen, cancelAutoSubmit } = useFullscreenEnforcement({
+    gracePeriod: 10000, // 10s grace before auto-submit
+    onExit: onFullscreenExit,
+    onAutoSubmit: onFullscreenAutoSubmit,
+    onFail: (err) => {
+      // If request fails, show blocking modal using quit dialog with message
+      setShowQuitDialog(true);
+      toast({
+        title: "Fullscreen Required",
+        description: "This test requires fullscreen mode. Please allow fullscreen to continue.",
+        variant: "destructive",
+      });
+    },
+    toast: ({ title, description }) => {
+      try {
+        toast({ title, description });
+      } catch (e) {
+        // ignore
+      }
+    },
+  });
+
+
+  // === ENHANCED TIME TRACKING INITIALIZATION ===
+  // Enhanced time tracking: Start timer when test data loads and current question is available
+  useEffect(() => {
+  // This effect used to start the visit timer when data first loads.
+  // Timer start is now managed in the `currentQuestionIndex` effect to avoid
+  // duplicate starts. Keep this effect for any future initialization needs.
+  }, [testData, currentQuestion, isSubmitting]); // Run when test data or current question changes
+  // NOTE: isSubmitting intentionally excluded previously; add it so handlers see the latest value
+
+  // START TEST: request fullscreen via user gesture
+  const startTest = async () => {
+    if (!testData?.questions || !currentQuestion) return;
+    try {
+      const ok = await requestFullscreen();
+      // requestFullscreen returns boolean from hook; treat truthy as success
+      setStarted(!!ok);
+      if (ok) {
+        // Enable navigation blocking only after entering fullscreen
+        setIsNavigationBlocked(true);
+        // Start timers for current question
+        startQuestionTimer(currentQuestion.id);
+        setQuestionStartTime(Date.now());
+      }
+    } catch (e) {
+      // onFail in hook already shows dialog/toast
+      console.error("Start fullscreen failed", e);
+    }
+  };
+
+  // Whenever the current question index changes, log the previous question's visit and start a new timer
+  useEffect(() => {
+    // If we have a previous question (index > 0), log its time
+    const prevIndex = currentQuestionIndex - 1;
+    const prevQuestion = testData?.questions?.[prevIndex];
+    // Log the previous question once when index changes.
+    if (prevQuestion && !isSubmitting) {
+      logCurrentQuestionTime(prevQuestion.id);
+    }
+
+    // Start timer for the new current question only if we aren't already tracking a visit
+    if (currentQuestion && currentVisitStartTimeRef.current === 0) {
+      startQuestionTimer(currentQuestion.id);
+    }
+    setQuestionStartTime(Date.now());
+
+    return () => {
+      // On unmount: log current question time (avoid during submitting)
+      if (currentQuestion && !isSubmitting) {
+        logCurrentQuestionTime(currentQuestion.id);
+      }
+    };
+  }, [currentQuestionIndex, isSubmitting]);
+
+  // === DOCUMENT TITLE MANAGEMENT ===
+  // Update document title to encourage return when user switches tabs
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (isNavigationBlocked) {
+        if (document.hidden) {
+          document.title = "🔴 NEET Test - Please Return to Complete Your Exam";
+        } else {
+          document.title = "NEET Practice Test";
+        }
       }
     };
 
     if (isNavigationBlocked) {
-      // Prevent browser back/forward
-      window.history.pushState(null, "", window.location.href);
-      window.addEventListener("popstate", handlePopState);
-      
-      // Prevent browser refresh/close
-      window.addEventListener("beforeunload", handleBeforeUnload);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      // Set initial title
+      document.title = "NEET Practice Test";
     }
 
     return () => {
-      window.removeEventListener("popstate", handlePopState);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      // Restore original title when component unmounts
+      document.title = "NEET Ninja";
     };
   }, [isNavigationBlocked]);
 
-  // Enhanced time tracking: Start timer when test data loads and current question is available
-  useEffect(() => {
-    if (testData?.questions && currentQuestion && currentVisitStartTime === 0) {
-      startQuestionTimer(currentQuestion.id);
-    }
-  }, [testData, currentQuestion]); // Run when test data or current question changes
-
   // === QUIT DIALOG HANDLERS ===
-  const handleQuitConfirm = () => {
-    quitTestMutation.mutate();
-    setShowQuitDialog(false);
-  };
-
   const handleQuitCancel = () => {
+    // User chose to continue the exam
+    setShowQuitDialog(false);
+    setIsAwaitingFocusReturn(false);
+    
     // Re-push the state to prevent navigation
     window.history.pushState(null, "", window.location.href);
-    setShowQuitDialog(false);
+    
+    // Refocus the window and bring user back to test
+    window.focus();
+    
+    // Reset page title
+    document.title = "NEET Test - NEET Ninja";
+    
+    // Show encouraging message
+    toast({
+      title: "Welcome Back!",
+      description: "Continue with your test. Stay focused to achieve your best score!",
+      variant: "default",
+    });
+    
+    // Re-request fullscreen and re-enable navigation blocking
+    (async () => {
+      try {
+        await requestFullscreen();
+        setIsNavigationBlocked(true);
+        // Cancel any pending auto-submit scheduled by fullscreen hook
+        cancelAutoSubmit();
+      } catch (e) {
+        // If fullscreen re-request fails, keep quit dialog closed but navigation stays blocked
+        console.error("Failed to re-enter fullscreen on cancel", e);
+      }
+    })();
   };
 
   // === UTILITY FUNCTIONS ===
@@ -686,6 +1074,25 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 p-4">
+      {/* START OVERLAY: require user gesture to enter fullscreen */}
+      {!started && testData?.questions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-white rounded-2xl p-8 max-w-lg text-center">
+            <h2 className="text-2xl font-bold mb-4">Start NEET Practice Test</h2>
+            <p className="text-sm text-[#6B7280] mb-6">This test requires fullscreen mode. Click below to start and enter secure test mode.</p>
+            <div className="flex justify-center">
+              <Button onClick={startTest} className="bg-[#4F83FF] text-white px-6 py-3">Start Test (Enter Fullscreen)</Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Secure Test Mode Banner */}
+      {isNavigationBlocked && (
+        <div className="w-full bg-blue-600 text-white px-4 py-2 text-center text-sm font-medium mb-2 rounded-xl shadow-lg">
+          🔒 SECURE TEST MODE - Navigation shortcuts are restricted during the exam
+        </div>
+      )}
+      
       {/* Header with Navigation and Profile - matching home page */}
       <header className="w-full bg-white/95 backdrop-blur-sm border-b border-blue-100 sticky top-0 z-50 shadow-sm mb-6 rounded-2xl">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -700,11 +1107,44 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
               {testData.session.timeLimit ? (
                 <>
                   <span className="text-sm font-medium text-[#1F2937]">Time Remaining:</span>
-                  <Timer
-                    initialMinutes={testData.session.timeLimit}
-                    onTimeUp={handleTimeUp}
-                    className="bg-[#FCD34D] text-[#1F2937] px-4 py-2 rounded-xl font-mono text-lg font-bold shadow-md"
-                  />
+                  <div className="flex items-center space-x-3">
+                    {started ? (
+                      <Timer
+                        initialMinutes={testData.session.timeLimit}
+                        onTimeUp={handleTimeUp}
+                        className="bg-[#FCD34D] text-[#1F2937] px-4 py-2 rounded-xl font-mono text-lg font-bold shadow-md"
+                        paused={paused}
+                      />
+                    ) : (
+                      <div className="text-sm font-medium bg-[#F3F4F6] text-[#6B7280] px-4 py-2 rounded-xl font-mono text-lg font-bold shadow-md">
+                        Start test to begin timer
+                      </div>
+                    )}
+                    {/* Pause / Resume button */}
+                    {started && (
+                      <Button
+                        onClick={() => {
+                          if (!paused) {
+                            setPaused(true);
+                            setPauseStartTime(Date.now());
+                            // While paused, we should cancel any pending auto-submit scheduled by fullscreen hook
+                            cancelAutoSubmit();
+                          } else {
+                            // resuming
+                            const now = Date.now();
+                            if (pauseStartTime) {
+                              setAccumulatedPauseMs(prev => prev + (now - pauseStartTime));
+                            }
+                            setPauseStartTime(null);
+                            setPaused(false);
+                          }
+                        }}
+                        className="px-3 py-2 bg-[#10B981] text-white rounded-lg"
+                      >
+                        {paused ? 'Resume' : 'Pause'}
+                      </Button>
+                    )}
+                  </div>
                 </>
               ) : (
                 <div className="text-sm font-medium bg-[#F3F4F6] text-[#1F2937] px-4 py-2 rounded-xl font-mono text-lg font-bold shadow-md">
@@ -716,6 +1156,18 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           </div>
         </div>
       </header>
+
+      {/* Security Warning Banner */}
+      {isNavigationBlocked && (
+        <div className="max-w-7xl mx-auto mb-4">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 flex items-center space-x-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+            <div className="text-sm text-yellow-800">
+              <span className="font-medium">Secure Test Mode:</span> Tab switching and window navigation are blocked during the test. Use "Quit Exam" to leave.
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto">
         <Card className="bg-white border border-[#E2E8F0] shadow-lg rounded-2xl overflow-hidden">
@@ -887,7 +1339,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       </AlertDialog>
 
       {/* Time Over Dialog */}
-      <AlertDialog open={showTimeOverDialog} onOpenChange={() => {}}>
+      <AlertDialog open={showTimeOverDialog && !timeOverHandled} onOpenChange={() => {}}>
         <AlertDialogContent className="border-[#FCA5A5] bg-[#FEF2F2] rounded-2xl shadow-lg">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-[#DC2626] flex items-center font-bold">

@@ -138,6 +138,15 @@ export default function Home() {
           transcript += event.results[i][0].transcript;
         }
         setInputMessage(transcript);
+        
+        // Manually adjust textarea height after setting transcribed text
+        setTimeout(() => {
+          const textarea = document.querySelector('textarea[placeholder="Ask anything..."]') as HTMLTextAreaElement;
+          if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+          }
+        }, 0);
       };
       
       recognition.onstart = () => setIsRecording(true);
@@ -204,6 +213,16 @@ export default function Home() {
   const handleChatSend = (message: string) => {
     if (!message.trim()) return;
     setInputMessage('');
+    
+    // Reset textarea height after clearing input
+    setTimeout(() => {
+      const textarea = document.querySelector('textarea[placeholder="Ask anything..."]') as HTMLTextAreaElement;
+      if (textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+      }
+    }, 0);
+    
     createNewSessionAndRedirect(message);
   };
 
@@ -223,6 +242,16 @@ export default function Home() {
       if (recognitionRef.current) {
         try {
           setInputMessage('');
+          
+          // Reset textarea height after clearing input
+          setTimeout(() => {
+            const textarea = document.querySelector('textarea[placeholder="Ask anything..."]') as HTMLTextAreaElement;
+            if (textarea) {
+              textarea.style.height = 'auto';
+              textarea.style.height = textarea.scrollHeight + 'px';
+            }
+          }, 0);
+          
           recognitionRef.current.start();
         } catch (error) {
           console.error('Failed to start speech recognition:', error);

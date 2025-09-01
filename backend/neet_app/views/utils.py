@@ -2,7 +2,8 @@ from django.http import JsonResponse
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from ..models import Topic, Question, TestSession, TestAnswer, StudentProfile, DatabaseQuestion
+from ..models import Topic, Question, TestSession, TestAnswer, StudentProfile
+from external_db.models import DatabaseQuestion
 import logging
 from django.db import transaction, IntegrityError
 import random
@@ -175,49 +176,89 @@ def clean_mathematical_text(text):
         return original_text
 
 
-def generate_questions_for_topics(selected_topics, question_count=None):
+def generate_questions_for_topics(selected_topics, question_count=None, exclude_question_ids=None):
     """
     Generate questions for the selected topics with cleaned mathematical expressions.
-    Enhanced with fallback logic for topics without questions.
+    Enhanced with fallback logic for topics without questions and question exclusion.
     
     Args:
         selected_topics: List of topic IDs
         question_count: Maximum number of questions to return (optional)
+        exclude_question_ids: Set/list of question IDs to exclude (for preventing repetition)
     
     Returns:
         QuerySet of Question objects with cleaned text
     """
+    import random
+    
     try:
-        # Get all questions for the selected topics
+        # Initialize exclude_question_ids as empty set if not provided
+        if exclude_question_ids is None:
+            exclude_question_ids = set()
+        else:
+            # Ensure it's a set for efficient lookup
+            exclude_question_ids = set(exclude_question_ids)
+        
+        # Get all questions for the selected topics, excluding recent ones
         questions = Question.objects.filter(topic_id__in=selected_topics)
+        if exclude_question_ids:
+            questions = questions.exclude(id__in=exclude_question_ids)
         
-        logger.info(f"Found {questions.count()} questions for topics {selected_topics}")
+        logger.info(f"Found {questions.count()} questions for topics {selected_topics} (excluded {len(exclude_question_ids)} recent questions)")
         
-        # If no questions found for selected topics, try to find any available questions
+        # If no questions found for selected topics after exclusion, try fallback strategies
         if questions.count() == 0:
-            logger.warning(f"No questions found for selected topics {selected_topics}")
+            logger.warning(f"No questions found for selected topics {selected_topics} after excluding recent questions")
             
-            # Fallback: Get questions from any topics that have questions
-            available_topic_ids = Question.objects.values_list('topic_id', flat=True).distinct()
-            if available_topic_ids.exists():
-                # Randomly select from available topics
-                import random
-                fallback_topics = list(available_topic_ids)[:20]  # Limit to first 20 for performance
-                random.shuffle(fallback_topics)
-                questions = Question.objects.filter(topic_id__in=fallback_topics)
-                logger.info(f"Fallback: Using {questions.count()} questions from available topics {fallback_topics[:10]}")
+            # Strategy 1: Try all questions from selected topics (ignoring exclusions temporarily)
+            all_questions_for_topics = Question.objects.filter(topic_id__in=selected_topics)
+            if all_questions_for_topics.exists():
+                questions = all_questions_for_topics
+                logger.info(f"Fallback 1: Using all {questions.count()} questions from selected topics (ignoring exclusions)")
             else:
-                logger.error("No questions found in the entire database!")
-                return Question.objects.none()
+                # Strategy 2: Get questions from any topics that have questions
+                available_topic_ids = Question.objects.values_list('topic_id', flat=True).distinct()
+                if available_topic_ids.exists():
+                    # Randomly select from available topics, excluding recent questions
+                    fallback_topics = list(available_topic_ids)[:20]  # Limit to first 20 for performance
+                    random.shuffle(fallback_topics)
+                    questions = Question.objects.filter(topic_id__in=fallback_topics)
+                    if exclude_question_ids:
+                        questions = questions.exclude(id__in=exclude_question_ids)
+                    
+                    # If still no questions after excluding recent ones, use all available
+                    if questions.count() == 0:
+                        questions = Question.objects.filter(topic_id__in=fallback_topics)
+                        logger.info(f"Fallback 2b: Using all {questions.count()} questions from available topics (ignoring exclusions)")
+                    else:
+                        logger.info(f"Fallback 2a: Using {questions.count()} questions from available topics {fallback_topics[:10]} (excluded recent)")
+                else:
+                    logger.error("No questions found in the entire database!")
+                    return Question.objects.none()
         
         # If question_count is specified and we have more questions than needed,
-        # randomly select the specified number
+        # prioritize non-excluded questions and randomly select
         if question_count and questions.count() > question_count:
-            # Convert to list, shuffle, and take the first N
+            # Intelligent selection: prioritize newer questions (non-excluded) if available
             questions_list = list(questions)
-            random.shuffle(questions_list)
+            
+            # If we have enough non-excluded questions, use only those
+            non_excluded_questions = [q for q in questions_list if q.id not in exclude_question_ids]
+            
+            if len(non_excluded_questions) >= question_count:
+                # Use only non-excluded questions
+                random.shuffle(non_excluded_questions)
+                selected_questions = non_excluded_questions[:question_count]
+                logger.info(f"Selected {len(selected_questions)} questions (all non-excluded)")
+            else:
+                # Use all non-excluded questions + some excluded ones to reach the target
+                random.shuffle(questions_list)
+                selected_questions = questions_list[:question_count]
+                excluded_count = sum(1 for q in selected_questions if q.id in exclude_question_ids)
+                logger.info(f"Selected {len(selected_questions)} questions ({excluded_count} from recent tests due to insufficient pool)")
+            
             # Return a queryset-like structure
-            question_ids = [q.id for q in questions_list[:question_count]]
+            question_ids = [q.id for q in selected_questions]
             questions = Question.objects.filter(id__in=question_ids)
         
         # Clean mathematical expressions in questions if they haven't been cleaned yet
@@ -232,6 +273,12 @@ def generate_questions_for_topics(selected_topics, question_count=None):
             if not needs_cleaning and question.explanation:
                 # Also check explanation for patterns
                 needs_cleaning = any(pattern in question.explanation for pattern in patterns_to_check)
+            if not needs_cleaning and question.difficulty:
+                # Also check difficulty for patterns
+                needs_cleaning = any(pattern in question.difficulty for pattern in patterns_to_check)
+            if not needs_cleaning and question.question_type:
+                # Also check question_type for patterns
+                needs_cleaning = any(pattern in question.question_type for pattern in patterns_to_check)
             
             if needs_cleaning:
                 question.question = clean_mathematical_text(question.question)
@@ -241,13 +288,139 @@ def generate_questions_for_topics(selected_topics, question_count=None):
                 question.option_d = clean_mathematical_text(question.option_d)
                 if question.explanation:
                     question.explanation = clean_mathematical_text(question.explanation)
-                question.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation'])
+                if question.difficulty:
+                    question.difficulty = clean_mathematical_text(question.difficulty)
+                if question.question_type:
+                    question.question_type = clean_mathematical_text(question.question_type)
+                question.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation', 'difficulty', 'question_type'])
         
-        logger.info(f"Generated {questions.count()} questions for topics {selected_topics}")
+        excluded_in_final = sum(1 for q in questions if q.id in exclude_question_ids) if exclude_question_ids else 0
+        logger.info(f"Generated {questions.count()} questions for topics {selected_topics} ({excluded_in_final} from recent tests)")
         return questions
         
     except Exception as e:
         logger.error(f"Error generating questions for topics {selected_topics}: {str(e)}")
+        # Return empty queryset if there's an error
+        return Question.objects.none()
+
+
+def generate_random_questions_from_database(question_count, exclude_question_ids=None):
+    """
+    Generate random questions directly from the entire database, bypassing topic selection.
+    This is specifically for "Random Test" mode where we want a mix of questions from all subjects.
+    
+    Args:
+        question_count: Number of questions to select
+        exclude_question_ids: Set/list of question IDs to exclude (for preventing repetition)
+    
+    Returns:
+        QuerySet of Question objects with cleaned text
+    """
+    
+    try:
+        # Initialize exclude_question_ids as empty set if not provided
+        if exclude_question_ids is None:
+            exclude_question_ids = set()
+        else:
+            # Ensure it's a set for efficient lookup
+            exclude_question_ids = set(exclude_question_ids)
+        
+        # Get all questions from the entire database, excluding recent ones
+        all_questions = Question.objects.all()
+        if exclude_question_ids:
+            all_questions = all_questions.exclude(id__in=exclude_question_ids)
+        
+        total_available = all_questions.count()
+        logger.info(f"Random test: Found {total_available} total questions available (excluded {len(exclude_question_ids)} recent questions)")
+        
+        # Check if we have enough questions
+        if total_available < question_count:
+            logger.warning(f"Random test: Requested {question_count} questions, but only {total_available} available after exclusions")
+            # For random tests, use what we have rather than failing
+            question_count = total_available
+        
+        # Randomly select questions ensuring good distribution across subjects
+        subjects = ["Physics", "Chemistry", "Botany", "Zoology"]
+        questions_per_subject = max(1, question_count // 4)  # At least 1 question per subject
+        remaining_questions = question_count % 4  # Distribute remaining questions
+        
+        selected_questions = []
+        
+        for i, subject in enumerate(subjects):
+            # Calculate questions for this subject
+            subject_question_count = questions_per_subject
+            if i < remaining_questions:  # Distribute remaining questions to first few subjects
+                subject_question_count += 1
+            
+            # Get questions from this subject, excluding already selected ones and recent questions
+            subject_questions = all_questions.filter(topic__subject=subject)
+            if selected_questions:
+                selected_ids = [q.id for q in selected_questions]
+                subject_questions = subject_questions.exclude(id__in=selected_ids)
+            
+            # Randomly select questions from this subject
+            if subject_questions.exists():
+                subject_selected = list(subject_questions.order_by('?')[:subject_question_count])
+                selected_questions.extend(subject_selected)
+                logger.info(f"Random test: Selected {len(subject_selected)} questions from {subject}")
+            else:
+                logger.warning(f"Random test: No questions available for {subject}")
+        
+        # If we still need more questions (due to subject limitations), get from any remaining questions
+        current_count = len(selected_questions)
+        if current_count < question_count:
+            selected_ids = [q.id for q in selected_questions]
+            remaining_questions_needed = question_count - current_count
+            
+            additional_questions = all_questions.exclude(id__in=selected_ids).order_by('?')[:remaining_questions_needed]
+            selected_questions.extend(list(additional_questions))
+            logger.info(f"Random test: Added {len(additional_questions)} additional questions from any subject")
+        
+        # Convert to queryset
+        if selected_questions:
+            question_ids = [q.id for q in selected_questions]
+            questions = Question.objects.filter(id__in=question_ids)
+        else:
+            questions = Question.objects.none()
+        
+        # Clean mathematical expressions in questions if they haven't been cleaned yet
+        for question in questions:
+            # Check if question text contains LaTeX patterns OR simple chemical notations (enhanced pattern detection)
+            patterns_to_check = ['\\', '$', '^{', '_{', '\\frac', '\\sqrt', '\\alpha', '\\beta', '^ -', '^ +', '^-', '^+', 'x 10^', '\\mathrm', '\\text']
+            needs_cleaning = any(pattern in question.question for pattern in patterns_to_check)
+            if not needs_cleaning:
+                # Also check options for patterns
+                all_options = question.option_a + question.option_b + question.option_c + question.option_d
+                needs_cleaning = any(pattern in all_options for pattern in patterns_to_check)
+            if not needs_cleaning and question.explanation:
+                # Also check explanation for patterns
+                needs_cleaning = any(pattern in question.explanation for pattern in patterns_to_check)
+            if not needs_cleaning and question.difficulty:
+                # Also check difficulty for patterns
+                needs_cleaning = any(pattern in question.difficulty for pattern in patterns_to_check)
+            if not needs_cleaning and question.question_type:
+                # Also check question_type for patterns
+                needs_cleaning = any(pattern in question.question_type for pattern in patterns_to_check)
+            
+            if needs_cleaning:
+                question.question = clean_mathematical_text(question.question)
+                question.option_a = clean_mathematical_text(question.option_a)
+                question.option_b = clean_mathematical_text(question.option_b)
+                question.option_c = clean_mathematical_text(question.option_c)
+                question.option_d = clean_mathematical_text(question.option_d)
+                if question.explanation:
+                    question.explanation = clean_mathematical_text(question.explanation)
+                if question.difficulty:
+                    question.difficulty = clean_mathematical_text(question.difficulty)
+                if question.question_type:
+                    question.question_type = clean_mathematical_text(question.question_type)
+                question.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation', 'difficulty', 'question_type'])
+        
+        logger.info(f"Random test: Successfully generated {questions.count()} random questions from entire database")
+        return questions
+        
+    except Exception as e:
+        logger.error(f"Error generating random questions from database: {str(e)}")
         # Return empty queryset if there's an error
         return Question.objects.none()
 
@@ -261,7 +434,7 @@ def sync_topics_from_database_question(request=None):
     try:
         # Get unique combinations of subject, chapter, topic from database_question table
         unique_topics = (
-            DatabaseQuestion.objects
+            DatabaseQuestion.objects.using('source')
             .values('subject', 'chapter', 'topic')
             .distinct()
             .filter(
@@ -386,8 +559,8 @@ def sync_questions_from_database_question(request=None):
     Only creates new questions that don't already exist based on question content and topic.
     """
     try:
-        # Get all questions from database_question table
-        source_questions = DatabaseQuestion.objects.filter(
+        # Get all questions from database_question table (from external 'source' DB)
+        source_questions = DatabaseQuestion.objects.using('source').filter(
             question_text__isnull=False,
             topic__isnull=False,
             option_1__isnull=False,
@@ -423,6 +596,8 @@ def sync_questions_from_database_question(request=None):
                     options = [q.option_1, q.option_2, q.option_3, q.option_4]
                     correct_option = q.correct_answer
                     topic_name = q.topic
+                    difficulty = q.difficulty
+                    question_type = q.question_type
 
                     # Validate required fields
                     if not question_text or not question_text.strip():
@@ -484,6 +659,21 @@ def sync_questions_from_database_question(request=None):
                     ).first()
                     
                     if existing_question:
+                        # Update metadata fields for existing questions
+                        updates = {}
+                        new_difficulty = difficulty.strip() if difficulty else None
+                        new_qtype = question_type.strip() if question_type else None
+                        if new_difficulty and existing_question.difficulty != new_difficulty:
+                            updates['difficulty'] = new_difficulty
+                        if new_qtype and existing_question.question_type != new_qtype:
+                            updates['question_type'] = new_qtype
+                        # Optionally improve explanation if missing
+                        if (not existing_question.explanation or existing_question.explanation == 'Explanation not available') and cleaned_explanation:
+                            updates['explanation'] = cleaned_explanation
+                        if updates:
+                            for k, v in updates.items():
+                                setattr(existing_question, k, v)
+                            existing_question.save(update_fields=list(updates.keys()))
                         questions_skipped += 1
                         continue
 
@@ -496,7 +686,9 @@ def sync_questions_from_database_question(request=None):
                         'option_c': cleaned_options[2],
                         'option_d': cleaned_options[3],
                         'correct_answer': correct_answer,
-                        'explanation': cleaned_explanation
+                        'explanation': cleaned_explanation,
+                        'difficulty': difficulty.strip() if difficulty else None,
+                        'question_type': question_type.strip() if question_type else None
                     }
 
                     # Create new question
@@ -597,7 +789,7 @@ def clean_existing_questions(request=None):
     """
     try:
         # Find questions that likely contain LaTeX/regex patterns OR simple chemical notations
-        # Check in question text, options, and explanation
+        # Check in question text, options, explanation, difficulty, and question_type
         from django.db.models import Q
         questions_to_clean = Question.objects.filter(
             Q(question__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^') |
@@ -605,7 +797,9 @@ def clean_existing_questions(request=None):
             Q(option_b__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^') |
             Q(option_c__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^') |
             Q(option_d__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^') |
-            Q(explanation__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^')
+            Q(explanation__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^') |
+            Q(difficulty__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^') |
+            Q(question_type__iregex=r'\\\\|\\\$|\\\^\\\{|_\\\{|\\\\frac|\\\\sqrt|\\\\alpha|\\\\beta|\^ -|\^ \+|\^-|\^\+|x 10\^')
         )
         
         total_questions = questions_to_clean.count()
@@ -636,6 +830,8 @@ def clean_existing_questions(request=None):
                         question.option_c, question.option_d
                     ]
                     original_explanation = question.explanation
+                    original_difficulty = question.difficulty
+                    original_question_type = question.question_type
                     
                     # Clean the text
                     cleaned_question = clean_mathematical_text(question.question)
@@ -646,12 +842,16 @@ def clean_existing_questions(request=None):
                         clean_mathematical_text(question.option_d)
                     ]
                     cleaned_explanation = clean_mathematical_text(question.explanation) if question.explanation else question.explanation
+                    cleaned_difficulty = clean_mathematical_text(question.difficulty) if question.difficulty else question.difficulty
+                    cleaned_question_type = clean_mathematical_text(question.question_type) if question.question_type else question.question_type
                     
                     # Check if any changes were made
                     changes_made = (
                         original_question != cleaned_question or
                         original_options != cleaned_options or
-                        original_explanation != cleaned_explanation
+                        original_explanation != cleaned_explanation or
+                        original_difficulty != cleaned_difficulty or
+                        original_question_type != cleaned_question_type
                     )
                     
                     if changes_made:
@@ -661,8 +861,10 @@ def clean_existing_questions(request=None):
                         question.option_c = cleaned_options[2]
                         question.option_d = cleaned_options[3]
                         question.explanation = cleaned_explanation
+                        question.difficulty = cleaned_difficulty
+                        question.question_type = cleaned_question_type
                         question.save(update_fields=[
-                            'question', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation'
+                            'question', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation', 'difficulty', 'question_type'
                         ])
                         cleaned += 1
                     
@@ -690,3 +892,276 @@ def clean_existing_questions(request=None):
         if request:
             return JsonResponse(error_response, status=500)
         return error_response
+
+
+def adaptive_generate_questions_for_topics(selected_topics, question_count, student_id, exclude_question_ids=None):
+    """
+    Generate questions for topics using adaptive selection logic.
+    
+    Bucket A (New): 60% - Questions never attempted by the student
+    Bucket B (Wrong/Unanswered): 30% - Questions answered incorrectly or left unanswered
+    Bucket C (Correct): 10% - Questions answered correctly
+    
+    Args:
+        selected_topics (list): List of topic IDs to select questions from
+        question_count (int): Total number of questions to select
+        student_id (str): Student ID to check answer history
+        exclude_question_ids (set): Question IDs to exclude from selection
+        
+    Returns:
+        QuerySet: Selected questions following adaptive logic
+    """
+    from django.conf import settings
+    from django.db.models import Q
+    
+    if exclude_question_ids is None:
+        exclude_question_ids = set()
+    
+    # Get adaptive ratios from settings
+    neet_settings = getattr(settings, 'NEET_SETTINGS', {})
+    ratio_new = neet_settings.get('ADAPTIVE_RATIO_NEW', 60) / 100
+    ratio_wrong = neet_settings.get('ADAPTIVE_RATIO_WRONG', 30) / 100
+    ratio_correct = neet_settings.get('ADAPTIVE_RATIO_CORRECT', 10) / 100
+    
+    logger.info(f"Adaptive selection for student {student_id}: {question_count} questions with ratios {ratio_new*100}%/{ratio_wrong*100}%/{ratio_correct*100}%")
+    
+    # Get all available questions for selected topics
+    if selected_topics:
+        all_questions = Question.objects.filter(topic_id__in=selected_topics)
+    else:
+        all_questions = Question.objects.all()
+    
+    # Exclude questions that should not be selected
+    if exclude_question_ids:
+        all_questions = all_questions.exclude(id__in=exclude_question_ids)
+    
+    logger.info(f"Total available questions after exclusions: {all_questions.count()}")
+    
+    # Get student's answer history for these questions
+    student_answers = TestAnswer.objects.filter(
+        session__student_id=student_id,
+        question__in=all_questions,
+        session__is_completed=True
+    ).select_related('question')
+    
+    # Categorize questions into buckets
+    answered_question_ids = set()
+    correct_question_ids = set()
+    wrong_unanswered_question_ids = set()
+    
+    for answer in student_answers:
+        answered_question_ids.add(answer.question.id)
+        if answer.is_correct:
+            correct_question_ids.add(answer.question.id)
+        else:
+            # Either wrong answer or unanswered (selected_answer is None)
+            wrong_unanswered_question_ids.add(answer.question.id)
+    
+    # Bucket A: Never attempted questions
+    new_questions = all_questions.exclude(id__in=answered_question_ids)
+    
+    # Bucket B: Wrong/Unanswered questions
+    wrong_questions = all_questions.filter(id__in=wrong_unanswered_question_ids)
+    
+    # Bucket C: Correctly answered questions
+    correct_questions = all_questions.filter(id__in=correct_question_ids)
+    
+    logger.info(f"Question buckets - New: {new_questions.count()}, Wrong/Unanswered: {wrong_questions.count()}, Correct: {correct_questions.count()}")
+    
+    # Calculate target counts for each bucket
+    target_new = int(question_count * ratio_new)
+    target_wrong = int(question_count * ratio_wrong)
+    target_correct = int(question_count * ratio_correct)
+    
+    # Adjust for rounding errors
+    total_target = target_new + target_wrong + target_correct
+    if total_target < question_count:
+        # Add remaining to the new questions bucket (highest priority)
+        target_new += question_count - total_target
+    
+    logger.info(f"Target allocation - New: {target_new}, Wrong/Unanswered: {target_wrong}, Correct: {target_correct}")
+    
+    # Select questions from each bucket
+    selected_questions = []
+    
+    # Step 1: Try to fill each bucket with its target count
+    actual_new = min(target_new, new_questions.count())
+    actual_wrong = min(target_wrong, wrong_questions.count())
+    actual_correct = min(target_correct, correct_questions.count())
+    
+    # Add questions from each bucket
+    if actual_new > 0:
+        selected_new = list(new_questions.order_by('?')[:actual_new])
+        selected_questions.extend(selected_new)
+        logger.info(f"Selected {len(selected_new)} new questions")
+    
+    if actual_wrong > 0:
+        selected_wrong = list(wrong_questions.order_by('?')[:actual_wrong])
+        selected_questions.extend(selected_wrong)
+        logger.info(f"Selected {len(selected_wrong)} wrong/unanswered questions")
+    
+    if actual_correct > 0:
+        selected_correct = list(correct_questions.order_by('?')[:actual_correct])
+        selected_questions.extend(selected_correct)
+        logger.info(f"Selected {len(selected_correct)} correct questions")
+    
+    # Step 2: Handle shortages with fallback logic
+    current_count = len(selected_questions)
+    remaining_needed = question_count - current_count
+    
+    if remaining_needed > 0:
+        logger.info(f"Need {remaining_needed} more questions, applying fallback logic")
+        
+        # Get IDs of already selected questions
+        selected_ids = {q.id for q in selected_questions}
+        
+        # Fallback priority order based on bucket shortages
+        fallback_buckets = []
+        
+        # If new questions bucket was short, prioritize wrong then correct
+        if actual_new < target_new:
+            shortage_new = target_new - actual_new
+            remaining_wrong = wrong_questions.exclude(id__in=selected_ids)
+            remaining_correct = correct_questions.exclude(id__in=selected_ids)
+            
+            # Fill from wrong questions first
+            if remaining_wrong.exists() and shortage_new > 0:
+                take_from_wrong = min(shortage_new, remaining_wrong.count())
+                fallback_wrong = list(remaining_wrong.order_by('?')[:take_from_wrong])
+                selected_questions.extend(fallback_wrong)
+                selected_ids.update(q.id for q in fallback_wrong)
+                remaining_needed -= len(fallback_wrong)
+                logger.info(f"Fallback: Added {len(fallback_wrong)} from wrong bucket for new shortage")
+            
+            # Fill remaining from correct questions
+            if remaining_correct.exists() and remaining_needed > 0:
+                remaining_correct = remaining_correct.exclude(id__in=selected_ids)
+                take_from_correct = min(remaining_needed, remaining_correct.count())
+                fallback_correct = list(remaining_correct.order_by('?')[:take_from_correct])
+                selected_questions.extend(fallback_correct)
+                selected_ids.update(q.id for q in fallback_correct)
+                remaining_needed -= len(fallback_correct)
+                logger.info(f"Fallback: Added {len(fallback_correct)} from correct bucket for new shortage")
+        
+        # If wrong questions bucket was short, prioritize new then correct
+        if actual_wrong < target_wrong and remaining_needed > 0:
+            shortage_wrong = target_wrong - actual_wrong
+            remaining_new = new_questions.exclude(id__in=selected_ids)
+            remaining_correct = correct_questions.exclude(id__in=selected_ids)
+            
+            # Fill from new questions first
+            if remaining_new.exists() and shortage_wrong > 0:
+                take_from_new = min(min(shortage_wrong, remaining_needed), remaining_new.count())
+                fallback_new = list(remaining_new.order_by('?')[:take_from_new])
+                selected_questions.extend(fallback_new)
+                selected_ids.update(q.id for q in fallback_new)
+                remaining_needed -= len(fallback_new)
+                logger.info(f"Fallback: Added {len(fallback_new)} from new bucket for wrong shortage")
+            
+            # Fill remaining from correct questions
+            if remaining_correct.exists() and remaining_needed > 0:
+                remaining_correct = remaining_correct.exclude(id__in=selected_ids)
+                take_from_correct = min(remaining_needed, remaining_correct.count())
+                fallback_correct = list(remaining_correct.order_by('?')[:take_from_correct])
+                selected_questions.extend(fallback_correct)
+                selected_ids.update(q.id for q in fallback_correct)
+                remaining_needed -= len(fallback_correct)
+                logger.info(f"Fallback: Added {len(fallback_correct)} from correct bucket for wrong shortage")
+        
+        # If correct questions bucket was short, prioritize wrong then new
+        if actual_correct < target_correct and remaining_needed > 0:
+            shortage_correct = target_correct - actual_correct
+            remaining_wrong = wrong_questions.exclude(id__in=selected_ids)
+            remaining_new = new_questions.exclude(id__in=selected_ids)
+            
+            # Fill from wrong questions first
+            if remaining_wrong.exists() and shortage_correct > 0:
+                take_from_wrong = min(min(shortage_correct, remaining_needed), remaining_wrong.count())
+                fallback_wrong = list(remaining_wrong.order_by('?')[:take_from_wrong])
+                selected_questions.extend(fallback_wrong)
+                selected_ids.update(q.id for q in fallback_wrong)
+                remaining_needed -= len(fallback_wrong)
+                logger.info(f"Fallback: Added {len(fallback_wrong)} from wrong bucket for correct shortage")
+            
+            # Fill remaining from new questions
+            if remaining_new.exists() and remaining_needed > 0:
+                remaining_new = remaining_new.exclude(id__in=selected_ids)
+                take_from_new = min(remaining_needed, remaining_new.count())
+                fallback_new = list(remaining_new.order_by('?')[:take_from_new])
+                selected_questions.extend(fallback_new)
+                selected_ids.update(q.id for q in fallback_new)
+                remaining_needed -= len(fallback_new)
+                logger.info(f"Fallback: Added {len(fallback_new)} from new bucket for correct shortage")
+    
+    # Final check: if we still need more questions, take from any remaining
+    if remaining_needed > 0:
+        selected_ids = {q.id for q in selected_questions}
+        remaining_questions = all_questions.exclude(id__in=selected_ids)
+        if remaining_questions.exists():
+            final_questions = list(remaining_questions.order_by('?')[:remaining_needed])
+            selected_questions.extend(final_questions)
+            logger.info(f"Final fallback: Added {len(final_questions)} from any remaining questions")
+    
+    final_count = len(selected_questions)
+    logger.info(f"Adaptive selection completed: {final_count} questions selected")
+    
+    # Convert to queryset and apply mathematical text cleaning
+    if selected_questions:
+        question_ids = [q.id for q in selected_questions]
+        questions = Question.objects.filter(id__in=question_ids)
+        
+        # Apply the same mathematical text cleaning as the original function
+        for question in questions:
+            patterns_to_check = ['\\', '$', '^{', '_{', '\\frac', '\\sqrt', '\\alpha', '\\beta', '^ -', '^ +', '^-', '^+', 'x 10^', '\\mathrm', '\\text']
+            needs_cleaning = any(pattern in question.question for pattern in patterns_to_check)
+            if not needs_cleaning:
+                all_options = question.option_a + question.option_b + question.option_c + question.option_d
+                needs_cleaning = any(pattern in all_options for pattern in patterns_to_check)
+            if not needs_cleaning and question.explanation:
+                needs_cleaning = any(pattern in question.explanation for pattern in patterns_to_check)
+            if not needs_cleaning and question.difficulty:
+                needs_cleaning = any(pattern in question.difficulty for pattern in patterns_to_check)
+            if not needs_cleaning and question.question_type:
+                needs_cleaning = any(pattern in question.question_type for pattern in patterns_to_check)
+            
+            if needs_cleaning:
+                question.question = clean_mathematical_text(question.question)
+                question.option_a = clean_mathematical_text(question.option_a)
+                question.option_b = clean_mathematical_text(question.option_b)
+                question.option_c = clean_mathematical_text(question.option_c)
+                question.option_d = clean_mathematical_text(question.option_d)
+                if question.explanation:
+                    question.explanation = clean_mathematical_text(question.explanation)
+                if question.difficulty:
+                    question.difficulty = clean_mathematical_text(question.difficulty)
+                if question.question_type:
+                    question.question_type = clean_mathematical_text(question.question_type)
+                question.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation', 'difficulty', 'question_type'])
+        
+        return questions
+    else:
+        return Question.objects.none()
+
+
+def adaptive_generate_random_questions_from_database(question_count, student_id, exclude_question_ids=None):
+    """
+    Generate random questions from entire database using adaptive selection logic.
+    Similar to adaptive_generate_questions_for_topics but selects from all subjects.
+    
+    Args:
+        question_count (int): Total number of questions to select
+        student_id (str): Student ID to check answer history
+        exclude_question_ids (set): Question IDs to exclude from selection
+        
+    Returns:
+        QuerySet: Selected questions following adaptive logic
+    """
+    logger.info(f"Adaptive random test generation for student {student_id}: {question_count} questions")
+    
+    # Use adaptive selection with all topics (empty list means all topics)
+    return adaptive_generate_questions_for_topics(
+        selected_topics=[],  # Empty list for all topics
+        question_count=question_count,
+        student_id=student_id,
+        exclude_question_ids=exclude_question_ids
+    )

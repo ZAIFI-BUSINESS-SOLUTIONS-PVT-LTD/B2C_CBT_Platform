@@ -2,45 +2,8 @@
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password, check_password
-from django.db.models.signals import pre_save
+from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
-
-class DatabaseQuestion(models.Model):
-    """
-    Source table containing all questions data. Used as the source for syncing to Topic and Question models.
-    Maps to the database_question table shown in the image.
-    """
-    id = models.AutoField(primary_key=True)
-    question_number = models.IntegerField(null=True, blank=True)
-    question_text = models.TextField(null=True, blank=True)
-    question_type = models.TextField(null=True, blank=True)
-    option_1 = models.TextField(null=True, blank=True)
-    option_2 = models.TextField(null=True, blank=True)
-    option_3 = models.TextField(null=True, blank=True)
-    option_4 = models.TextField(null=True, blank=True)
-    subject = models.TextField(null=True, blank=True)
-    chapter = models.TextField(null=True, blank=True)
-    topic = models.TextField(null=True, blank=True)
-    year = models.IntegerField(null=True, blank=True)
-    source = models.TextField(null=True, blank=True)
-    source_page = models.IntegerField(null=True, blank=True)
-    correct_answer = models.TextField(null=True, blank=True)
-    explanation = models.TextField(null=True, blank=True)
-    difficulty = models.TextField(null=True, blank=True)
-    explanation_image = models.TextField(null=True, blank=True)
-    option_1_image = models.TextField(null=True, blank=True)
-    option_2_image = models.TextField(null=True, blank=True)
-    option_3_image = models.TextField(null=True, blank=True)
-    option_4_image = models.TextField(null=True, blank=True)
-    question_image = models.TextField(null=True, blank=True)
-
-    class Meta:
-        db_table = 'database_question'
-        verbose_name = 'Database Question'
-        verbose_name_plural = 'Database Questions'
-
-    def __str__(self):
-        return f"Q{self.id}: {self.question_text[:50] if self.question_text else 'No text'}..."
 
 class Topic(models.Model):
     """
@@ -79,6 +42,9 @@ class Question(models.Model):
     # Stores "A", "B", "C", or "D"
     correct_answer = models.CharField(max_length=1, null=False) # text("correct_answer").notNull()
     explanation = models.TextField(null=False) # text("explanation").notNull()
+    # Additional fields for question metadata
+    difficulty = models.TextField(null=True, blank=True) # text("difficulty") - stores difficulty level
+    question_type = models.TextField(null=True, blank=True) # text("question_type") - stores type of question
 
     class Meta:
         db_table = 'questions' # Ensures the table name in DB is 'questions'
@@ -90,14 +56,79 @@ class Question(models.Model):
     def __str__(self):
         return f"Q{self.id}: {self.question[:50]}..."
 
+class PlatformTest(models.Model):
+    """
+    Represents standardized tests provided by the platform (e.g., NEET 2024 Official Paper).
+    These are pre-configured tests with specific question sets and configurations.
+    """
+    id = models.AutoField(primary_key=True)
+    # Test identification
+    test_name = models.TextField(null=False)  # e.g., "NEET 2024 Official Paper"
+    test_code = models.CharField(max_length=50, unique=True, null=False)  # e.g., "NEET_2024_OFFICIAL"
+    test_year = models.IntegerField(null=True, blank=True)  # e.g., 2024
+    test_type = models.TextField(null=True, blank=True)  # e.g., "Official", "Practice", "Mock"
+    
+    # Test configuration
+    description = models.TextField(null=True, blank=True)  # Test description
+    instructions = models.TextField(null=True, blank=True)  # Special instructions for this test
+    time_limit = models.IntegerField(null=False)  # Time limit in minutes
+    total_questions = models.IntegerField(null=False)  # Total number of questions
+    
+    # Question selection criteria
+    selected_topics = models.JSONField(null=False)  # Array of topic IDs included in this test
+    question_distribution = models.JSONField(null=True, blank=True)  # Optional: questions per subject/topic
+    
+    # Test metadata
+    is_active = models.BooleanField(default=True)  # Whether test is available for students
+    created_at = models.DateTimeField(auto_now_add=True, null=False)
+    updated_at = models.DateTimeField(auto_now=True, null=False)
+    
+    class Meta:
+        db_table = 'platform_tests'
+        verbose_name = 'Platform Test'
+        verbose_name_plural = 'Platform Tests'
+        indexes = [
+            models.Index(fields=['test_code']),
+            models.Index(fields=['test_year', 'test_type']),
+            models.Index(fields=['is_active', 'created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.test_name} ({self.test_code})"
+    
+    def get_questions(self):
+        """Get all questions for this platform test based on selected topics"""
+        return Question.objects.filter(topic_id__in=self.selected_topics)
+    
+    def get_total_questions_count(self):
+        """Get actual count of questions available for this test"""
+        return self.get_questions().count()
+
 class TestSession(models.Model):
     """
     Enhanced TestSession model with student tracking and subject-wise classification.
     Manages individual test attempts with proper student authentication.
+    Now supports both custom tests (user-selected topics) and platform tests (pre-configured).
     """
     id = models.AutoField(primary_key=True)
     # Link to StudentProfile using student_id
     student_id = models.CharField(max_length=20, null=False, db_index=True)  # STU + YY + DDMM + ABC123
+    
+    # Test type and linking
+    test_type = models.CharField(
+        max_length=20, 
+        choices=[('custom', 'Custom Test'), ('platform', 'Platform Test')], 
+        default='custom',
+        null=False
+    )  # Determines if this is a custom or platform test
+    platform_test = models.ForeignKey(
+        PlatformTest, 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        db_column='platform_test_id'
+    )  # Link to PlatformTest (only set if test_type='platform')
+    
     # Stores an array of topic IDs as strings
     selected_topics = models.JSONField(null=False)
     # Subject-wise topic classification for analytics
@@ -131,10 +162,13 @@ class TestSession(models.Model):
         indexes = [
             models.Index(fields=['student_id', 'start_time']),
             models.Index(fields=['is_completed', 'start_time']),
+            models.Index(fields=['test_type', 'start_time']),
+            models.Index(fields=['platform_test', 'start_time']),
         ]
 
     def __str__(self):
-        return f"Session {self.id} - {self.student_id} - {'Completed' if self.is_completed else 'In Progress'}"
+        test_info = f"Platform: {self.platform_test.test_name}" if self.test_type == 'platform' and self.platform_test else "Custom Test"
+        return f"Session {self.id} - {self.student_id} - {test_info} - {'Completed' if self.is_completed else 'In Progress'}"
 
     def get_student_profile(self):
         """Get the associated StudentProfile"""
@@ -142,6 +176,37 @@ class TestSession(models.Model):
             return StudentProfile.objects.get(student_id=self.student_id)
         except StudentProfile.DoesNotExist:
             return None
+
+    def is_platform_test(self):
+        """Check if this is a platform test session"""
+        return self.test_type == 'platform' and self.platform_test is not None
+
+    def is_custom_test(self):
+        """Check if this is a custom test session"""
+        return self.test_type == 'custom'
+
+    def get_test_name(self):
+        """Get the test name (platform test name or 'Custom Test')"""
+        if self.is_platform_test():
+            return self.platform_test.test_name
+        return "Custom Test"
+
+    def get_test_configuration(self):
+        """Get test configuration (time limit, question count) based on test type"""
+        if self.is_platform_test():
+            return {
+                'time_limit': self.platform_test.time_limit,
+                'total_questions': self.platform_test.total_questions,
+                'selected_topics': self.platform_test.selected_topics,
+                'instructions': self.platform_test.instructions
+            }
+        else:
+            return {
+                'time_limit': self.time_limit,
+                'total_questions': self.question_count or self.total_questions,
+                'selected_topics': self.selected_topics,
+                'instructions': None
+            }
 
     def calculate_score_percentage(self):
         """Calculate overall score percentage"""
@@ -151,7 +216,12 @@ class TestSession(models.Model):
 
     def update_subject_classification(self):
         """Classify selected topics by subjects and update respective fields"""
-        if not self.selected_topics:
+        # Get the appropriate selected topics based on test type
+        topics_to_classify = self.selected_topics
+        if self.is_platform_test() and self.platform_test.selected_topics:
+            topics_to_classify = self.platform_test.selected_topics
+        
+        if not topics_to_classify:
             return
         
         # Reset subject topic lists
@@ -161,7 +231,7 @@ class TestSession(models.Model):
         self.zoology_topics = []
         
         # Get topic objects for selected topic IDs with their subjects
-        selected_topic_objects = Topic.objects.filter(id__in=self.selected_topics)
+        selected_topic_objects = Topic.objects.filter(id__in=topics_to_classify)
         
         # Classify selected topics by their actual subject field
         for topic in selected_topic_objects:
@@ -286,6 +356,41 @@ class TestSession(models.Model):
         
         return subject_scores  # Return for debugging/logging purposes
 
+    @staticmethod
+    def get_recent_question_ids_for_student(student_id, recent_tests_count=3):
+        """
+        Get question IDs from student's recent completed test sessions.
+        
+        Args:
+            student_id: The student's ID
+            recent_tests_count: Number of recent tests to check (default: 3)
+            
+        Returns:
+            Set of question IDs that were used in recent tests
+        """
+        from django.conf import settings
+        
+        # Get the configurable count from settings
+        if hasattr(settings, 'NEET_SETTINGS'):
+            recent_tests_count = settings.NEET_SETTINGS.get('RECENT_TESTS_COUNT_FOR_EXCLUSION', recent_tests_count)
+        
+        # Get recent completed test sessions for this student
+        recent_sessions = TestSession.objects.filter(
+            student_id=student_id,
+            is_completed=True
+        ).order_by('-start_time')[:recent_tests_count]
+        
+        # If no recent sessions, return empty set
+        if not recent_sessions.exists():
+            return set()
+        
+        # Get all question IDs from TestAnswers for these sessions
+        question_ids = TestAnswer.objects.filter(
+            session__in=recent_sessions
+        ).values_list('question_id', flat=True).distinct()
+        
+        return set(question_ids)
+
 class TestAnswer(models.Model):
     """
     Replicates the 'test_answers' table from the Drizzle ORM schema.
@@ -304,6 +409,8 @@ class TestAnswer(models.Model):
     marked_for_review = models.BooleanField(default=False, null=False) # boolean("marked_for_review").default(false)
     # Time spent on this question in seconds
     time_taken = models.IntegerField(null=True, blank=True) # integer("time_spent") - renamed to time_taken for clarity in Django
+    # Number of times this question was visited/viewed by the student
+    visit_count = models.IntegerField(default=1, null=False) # Tracks how many times student visited this question
     # When the answer was submitted
     answered_at = models.DateTimeField(null=True, blank=True) # timestamp("answered_at")
 
@@ -361,6 +468,17 @@ class StudentProfile(models.Model):
     phone_number = models.CharField(max_length=20, null=True, blank=True)
     date_of_birth = models.DateField(null=False)  # Required for ID and password generation
     
+    # Google OAuth fields
+    google_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)  # Google's stable user ID
+    google_email = models.EmailField(null=True, blank=True)  # Email from Google
+    email_verified = models.BooleanField(default=False)  # Email verification status
+    google_picture = models.URLField(null=True, blank=True)  # Google profile picture
+    auth_provider = models.CharField(max_length=20, default='local', choices=[
+        ('local', 'Local'),
+        ('google', 'Google'),
+        ('both', 'Both'),
+    ])  # Authentication provider
+    
     # Educational information
     school_name = models.TextField(null=True, blank=True)
     target_exam_year = models.IntegerField(null=True, blank=True)
@@ -371,6 +489,8 @@ class StudentProfile(models.Model):
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True, null=False)
     updated_at = models.DateTimeField(auto_now=True, null=False)
+    # Timestamp used to invalidate tokens/sessions after password change
+    password_changed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'student_profiles'
@@ -378,6 +498,8 @@ class StudentProfile(models.Model):
         verbose_name_plural = 'Student Profiles'
         indexes = [
             models.Index(fields=['email']),
+            models.Index(fields=['google_sub']),
+            models.Index(fields=['google_email']),
             models.Index(fields=['date_of_birth']),
             models.Index(fields=['is_active', 'created_at']),
         ]
@@ -395,12 +517,49 @@ class StudentProfile(models.Model):
         from django.contrib.auth.hashers import check_password
         return check_password(raw_password, self.password_hash)
 
+    def set_unusable_password(self):
+        """Set an unusable password for Google-only accounts"""
+        from django.contrib.auth.hashers import make_password
+        self.password_hash = make_password(None)
+
     def set_user_password(self, raw_password):
         """Set user-defined password and store both plain text and hashed versions"""
         # Store plain text password in generated_password field (for transition period)
         self.generated_password = raw_password
         # Store hashed password for security
         self.set_password(raw_password)
+
+    def link_google_account(self, google_sub, google_email, email_verified=False, google_picture=None):
+        """Link a Google account to this student profile"""
+        self.google_sub = google_sub
+        self.google_email = google_email
+        self.email_verified = email_verified
+        if google_picture:
+            self.google_picture = google_picture
+        
+        # Update auth provider
+        if self.auth_provider == 'local':
+            self.auth_provider = 'both'
+        elif self.auth_provider != 'both':
+            self.auth_provider = 'google'
+    
+    def unlink_google_account(self):
+        """Unlink Google account from this student profile"""
+        self.google_sub = None
+        self.google_email = None
+        self.google_picture = None
+        
+        # Update auth provider
+        if self.auth_provider in ['google', 'both']:
+            self.auth_provider = 'local' if self.password_hash else 'local'
+    
+    def can_login_with_password(self):
+        """Check if student can login with password (has password set)"""
+        return bool(self.password_hash)
+    
+    def can_login_with_google(self):
+        """Check if student can login with Google (has Google account linked)"""
+        return bool(self.google_sub)
 
     # Authentication properties required by Django's permission system
     @property
@@ -466,6 +625,31 @@ class StudentProfile(models.Model):
         if not self.student_id:
             self.generate_credentials()
         super().save(*args, **kwargs)
+
+
+class PasswordReset(models.Model):
+    """
+    Stores password reset requests. Raw tokens are never stored - only the SHA256 hash
+    of the token is kept. Tokens are one-time use and expire after a TTL.
+    """
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, db_column='user_id')
+    reset_token_hash = models.CharField(max_length=128, unique=True, db_index=True)
+    expires_at = models.DateTimeField(null=False)
+    used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, null=False)
+
+    class Meta:
+        db_table = 'password_resets'
+        verbose_name = 'Password Reset'
+        verbose_name_plural = 'Password Resets'
+        indexes = [
+            models.Index(fields=['user', 'expires_at']),
+            models.Index(fields=['reset_token_hash']),
+        ]
+
+    def __str__(self):
+        return f"PasswordReset(user={self.user.email}, expires_at={self.expires_at}, used={self.used})"
 
 
 class ChatSession(models.Model):
@@ -536,3 +720,107 @@ class ChatMessage(models.Model):
     
     def __str__(self):
         return f"{self.message_type}: {self.message_content[:50]}..."
+
+
+class StudentInsight(models.Model):
+    """
+    Stores student performance insights in the database.
+    Replaces the JSON file-based caching system with persistent, queryable storage.
+    """
+    id = models.AutoField(primary_key=True)
+    # Foreign key to StudentProfile using student_id
+    student = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, to_field='student_id', db_column='student_id')
+    # Foreign key to TestSession (nullable, since insights might not always be tied to a specific test)
+    test_session = models.ForeignKey(TestSession, on_delete=models.CASCADE, null=True, blank=True, db_column='test_session_id')
+    # Timestamp when insights were generated
+    created_at = models.DateTimeField(auto_now_add=True, null=False)
+    
+    # Topic classifications (stored as JSON arrays)
+    strength_topics = models.JSONField(default=list, blank=True)  # List of strength topics
+    weak_topics = models.JSONField(default=list, blank=True)  # List of weakness topics
+    improvement_topics = models.JSONField(default=list, blank=True)  # List of improvement topics
+    unattempted_topics = models.JSONField(default=list, blank=True)  # List of unattempted topics
+    last_test_topics = models.JSONField(default=list, blank=True)  # List of last test feedback topics
+    
+    # LLM-generated insights (stored as JSON objects with status, message, insights)
+    llm_strengths = models.JSONField(default=dict, blank=True)  # LLM-generated strengths insights
+    llm_weaknesses = models.JSONField(default=dict, blank=True)  # LLM-generated weaknesses insights
+    llm_study_plan = models.JSONField(default=dict, blank=True)  # LLM-generated study plan
+    llm_last_test_feedback = models.JSONField(default=dict, blank=True)  # LLM-generated last test feedback
+    
+    # Configuration and summary data
+    thresholds_used = models.JSONField(default=dict, blank=True)  # Thresholds used for classification
+    summary = models.JSONField(default=dict, blank=True)  # Summary statistics (total topics, tests, etc.)
+    
+    # Optional insight type for categorization
+    insight_type = models.CharField(max_length=20, default='overall', blank=True)  # e.g., 'overall', 'last_test'
+    
+    class Meta:
+        db_table = 'student_insights'
+        verbose_name = 'Student Insight'
+        verbose_name_plural = 'Student Insights'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['student', 'created_at']),
+            models.Index(fields=['test_session', 'created_at']),
+            models.Index(fields=['insight_type', 'created_at']),
+        ]
+    
+    def __str__(self):
+        test_info = f" (Test {self.test_session.id})" if self.test_session else ""
+        return f"Insights for {self.student.student_id}{test_info} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+    
+    def get_student_profile(self):
+        """Get the associated StudentProfile"""
+        return self.student
+
+
+class Notification(models.Model):
+    """
+    Tracks outgoing notifications for auditing, retries and admin visibility.
+    """
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, null=True, blank=True, db_column='user_id')
+    notification_type = models.CharField(max_length=50)  # e.g. welcome, password_reset_request, test_submission
+    subject = models.CharField(max_length=255)
+    payload = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=20, default='pending', choices=[('pending','pending'),('sent','sent'),('failed','failed')])
+    error = models.TextField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=False)
+
+    class Meta:
+        db_table = 'notifications'
+        verbose_name = 'Notification'
+        verbose_name_plural = 'Notifications'
+        indexes = [models.Index(fields=['user', 'notification_type', 'status', 'created_at'])]
+
+    def __str__(self):
+        target = self.user.email if self.user else self.payload.get('to')
+        return f"Notification {self.notification_type} -> {target} [{self.status}]"
+
+
+# Signal: send welcome email on new StudentProfile creation
+@receiver(post_save, sender=StudentProfile)
+def _send_welcome_on_create(sender, instance, created, **kwargs):
+    """Dispatch a welcome email when a new active student profile is created.
+
+    The import of the notifications service is done inside the handler to avoid
+    circular imports at module import time.
+    """
+    if not created:
+        return
+
+    # Only send welcome if there is a valid email and the account is active
+    if not instance.email or not instance.is_active:
+        return
+
+    try:
+        # Local import to avoid circular import at module load
+        from .notifications import dispatch_welcome_email
+
+        dispatch_welcome_email(instance)
+    except Exception:
+        # Avoid raising exceptions during model save flows; log via print to keep dependency-free
+        import logging
+        logging.exception('Failed to enqueue welcome email')

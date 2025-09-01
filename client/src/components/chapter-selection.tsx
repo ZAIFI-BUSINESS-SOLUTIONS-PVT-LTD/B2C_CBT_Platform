@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { API_CONFIG } from "@/config/api";
@@ -69,6 +70,14 @@ export function ChapterSelection() {
   const [expandedChapters, setExpandedChapters] = useState<string[]>([]);  // Expanded chapter IDs
   const [searchQuery, setSearchQuery] = useState<string>("");              // Search input value
   const [showSearchResults, setShowSearchResults] = useState<boolean>(false); // Search results visibility
+  
+  // === INSUFFICIENT QUESTIONS DIALOG STATE ===
+  const [showInsufficientDialog, setShowInsufficientDialog] = useState<boolean>(false);
+  const [insufficientQuestionsData, setInsufficientQuestionsData] = useState<{
+    available: number;
+    requested: number;
+    message: string;
+  } | null>(null);
 
   // === DATA FETCHING ===
   // Fetch all available topics from the PostgreSQL database
@@ -168,13 +177,44 @@ export function ChapterSelection() {
       // Test session created successfully - navigate to the test interface
       navigate(`/test/${data.session.id}`);
     },
-    onError: () => {
-      // Show error toast if test creation fails
-      toast({
-        title: "Error",
-        description: "Failed to create test session. Please try again.",
-        variant: "destructive",
-      });
+    onError: (error: any) => {
+      console.log("Error creating test session:", error);
+      console.log("Error message:", error.message);
+      
+      // Parse error message to extract JSON data
+      let errorData = null;
+      try {
+        if (error.message) {
+          // Extract JSON from error message (format: "400: {json}")
+          const match = error.message.match(/^\d+:\s*(.+)$/);
+          if (match) {
+            console.log("Matched JSON string:", match[1]);
+            errorData = JSON.parse(match[1]);
+            console.log("Parsed error data:", errorData);
+          }
+        }
+      } catch (parseError) {
+        console.error("Failed to parse error data:", parseError);
+      }
+      
+      // Check for insufficient questions error (backend returns "Insufficient questions available")
+      if (errorData?.error === "Insufficient questions available") {
+        console.log("Showing insufficient questions dialog");
+        setInsufficientQuestionsData({
+          available: errorData.available_questions,
+          requested: errorData.requested_questions,
+          message: errorData.message || "Not enough questions available for this test configuration."
+        });
+        setShowInsufficientDialog(true);
+      } else {
+        console.log("Showing generic error toast");
+        // Show generic error toast for other errors
+        toast({
+          title: "Error",
+          description: "Failed to create test session. Please try again.",
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -339,8 +379,10 @@ export function ChapterSelection() {
     
     // Determine which topics to use based on test type
     if (testType === "random") {
-      console.log('🎲 Using random test mode');
-      finalSelectedTopics = generateRandomTopics(questionCount);
+      console.log('🎲 Using random test mode - will skip topic selection and pick random questions');
+      // For random tests, we'll send a special flag to the backend
+      // The backend will handle random question selection from entire database
+      finalSelectedTopics = []; // Empty array signals random mode to backend
     } else if (testType === "custom") {
       console.log('🎯 Using custom test mode');
       finalSelectedTopics = selectedTopicsCustom;
@@ -352,8 +394,8 @@ export function ChapterSelection() {
     console.log('📋 Final selected topics:', finalSelectedTopics);
     console.log('🔢 Topics count:', finalSelectedTopics.length);
     
-    // VALIDATION: Check if topics are selected
-    if (finalSelectedTopics.length === 0) {
+    // VALIDATION: Check if topics are selected (only for non-random tests)
+    if (testType !== "random" && finalSelectedTopics.length === 0) {
       console.log('❌ No topics selected, showing error toast');
       toast({
         title: "No topics selected",
@@ -801,12 +843,12 @@ export function ChapterSelection() {
                       value={[timeLimit]}
                       onValueChange={(value) => setTimeLimit(value[0])}
                       max={180}
-                      min={15}
-                      step={15}
+                      min={5}
+                      step={5}
                       className="w-full"
                     />
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>15 min</span>
+                      <span>5 min</span>
                       <span>180 min</span>
                     </div>
                   </div>
@@ -994,6 +1036,75 @@ export function ChapterSelection() {
           </Card>
         </div>
       </div>
+      
+      {/* Insufficient Questions Dialog */}
+      <Dialog open={showInsufficientDialog} onOpenChange={setShowInsufficientDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-orange-500" />
+              Insufficient Questions Available
+            </DialogTitle>
+            <DialogDescription>
+              {insufficientQuestionsData?.message}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-orange-800">Available Questions:</span>
+                <span className="text-lg font-bold text-orange-600">{insufficientQuestionsData?.available}</span>
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-sm font-medium text-orange-800">Requested Questions:</span>
+                <span className="text-lg font-bold text-red-600">{insufficientQuestionsData?.requested}</span>
+              </div>
+            </div>
+            
+            <div className="text-sm text-gray-600">
+              <p className="font-medium mb-2">What you can do:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Reduce the number of questions to {insufficientQuestionsData?.available} or fewer</li>
+                <li>Select additional topics to get more questions</li>
+                <li>Choose different topics that might have more questions</li>
+              </ul>
+            </div>
+          </div>
+          
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowInsufficientDialog(false);
+                // Reset test type to allow user to reselect topics
+                setTestType("random");
+                setSelectedTopics([]);
+                setSelectedTopicsCustom([]);
+                setSelectedSubject("");
+                setSelectedChapter("");
+              }}
+              className="flex-1"
+            >
+              <BookOpen className="h-4 w-4 mr-2" />
+              Back to Selection
+            </Button>
+            <Button
+              onClick={() => {
+                setShowInsufficientDialog(false);
+                // Set question count to available questions
+                if (insufficientQuestionsData?.available) {
+                  setQuestionCount(insufficientQuestionsData.available);
+                }
+              }}
+              className="flex-1 bg-blue-600 hover:bg-blue-700"
+            >
+              <Target className="h-4 w-4 mr-2" />
+              Use {insufficientQuestionsData?.available} Questions
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

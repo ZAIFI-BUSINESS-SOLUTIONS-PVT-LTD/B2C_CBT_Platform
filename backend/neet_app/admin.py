@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage
+from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, StudentInsight, PasswordReset
 
 @admin.register(Topic)
 class TopicAdmin(admin.ModelAdmin):
@@ -48,7 +48,7 @@ class TestSessionAdmin(admin.ModelAdmin):
 
 @admin.register(TestAnswer)
 class TestAnswerAdmin(admin.ModelAdmin):
-    list_display = ['session', 'question', 'selected_answer', 'marked_for_review', 'time_taken']
+    list_display = ['session', 'question', 'selected_answer', 'marked_for_review', 'time_taken', 'visit_count']
     list_filter = ['selected_answer', 'marked_for_review', 'session__is_completed']
     search_fields = ['question']
     ordering = ['session', 'question']
@@ -56,3 +56,17 @@ class TestAnswerAdmin(admin.ModelAdmin):
     def question_preview(self, obj):
         return obj.question.question[:50] + "..." if len(obj.question.question) > 50 else obj.question.question
     question_preview.short_description = 'Question'
+
+@admin.register(StudentInsight)
+class StudentInsightAdmin(admin.ModelAdmin):
+    list_display = ['student', 'test_session', 'llm_strengths','llm_study_plan','llm_weaknesses','llm_last_test_feedback','created_at']
+    list_filter = ['student']
+    search_fields = ['student__full_name', 'test_session__id', 'llm_strengths', 'llm_study_plan', 'llm_weaknesses', 'llm_last_test_feedback']
+    ordering = ['-created_at']
+
+@admin.register(PasswordReset)
+class PasswordResetAdmin(admin.ModelAdmin):
+    list_display = ['user', 'reset_token_hash', 'expires_at', 'used', 'created_at']
+    list_filter = ['used']
+    search_fields = ['user']
+    ordering = ['-expires_at']

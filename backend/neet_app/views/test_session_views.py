@@ -13,6 +13,7 @@ from ..serializers import (
     QuestionForTestSerializer, TestSessionCreateSerializer, 
     TestSessionSerializer
 )
+from ..notifications import dispatch_test_result_email
 
 logger = logging.getLogger(__name__)
 
@@ -60,19 +61,118 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(data=request.data, context={'request': request})
             serializer.is_valid(raise_exception=True)
             
-            # The serializer handles session creation with student validation
-            # and question count calculation (either from direct input or time calculation)
+            # Get student_id before creating session to check question availability
+            student_id = request.user.student_id
+            selected_topics = serializer.validated_data.get('selected_topics', [])
+            requested_question_count = serializer.validated_data.get('question_count')
+            adaptive_selection = serializer.validated_data.get('adaptive_selection', False)
+            
+            # Get recent question IDs to exclude
+            recent_question_ids = TestSession.get_recent_question_ids_for_student(student_id)
+            
+            # Check if this is a random test
+            test_type = request.data.get('test_type', 'search')
+            
+            if test_type == 'random':
+                # For random tests, skip topic-based selection and directly select from entire database
+                from .utils import generate_random_questions_from_database
+                
+                available_questions = generate_random_questions_from_database(
+                    requested_question_count,
+                    exclude_question_ids=recent_question_ids
+                )
+                available_count = available_questions.count()
+                
+                # For random tests, we should always have enough questions since we're using the entire database
+                if available_count < requested_question_count:
+                    logger.warning(f"Random test: Only {available_count} questions available in entire database, but {requested_question_count} requested")
+                    # For random tests, adjust the count to what's available rather than failing
+                    serializer.validated_data['question_count'] = available_count
+                    requested_question_count = available_count
+            else:
+                # For topic-based tests (custom/search), use the existing logic
+                if adaptive_selection:
+                    # For adaptive selection, we're more lenient - just check if any questions exist
+                    from .utils import adaptive_generate_questions_for_topics
+                    available_questions = generate_questions_for_topics(
+                        selected_topics, 
+                        None,  # Don't limit to get total available count
+                        exclude_question_ids=recent_question_ids
+                    )
+                    available_count = available_questions.count()
+                    
+                    # For adaptive selection, we only fail if no questions are available at all
+                    if available_count == 0:
+                        return Response({
+                            'error': 'No questions available',
+                            'message': 'No questions available for selected topics.',
+                            'available_questions': 0,
+                            'requested_questions': requested_question_count,
+                            'action_required': 'Please select different topics.'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # If we have fewer questions than requested, log it but continue (adaptive selection will handle it)
+                    if available_count < requested_question_count:
+                        logger.info(f"Adaptive selection: Only {available_count} questions available for {requested_question_count} requested, but continuing with adaptive logic")
+                else:
+                    # For traditional selection, enforce strict availability
+                    from .utils import generate_questions_for_topics
+                    available_questions = generate_questions_for_topics(
+                        selected_topics, 
+                        None,  # Don't limit to get total available count
+                        exclude_question_ids=recent_question_ids
+                    )
+                    available_count = available_questions.count()
+                    
+                    # Validate if we have enough questions for topic-based tests
+                    if available_count < requested_question_count:
+                        return Response({
+                            'error': 'Insufficient questions available',
+                            'message': f'Only {available_count} questions available for selected topics, but {requested_question_count} requested.',
+                            'available_questions': available_count,
+                            'requested_questions': requested_question_count,
+                            'action_required': 'Please reduce the number of questions or select different topics.'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Create the session (serializer generates questions internally with exclusion)
             session = serializer.save()
             
-            # Get questions for the session
-            # session.question_count is now either:
-            # 1. Direct question count (existing behavior)
-            # 2. Calculated from time limit (new behavior - 1 question per minute)
-            from .utils import generate_questions_for_topics
-            selected_questions = generate_questions_for_topics(
-                session.selected_topics, 
-                session.question_count
-            )
+            # Get the final questions with proper exclusion and count limit
+            if test_type == 'random':
+                # For random tests, choose between adaptive and traditional selection
+                if adaptive_selection:
+                    from .utils import adaptive_generate_random_questions_from_database
+                    selected_questions = adaptive_generate_random_questions_from_database(
+                        session.question_count,
+                        student_id,
+                        exclude_question_ids=recent_question_ids
+                    )
+                else:
+                    from .utils import generate_random_questions_from_database
+                    selected_questions = generate_random_questions_from_database(
+                        session.question_count,
+                        exclude_question_ids=recent_question_ids
+                    )
+            else:
+                # For topic-based tests, choose between adaptive and traditional selection
+                if adaptive_selection:
+                    from .utils import adaptive_generate_questions_for_topics
+                    selected_questions = adaptive_generate_questions_for_topics(
+                        session.selected_topics, 
+                        session.question_count,
+                        student_id,
+                        exclude_question_ids=recent_question_ids
+                    )
+                else:
+                    selected_questions = generate_questions_for_topics(
+                        session.selected_topics, 
+                        session.question_count,
+                        exclude_question_ids=recent_question_ids
+                    )
+            
+            # Update session with actual question count
+            session.total_questions = len(selected_questions)
+            session.save(update_fields=['total_questions'])
 
             # Create TestAnswer records for all assigned questions (initially unanswered)
             test_answers = []
@@ -272,6 +372,22 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             'subject_performance': formatted_subject_performance,
             'detailed_answers': detailed_answers
         }
+
+        # Send test result email asynchronously (best-effort)
+        try:
+            student_profile = None
+            # Try to get student profile from session.user relation if exists
+            from ..models import StudentProfile
+            try:
+                student_profile = StudentProfile.objects.get(student_id=session.student_id)
+            except Exception:
+                student_profile = None
+
+            if student_profile:
+                dispatch_test_result_email(student_profile, results)
+        except Exception:
+            # Do not fail the request if email send fails; log for visibility
+            logger.exception('Failed to dispatch test result email for session %s', session.id)
 
         return Response(results)
 

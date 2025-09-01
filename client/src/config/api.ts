@@ -40,6 +40,10 @@ export const API_CONFIG = {
     CHAT_SESSION_SEND_MESSAGE: (sessionId: string) => `/api/chat-sessions/${sessionId}/send-message/`,
     CHAT_QUICK: '/api/chatbot/quick-chat/',
     CHAT_STATISTICS: '/api/chatbot/statistics/',
+  // Password reset endpoints
+  AUTH_FORGOT_PASSWORD: '/api/auth/forgot-password/',
+  AUTH_VERIFY_RESET: '/api/auth/verify-reset-token/',
+  AUTH_RESET_PASSWORD: '/api/auth/reset-password/',
   },
 };
 

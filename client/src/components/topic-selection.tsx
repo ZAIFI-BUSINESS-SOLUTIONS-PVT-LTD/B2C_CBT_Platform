@@ -370,7 +370,7 @@ export function TopicSelection() {
                   <RadioGroup value={timeLimit} onValueChange={setTimeLimit}>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {[
-                        { value: "15", label: "15 minutes", description: "Quick practice" },
+                        { value: "5", label: "5 minutes", description: "Quick practice" },
                         { value: "30", label: "30 minutes", description: "Standard test" },
                         { value: "60", label: "1 hour", description: "Extended practice" },
                         { value: "90", label: "1.5 hours", description: "Full length test" },

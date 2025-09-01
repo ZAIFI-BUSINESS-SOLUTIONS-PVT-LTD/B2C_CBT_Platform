@@ -78,9 +78,20 @@ class TestSessionCreateSerializer(serializers.Serializer):
         default='search',  # Default to search mode for backward compatibility
         help_text="Type of test selection method"
     )
+    
+    # New field for adaptive question selection
+    adaptive_selection = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="Use adaptive question selection logic (60% new, 30% wrong/unanswered, 10% correct)"
+    )
 
     def validate_selected_topics(self, value):
-        # Ensure all topic IDs exist
+        # For random tests, empty topics are allowed (we'll generate them automatically)
+        if not value:  # Empty list for random tests
+            return value
+            
+        # For non-random tests, ensure all topic IDs exist
         try:
             topic_ids = [int(t_id) for t_id in value]
             existing_topics = Topic.objects.filter(id__in=topic_ids)
@@ -139,44 +150,22 @@ class TestSessionCreateSerializer(serializers.Serializer):
         time_limit = validated_data.get('time_limit')
         question_count = validated_data.get('question_count')
         
-        # For random tests, generate topics automatically
-        if test_type == 'random':
-            selected_topics = self._generate_random_topics(question_count)
-            validated_data['selected_topics'] = selected_topics
+        # For random tests, we'll let the view handle question selection directly
+        # No need to generate topics here since we're selecting questions from entire database
         
-        # Generate questions for selected topics
-        from .views.utils import generate_questions_for_topics
-        
-        # Generate questions
-        questions = generate_questions_for_topics(selected_topics, question_count)
-        
-        # Create test session
+        # Create test session (without generating questions here - the view will handle it)
         test_session = TestSession.objects.create(
             student_id=student_id,  # Use authenticated user's student_id
-            selected_topics=selected_topics,
+            selected_topics=selected_topics,  # Empty for random tests
             time_limit=time_limit,
-            question_count=question_count or len(questions),
+            question_count=question_count,
             start_time=timezone.now(),
-            total_questions=len(questions)
+            total_questions=question_count or 0  # Will be updated by view after question generation
         )
         
         # The signals will automatically handle topic classification
         return test_session
-    
-    def _generate_random_topics(self, question_count):
-        """Generate random topics from all subjects equally"""
-        subjects = ["Physics", "Chemistry", "Botany", "Zoology"]
-        topics_per_subject = max(1, question_count // 4)  # At least 1 topic per subject
-        
-        random_topics = []
-        for subject in subjects:
-            subject_topics = Topic.objects.filter(subject=subject)
-            if subject_topics.exists():
-                # Randomly select topics from this subject
-                selected = subject_topics.order_by('?')[:topics_per_subject]
-                random_topics.extend([str(topic.id) for topic in selected])
-        
-        return random_topics
+
 
 class TestAnswerSerializer(serializers.ModelSerializer):
     question_details = QuestionSerializer(source='question', read_only=True)
@@ -185,7 +174,7 @@ class TestAnswerSerializer(serializers.ModelSerializer):
         model = TestAnswer
         fields = [
             'id', 'session', 'question', 'question_details', 'selected_answer', 
-            'is_correct', 'marked_for_review', 'time_taken', 'answered_at'
+            'is_correct', 'marked_for_review', 'time_taken', 'visit_count', 'answered_at'
         ]
         read_only_fields = ['is_correct']
 
@@ -196,6 +185,7 @@ class TestAnswerCreateSerializer(serializers.Serializer):
     selected_answer = serializers.CharField(max_length=1, allow_null=True, required=False) # 'A', 'B', 'C', 'D' or null
     marked_for_review = serializers.BooleanField(default=False, required=False)
     time_taken = serializers.IntegerField(default=0, required=False) # Time spent on question in seconds
+    visit_count = serializers.IntegerField(default=1, required=False) # Number of times question was visited
 
     def validate(self, data):
         # Check if session and question exist
@@ -257,10 +247,11 @@ class StudentProfileSerializer(serializers.ModelSerializer):
         fields = [
             'student_id', 'full_name', 'email', 'phone_number', 'date_of_birth',
             'school_name', 'target_exam_year', 'is_active', 'is_verified', 'last_login',
-            'created_at', 'updated_at', 'total_tests', 'recent_tests'
+            'created_at', 'updated_at', 'total_tests', 'recent_tests',
+            'google_sub', 'google_email', 'email_verified', 'google_picture', 'auth_provider'
         ]
         read_only_fields = [
-            'student_id', 'created_at', 'updated_at', 'last_login'
+            'student_id', 'created_at', 'updated_at', 'last_login', 'google_sub', 'google_email', 'auth_provider'
         ]
         extra_kwargs = {
             'password_hash': {'write_only': True},
@@ -480,3 +471,19 @@ class ChatSessionCreateSerializer(serializers.Serializer):
         if value:
             return value.strip()
         return None
+
+
+# --- Password reset serializers (moved from serializers/password_reset_serializers.py)
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class VerifyTokenSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    token = serializers.CharField()
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(min_length=8)
