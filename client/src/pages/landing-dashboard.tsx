@@ -89,6 +89,8 @@ interface AnalyticsData {
   overallAccuracy: number;
   totalTimeSpent: number;
   averageTimePerQuestion: number;
+  uniqueQuestionsAttempted?: number;
+  totalQuestionsInBank?: number;
   speedVsAccuracy: {
     fastButInaccurate: number;
     slowButAccurate: number;
@@ -115,6 +117,17 @@ interface AnalyticsData {
     date: string; // ISO format date string
     // averageScore removed: field no longer exists
   }>;
+  subjectAccuracyPast7?: Array<{
+    subject: string;
+    totalQuestions: number;
+    correctAnswers: number;
+    accuracy: number;
+  }>;
+  timeDistributionPast7?: {
+  overall: Array<{ status: string; timeSec: number; avgTimeSec?: number }>;
+  bySubject: { [subject: string]: Array<{ status: string; timeSec: number; avgTimeSec?: number }> };
+    subjects: string[];
+  };
   studyRecommendations: string[]; // Or Array<{ priority: string; subject: string; reason: string; actionTip: string; }> if detailed
   message?: string; // For the "Take more tests" message
 }
@@ -200,6 +213,7 @@ const CHART_COLORS = [COLORS.primary, COLORS.success, COLORS.warning, COLORS.pur
  */
 export default function LandingDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [timeDistSubject, setTimeDistSubject] = useState<string>('All');
   const { isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
 
@@ -536,6 +550,12 @@ export default function LandingDashboard() {
             icon={<Timer className="h-5 w-5" />}
             color="bg-[#F59E0B]"
           />
+          <MetricCard
+            title="Questions"
+            value={`${analytics.uniqueQuestionsAttempted ?? 0}/${analytics.totalQuestionsInBank ?? 0}`}
+            icon={<BookOpen className="h-5 w-5" />}
+            color="bg-[#10B981]"
+          />
         </div>
 
         {/* Main Dashboard Content */}
@@ -551,18 +571,87 @@ export default function LandingDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="subjects" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
-                    <TabsTrigger value="subjects">Subjects</TabsTrigger>
-                    <TabsTrigger value="trends">Trends</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="subjects" className="space-y-4">
-                    <SubjectPerformanceChart data={analytics.subjectPerformance} />
-                  </TabsContent>
-                  <TabsContent value="trends" className="space-y-4">
+                  {/* New: Two pie charts above the Trends chart */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                    <Card className="p-4">
+                      <h4 className="text-md font-medium mb-2">Subject-wise Accuracy (Past 7 tests)</h4>
+                      <div className="h-48 flex items-center justify-center">
+                        {analytics.subjectAccuracyPast7 && analytics.subjectAccuracyPast7.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={analytics.subjectAccuracyPast7}
+                                dataKey="accuracy"
+                                nameKey="subject"
+                                innerRadius={40}
+                                outerRadius={70}
+                                label={(entry) => `${entry.subject}: ${entry.accuracy}%`}
+                              >
+                                {analytics.subjectAccuracyPast7.map((entry, idx) => (
+                                  <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value: any) => `${value}%`} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="text-sm text-gray-500">No data - take some tests to see subject accuracy.</div>
+                        )}
+                      </div>
+                    </Card>
+
+                    <Card className="p-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-md font-medium mb-2">Time Distribution (Past 7 tests)</h4>
+                        <select
+                          className="border rounded px-2 py-1 text-sm"
+                          value={timeDistSubject}
+                          onChange={(e) => setTimeDistSubject(e.target.value)}
+                        >
+                          <option value="All">All</option>
+                          {analytics.timeDistributionPast7?.subjects?.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="h-48 flex items-center justify-center">
+                        {analytics.timeDistributionPast7 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={(timeDistSubject === 'All' || !timeDistSubject)
+                                  ? analytics.timeDistributionPast7.overall.map(d => ({ name: d.status, value: Number((d.avgTimeSec ?? d.timeSec) || 0) }))
+                                  : analytics.timeDistributionPast7.bySubject[timeDistSubject].map(d => ({ name: d.status, value: Number((d.avgTimeSec ?? d.timeSec) || 0) }))
+                                }
+                                dataKey="value"
+                                nameKey="name"
+                                innerRadius={40}
+                                outerRadius={70}
+                                label={(entry) => `${entry.name}: ${Math.round(entry.value)}s`}
+                              >
+                                {((timeDistSubject === 'All' || !timeDistSubject)
+                                  ? analytics.timeDistributionPast7.overall
+                                  : analytics.timeDistributionPast7.bySubject[timeDistSubject]
+                                ).map((entry, idx) => (
+                                  <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value: any) => `${Math.round(value)}s`} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="text-sm text-gray-500">No timing data available yet.</div>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">Showing average time spent per test on correct / incorrect / unanswered across your most recent 7 tests.</p>
+                    </Card>
+                  </div>
+
+                  {/* Show only the Trends chart in Performance Overview (removed subject-wise chart) */}
+                  <div className="w-full space-y-4">
+                    <h3 className="text-lg font-medium">Trends</h3>
                     <PerformanceTrendsChart data={analytics.timeBasedTrends} />
-                  </TabsContent>
-                </Tabs>
+                  </div>
               </CardContent>
             </Card>
           </div>
@@ -750,13 +839,13 @@ function PerformanceTrendsChart({ data }: { data: any[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date">
-            <Label value="Date" offset={-5} position="insideBottom" />
+          <XAxis dataKey="testNumber" type="number" domain={["dataMin", "dataMax"]} allowDecimals={false} tickFormatter={(v) => (v != null ? `Practice test ${v}` : '')}>
+            <Label value="Test #" offset={-5} position="insideBottom" />
           </XAxis>
           <YAxis>
             <Label value="Accuracy (%)" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} />
           </YAxis>
-          <Tooltip />
+          <Tooltip labelFormatter={(label) => (label != null ? `Practice test ${label}` : '')} />
           <Line type="monotone" dataKey="accuracy" stroke={COLORS.primary} />
         </LineChart>
       </ResponsiveContainer>

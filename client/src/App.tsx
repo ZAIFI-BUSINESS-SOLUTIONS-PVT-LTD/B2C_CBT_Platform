@@ -21,6 +21,7 @@ import Results from "@/pages/results";
 import TestHistory from "@/pages/test-history";
 import Topics from "@/pages/topics";
 import LandingDashboard from "@/pages/landing-dashboard";
+import ScheduledTests from "@/pages/scheduled-tests";
 import Chatbot from "@/pages/chatbot";
 import ForgotPassword from "@/pages/forgot-password";
 import ResetPassword from "@/pages/reset-password";
@@ -40,6 +41,7 @@ function Router() {
   <Route path="/forgot-password" component={ForgotPassword} />
   <Route path="/reset-password" component={ResetPassword} />
       <Route path="/topics" component={Topics} />                  {/* Topics overview page */}
+      <Route path="/scheduled-tests" component={ScheduledTests} /> {/* Platform tests page */}
       <Route path="/dashboard" component={LandingDashboard} />  {/* Comprehensive landing dashboard */}
       <Route path="/chatbot" component={Chatbot} />               {/* AI Chatbot tutor page */}
       <Route path="/auth/callback" component={GoogleAuthCallback} /> {/* Google OAuth callback */}

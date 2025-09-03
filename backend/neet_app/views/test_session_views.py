@@ -171,6 +171,16 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                     )
             
             # Update session with actual question count
+            # If this was a random test, store the topics of the randomly-selected questions
+            if test_type == 'random':
+                try:
+                    # selected_questions may be a QuerySet or list of Question objects
+                    topic_ids = list({getattr(q, 'topic_id', getattr(q, 'topic').id) for q in selected_questions})
+                    session.selected_topics = topic_ids
+                    session.save(update_fields=['selected_topics'])
+                except Exception:
+                    logger.exception('Failed to populate session.selected_topics for random test')
+
             session.total_questions = len(selected_questions)
             session.save(update_fields=['total_questions'])
 
@@ -236,6 +246,53 @@ class TestSessionViewSet(viewsets.ModelViewSet):
         # Get questions from TestAnswer table (the exact questions assigned to this session)
         test_answers = TestAnswer.objects.filter(session=session).select_related('question')
         selected_questions = [answer.question for answer in test_answers]
+
+        # If no TestAnswer rows exist (legacy or previously-miscreated session), create them now
+        if not selected_questions:
+            try:
+                # Try to import question generation utility
+                from .utils import generate_questions_for_topics
+
+                # Exclude recent questions for this student to preserve exclusion logic
+                recent_question_ids = TestSession.get_recent_question_ids_for_student(session.student_id)
+
+                # Generate questions for the session topics
+                generated_questions = generate_questions_for_topics(
+                    session.selected_topics,
+                    session.question_count,
+                    exclude_question_ids=recent_question_ids
+                )
+
+                # If none generated, try without exclusion as a fallback
+                if generated_questions.count() == 0:
+                    generated_questions = generate_questions_for_topics(
+                        session.selected_topics,
+                        session.question_count,
+                        exclude_question_ids=None
+                    )
+
+                # Create TestAnswer records for generated questions
+                test_answer_objs = []
+                for q in generated_questions:
+                    test_answer_objs.append(TestAnswer(
+                        session=session,
+                        question=q,
+                        selected_answer=None,
+                        is_correct=False,
+                        marked_for_review=False,
+                        time_taken=0
+                    ))
+                TestAnswer.objects.bulk_create(test_answer_objs)
+
+                # Refresh selected_questions from generated set
+                selected_questions = list(generated_questions)
+                # Update session.total_questions if mismatch
+                if session.total_questions != len(selected_questions):
+                    session.total_questions = len(selected_questions)
+                    session.save(update_fields=['total_questions'])
+
+            except Exception as e:
+                logger.exception('Failed to generate questions for session %s: %s', session.id, str(e))
 
         session_data = TestSessionSerializer(session).data
         questions_data = QuestionForTestSerializer(selected_questions, many=True).data
@@ -348,9 +405,22 @@ class TestSessionViewSet(viewsets.ModelViewSet):
 
         score_percentage = (correct_answers_count / total_questions_in_session) * 100 if total_questions_in_session > 0 else 0
 
+        # Compute authoritative time taken as the difference between server-side start and end times
         time_taken_seconds = 0
         if session.start_time and session.end_time:
             time_taken_seconds = int((session.end_time - session.start_time).total_seconds())
+
+        # Persist summarized session metrics so the TestSession row reflects the final results
+        try:
+            session.correct_answers = correct_answers_count
+            session.incorrect_answers = incorrect_answers_count
+            session.unanswered = unanswered_questions_count
+            session.total_time_taken = time_taken_seconds
+            # Optionally persist score percentage or leave calculation to calculate_score_percentage()
+            session.save(update_fields=['correct_answers', 'incorrect_answers', 'unanswered', 'total_time_taken'])
+        except Exception:
+            # Do not fail result response if DB write has issues; log exception for visibility
+            logger.exception('Failed to persist session summary for session %s', session.id)
 
         formatted_subject_performance = []
         for subject_name, data in subject_performance.items():

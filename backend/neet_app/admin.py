@@ -1,5 +1,34 @@
 from django.contrib import admin
-from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, StudentInsight, PasswordReset
+from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, StudentInsight, PasswordReset, PlatformTest
+
+@admin.register(PlatformTest)
+class PlatformTestAdmin(admin.ModelAdmin):
+    list_display = ['test_name', 'test_code', 'test_type', 'time_limit', 'total_questions', 'is_active', 'get_availability_status', 'scheduled_date_time', 'created_at']
+    list_filter = ['test_type', 'is_active', 'scheduled_date_time', 'test_year']
+    search_fields = ['test_name', 'test_code', 'description']
+    ordering = ['-created_at']
+    readonly_fields = ['created_at', 'updated_at', 'get_availability_status']
+    
+    fieldsets = (
+        ('Test Information', {
+            'fields': ('test_name', 'test_code', 'test_year', 'test_type', 'description', 'instructions')
+        }),
+        ('Test Configuration', {
+            'fields': ('time_limit', 'total_questions', 'selected_topics', 'question_distribution')
+        }),
+        ('Scheduling', {
+            'fields': ('scheduled_date_time', 'is_active'),
+            'description': 'Leave scheduled_date_time empty for "Available Anytime" tests, or set a specific date/time for scheduled tests.'
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at', 'get_availability_status'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_availability_status(self, obj):
+        return obj.get_availability_status()
+    get_availability_status.short_description = 'Current Status'
 
 @admin.register(Topic)
 class TopicAdmin(admin.ModelAdmin):

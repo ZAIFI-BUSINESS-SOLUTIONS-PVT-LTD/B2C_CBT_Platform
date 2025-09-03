@@ -309,7 +309,7 @@ export default function Home() {
 
         {/* Navigation Container */}
         <div className="mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             {/* Take Test Button - Always Active */}
             <NavigationBox
               title="Take Test"
@@ -319,6 +319,17 @@ export default function Home() {
               isLocked={false}
               color="bg-[#4F83FF]"
               hoverColor="hover:bg-[#3B82F6]"
+            />
+
+            {/* Platform Tests Button - Always Active */}
+            <NavigationBox
+              title="Platform Tests"
+              description="Take official practice tests and scheduled exams"
+              icon={<CalendarIcon className="h-8 w-8" />}
+              href="/scheduled-tests"
+              isLocked={false}
+              color="bg-[#10B981]"
+              hoverColor="hover:bg-[#059669]"
             />
 
             {/* Dashboard Button - Locked if no data */}

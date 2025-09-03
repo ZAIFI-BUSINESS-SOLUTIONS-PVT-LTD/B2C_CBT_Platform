@@ -80,6 +80,7 @@ class PlatformTest(models.Model):
     
     # Test metadata
     is_active = models.BooleanField(default=True)  # Whether test is available for students
+    scheduled_date_time = models.DateTimeField(null=True, blank=True)  # If set, test is time-based; if null, available anytime
     created_at = models.DateTimeField(auto_now_add=True, null=False)
     updated_at = models.DateTimeField(auto_now=True, null=False)
     
@@ -91,6 +92,8 @@ class PlatformTest(models.Model):
             models.Index(fields=['test_code']),
             models.Index(fields=['test_year', 'test_type']),
             models.Index(fields=['is_active', 'created_at']),
+            models.Index(fields=['scheduled_date_time']),
+            models.Index(fields=['is_active', 'scheduled_date_time']),
         ]
     
     def __str__(self):
@@ -103,6 +106,55 @@ class PlatformTest(models.Model):
     def get_total_questions_count(self):
         """Get actual count of questions available for this test"""
         return self.get_questions().count()
+    
+    def is_scheduled_test(self):
+        """Check if this is a scheduled test (has scheduled_date_time)"""
+        return self.scheduled_date_time is not None
+    
+    def is_open_test(self):
+        """Check if this is an open/anytime test (no scheduled_date_time)"""
+        return self.scheduled_date_time is None
+    
+    def is_available_now(self):
+        """Check if test is currently available for attempts"""
+        from django.utils import timezone
+        
+        # If not active, not available
+        if not self.is_active:
+            return False
+            
+        # If open test, always available
+        if self.is_open_test():
+            return True
+            
+        # If scheduled test, check if current time is within the window
+        if self.is_scheduled_test():
+            current_time = timezone.now()
+            # Test is available from scheduled time for the duration + 30 minutes buffer
+            test_duration_minutes = self.time_limit + 30  # Add 30 minutes buffer
+            from datetime import timedelta
+            end_time = self.scheduled_date_time + timedelta(minutes=test_duration_minutes)
+            return self.scheduled_date_time <= current_time <= end_time
+            
+        return False
+    
+    def get_availability_status(self):
+        """Get human-readable availability status"""
+        if not self.is_active:
+            return "Inactive"
+        elif self.is_open_test():
+            return "Available Anytime"
+        elif self.is_scheduled_test():
+            from django.utils import timezone
+            current_time = timezone.now()
+            
+            if current_time < self.scheduled_date_time:
+                return f"Scheduled for {self.scheduled_date_time.strftime('%Y-%m-%d %H:%M')}"
+            elif self.is_available_now():
+                return "Available Now (Live)"
+            else:
+                return "Test Window Closed"
+        return "Unknown Status"
 
 class TestSession(models.Model):
     """

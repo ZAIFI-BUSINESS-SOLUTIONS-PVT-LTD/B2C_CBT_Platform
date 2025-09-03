@@ -40,10 +40,16 @@ export const API_CONFIG = {
     CHAT_SESSION_SEND_MESSAGE: (sessionId: string) => `/api/chat-sessions/${sessionId}/send-message/`,
     CHAT_QUICK: '/api/chatbot/quick-chat/',
     CHAT_STATISTICS: '/api/chatbot/statistics/',
-  // Password reset endpoints
-  AUTH_FORGOT_PASSWORD: '/api/auth/forgot-password/',
-  AUTH_VERIFY_RESET: '/api/auth/verify-reset-token/',
-  AUTH_RESET_PASSWORD: '/api/auth/reset-password/',
+    
+    // Platform Tests endpoints
+    PLATFORM_TESTS_AVAILABLE: '/api/platform-tests/available/',
+    PLATFORM_TEST_DETAIL: (testId: number) => `/api/platform-tests/${testId}/`,
+    PLATFORM_TEST_START: (testId: number) => `/api/platform-tests/${testId}/start/`,
+    
+    // Password reset endpoints
+    AUTH_FORGOT_PASSWORD: '/api/auth/forgot-password/',
+    AUTH_VERIFY_RESET: '/api/auth/verify-reset-token/',
+    AUTH_RESET_PASSWORD: '/api/auth/reset-password/',
   },
 };
 
@@ -54,7 +60,7 @@ export const buildApiUrl = (endpoint: string, id?: number | string) => {
 };
 
 // --- API Utility Functions for Auth and Test Session Creation ---
-import { LoginCredentials, LoginResponse, CreateTestSessionRequest, CreateTestSessionResponse } from "@/types/api";
+import { LoginCredentials, LoginResponse, CreateTestSessionRequest, CreateTestSessionResponse, AvailablePlatformTestsResponse, StartPlatformTestRequest, StartPlatformTestResponse, PlatformTest } from "@/types/api";
 import { apiRequest } from "@/lib/queryClient";
 
 /**
@@ -75,4 +81,30 @@ export async function loginStudent(credentials: LoginCredentials): Promise<Login
 export async function createTestSession(data: CreateTestSessionRequest): Promise<CreateTestSessionResponse> {
   // Assumes backend endpoint: /api/test-sessions/ (POST)
   return await apiRequest(API_CONFIG.ENDPOINTS.TEST_SESSIONS, "POST", data);
+}
+
+/**
+ * Get all available platform tests (scheduled and open)
+ * @returns AvailablePlatformTestsResponse
+ */
+export async function getAvailablePlatformTests(): Promise<AvailablePlatformTestsResponse> {
+  return await apiRequest(API_CONFIG.ENDPOINTS.PLATFORM_TESTS_AVAILABLE, "GET");
+}
+
+/**
+ * Get details of a specific platform test
+ * @param testId Platform test ID
+ * @returns PlatformTest
+ */
+export async function getPlatformTestDetails(testId: number): Promise<PlatformTest> {
+  return await apiRequest(API_CONFIG.ENDPOINTS.PLATFORM_TEST_DETAIL(testId), "GET");
+}
+
+/**
+ * Start a platform test (create a test session for platform test)
+ * @param data StartPlatformTestRequest
+ * @returns StartPlatformTestResponse
+ */
+export async function startPlatformTest(data: StartPlatformTestRequest): Promise<StartPlatformTestResponse> {
+  return await apiRequest(API_CONFIG.ENDPOINTS.PLATFORM_TEST_START(data.testId), "POST", data);
 }

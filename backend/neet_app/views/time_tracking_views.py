@@ -98,6 +98,13 @@ class TimeTrackingViewSet(viewsets.GenericViewSet):
             test_answer.save(update_fields=['time_taken', 'answered_at', 'visit_count'])
             
             logger.info(f"✅ Successfully logged {time_spent} seconds for question {question_id} in session {session_id}. Total time: {test_answer.time_taken}")
+            # Also update session.total_time_taken by summing the increment
+            try:
+                previous_total = session.total_time_taken or 0
+                session.total_time_taken = previous_total + time_spent
+                session.save(update_fields=['total_time_taken'])
+            except Exception:
+                logger.exception('Failed to update session.total_time_taken')
             
             return Response({
                 "status": "success",

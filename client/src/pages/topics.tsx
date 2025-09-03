@@ -57,7 +57,7 @@ export default function Topics() {
                   </Button>
                 </Link>
               )}
-              <Link href="/dashboard">
+              <Link href="/test-history">
                 <Button variant="outline" className="flex items-center gap-1.5 border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC] text-sm px-2 py-1.5">
                   <TrendingUp className="h-3 w-3" />
                   <span className="text-xs">Test History</span>

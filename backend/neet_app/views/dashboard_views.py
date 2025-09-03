@@ -1,5 +1,5 @@
 import random
-from django.db.models import Avg, Count, Max, Min, Sum
+from django.db.models import Avg, Count, Max, Min, Sum, Q
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -21,10 +21,15 @@ def dashboard_analytics(request):
     
     student_id = request.user.student_id
     
-    # Get all completed test sessions for this specific student only
+    # Get all sessions for this student; treat a session as completed if any of:
+    # - is_completed == True
+    # - end_time is not null (submit likely set end_time)
+    # - total_time_taken is not null (summary persisted)
+    # This is defensive: some older flows may have missed setting the boolean.
     completed_sessions = TestSession.objects.filter(
-        student_id=student_id, 
-        is_completed=True
+        student_id=student_id
+    ).filter(
+        Q(is_completed=True) | Q(end_time__isnull=False) | Q(total_time_taken__isnull=False)
     ).order_by('start_time')
 
     if not completed_sessions.exists():
@@ -165,7 +170,10 @@ def dashboard_comprehensive_analytics(request):
     
     # Filter all queries by the authenticated student
     all_sessions = TestSession.objects.filter(student_id=student_id)
-    completed_sessions = all_sessions.filter(is_completed=True)
+    # Defensive completed sessions filter (see comment above)
+    completed_sessions = all_sessions.filter(
+        Q(is_completed=True) | Q(end_time__isnull=False) | Q(total_time_taken__isnull=False)
+    )
 
     if not completed_sessions.exists():
         return Response({
@@ -186,6 +194,10 @@ def dashboard_comprehensive_analytics(request):
             'subjectPerformance': [],
             'timeBasedTrends': [],
             'studyRecommendations': []
+            # Add unique questions attempted (0) and total questions in bank
+            ,
+            'uniqueQuestionsAttempted': 0,
+            'totalQuestionsInBank': Question.objects.count()
         })
 
     total_tests = completed_sessions.count()
@@ -271,6 +283,8 @@ def dashboard_comprehensive_analytics(request):
         area['consistency'] = round(random.uniform(80, 100), 2)
 
     time_based_trends_raw = []
+    # Prepare an ordered list of completed session ids to compute per-student test numbers
+    all_completed_ids = list(completed_sessions.order_by('start_time').values_list('id', flat=True))
     recent_sessions_desc = completed_sessions.order_by('-start_time')[:7]
     for session in recent_sessions_desc:
         session_answers = TestAnswer.objects.filter(session=session)
@@ -280,11 +294,18 @@ def dashboard_comprehensive_analytics(request):
         session_time_spent_on_answers = session_answers.aggregate(total_time=Sum('time_taken'))['total_time'] or 0
         session_speed = (session_time_spent_on_answers / session_answers.count()) if session_answers.count() > 0 else 0
 
+        # Compute the ordinal test number for this student (1-based)
+        try:
+            test_number = all_completed_ids.index(session.id) + 1
+        except ValueError:
+            test_number = None
+
         time_based_trends_raw.append({
             'date': session.start_time.isoformat().split('T')[0],
             'accuracy': round(session_accuracy, 2),
             'speed': round(session_speed, 2),
-            'testsCount': 1
+            'testsCount': 1,
+            'testNumber': test_number
         })
     time_based_trends = time_based_trends_raw[::-1]
 
@@ -317,6 +338,73 @@ def dashboard_comprehensive_analytics(request):
             'actionTip': 'Attempt previous year questions and advanced problem sets'
         })
 
+    # Compute unique questions attempted and total bank size
+    unique_questions_attempted = all_answers_for_completed_sessions.values_list('question_id', flat=True).distinct().count()
+    total_questions_in_bank = Question.objects.count()
+
+    # --- New: Aggregations for the past 7 tests ---
+    # recent_sessions_desc already contains up to 7 most recent sessions (ordered desc)
+    recent_sessions_for_agg = list(recent_sessions_desc)
+    # Answers limited to most recent 7 sessions
+    recent_answers = all_answers_for_completed_sessions.filter(session__in=recent_sessions_desc)
+
+    # Subject-wise accuracy distribution across past 7 tests
+    subject_accuracy_past7 = []
+    for subject_name in all_subjects:
+        topic_ids_for_subject = Topic.objects.filter(subject=subject_name).values_list('id', flat=True)
+        subj_answers = recent_answers.filter(question__topic_id__in=topic_ids_for_subject)
+        subj_total = subj_answers.count()
+        subj_correct = subj_answers.filter(is_correct=True).count()
+        subj_accuracy = (subj_correct / subj_total * 100) if subj_total > 0 else 0
+
+        subject_accuracy_past7.append({
+            'subject': subject_name,
+            'totalQuestions': subj_total,
+            'correctAnswers': subj_correct,
+            'accuracy': round(subj_accuracy, 2)
+        })
+
+    # Time distribution (sec) between correct / incorrect / unanswered for past 7 tests
+    from django.db.models import Q as DjangoQ
+
+    overall_correct_time = recent_answers.filter(is_correct=True).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+    overall_incorrect_time = recent_answers.filter(is_correct=False).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+    overall_unanswered_time = recent_answers.filter(DjangoQ(is_correct__isnull=True) | DjangoQ(selected_answer__isnull=True)).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+
+    # Compute averages per test (over the number of recent sessions considered)
+    sessions_count = max(1, len(recent_sessions_for_agg))
+    overall_correct_avg = round(overall_correct_time / sessions_count, 2)
+    overall_incorrect_avg = round(overall_incorrect_time / sessions_count, 2)
+    overall_unanswered_avg = round(overall_unanswered_time / sessions_count, 2)
+
+    time_distribution_overall = [
+        {'status': 'correct', 'timeSec': overall_correct_time, 'avgTimeSec': overall_correct_avg},
+        {'status': 'incorrect', 'timeSec': overall_incorrect_time, 'avgTimeSec': overall_incorrect_avg},
+        {'status': 'unanswered', 'timeSec': overall_unanswered_time, 'avgTimeSec': overall_unanswered_avg},
+    ]
+
+    # By-subject breakdown
+    time_distribution_by_subject = {}
+    for subject_name in all_subjects:
+        topic_ids_for_subject = Topic.objects.filter(subject=subject_name).values_list('id', flat=True)
+        subj_answers = recent_answers.filter(question__topic_id__in=topic_ids_for_subject)
+        correct_t = subj_answers.filter(is_correct=True).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+        incorrect_t = subj_answers.filter(is_correct=False).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+        unanswered_t = subj_answers.filter(DjangoQ(is_correct__isnull=True) | DjangoQ(selected_answer__isnull=True)).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+
+        # Average per test for this subject across recent sessions
+        correct_avg = round(correct_t / sessions_count, 2)
+        incorrect_avg = round(incorrect_t / sessions_count, 2)
+        unanswered_avg = round(unanswered_t / sessions_count, 2)
+
+        time_distribution_by_subject[subject_name] = [
+            {'status': 'correct', 'timeSec': correct_t, 'avgTimeSec': correct_avg},
+            {'status': 'incorrect', 'timeSec': incorrect_t, 'avgTimeSec': incorrect_avg},
+            {'status': 'unanswered', 'timeSec': unanswered_t, 'avgTimeSec': unanswered_avg},
+        ]
+
+    subjects_list = list(all_subjects)
+
     return Response({
         'totalTests': total_tests,
         'totalQuestions': total_questions_attempted,
@@ -329,5 +417,14 @@ def dashboard_comprehensive_analytics(request):
         'challengingAreas': challenging_areas,
         'subjectPerformance': subject_performance_summary,
         'timeBasedTrends': time_based_trends,
-        'studyRecommendations': study_recommendations
+        'studyRecommendations': study_recommendations,
+        'uniqueQuestionsAttempted': unique_questions_attempted,
+        'totalQuestionsInBank': total_questions_in_bank,
+        # New payloads for pie charts (past 7 tests)
+        'subjectAccuracyPast7': subject_accuracy_past7,
+        'timeDistributionPast7': {
+            'overall': time_distribution_overall,
+            'bySubject': time_distribution_by_subject,
+            'subjects': subjects_list
+        }
     })

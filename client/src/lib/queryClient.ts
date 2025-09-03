@@ -2,6 +2,13 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { API_CONFIG } from "@/config/api"; // <--- Crucial: Import your API_CONFIG
 import { getAccessToken, authenticatedFetch } from "@/lib/auth"; // Import JWT utilities
 
+// Helper to read cookie by name (used for CSRF token)
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp('(^|; )' + name + '=([^;]*)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
 // Helper function to throw an error if the response is not OK
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -52,6 +59,12 @@ export async function apiRequest(
       return method === "DELETE" ? null : await res.json();
     } else {
       // For non-authenticated requests (like login), use regular fetch
+      // Ensure CSRF token is provided for unsafe methods when using session-based auth
+      // (Django will reject POST/PUT/DELETE without X-CSRFToken when using SessionAuthentication)
+      if (!headers['X-CSRFToken'] && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) {
+        const csrf = getCookie('csrftoken') || getCookie('csrf');
+        if (csrf) headers['X-CSRFToken'] = csrf;
+      }
       const res = await fetch(fullUrl, {
         method,
         headers,

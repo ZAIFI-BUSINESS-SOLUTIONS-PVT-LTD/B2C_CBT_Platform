@@ -51,6 +51,26 @@ class TestAnswerViewSet(viewsets.ModelViewSet):
                 # We don't update time_taken here to avoid conflicts
             }
         )
+        
+        # If selected_answer provided, set answered_at (if not already) and compute is_correct immediately
+        sel = validated_data.get('selected_answer', None)
+        updated_fields = []
+        if sel is not None:
+            if not answer.answered_at:
+                from django.utils import timezone
+                answer.answered_at = timezone.now()
+                updated_fields.append('answered_at')
+            # Determine correctness
+            try:
+                correct_flag = (str(sel) == str(question.correct_answer))
+            except Exception:
+                correct_flag = False
+            if answer.is_correct != correct_flag:
+                answer.is_correct = correct_flag
+                updated_fields.append('is_correct')
+        
+        if updated_fields:
+            answer.save(update_fields=updated_fields)
 
         return Response(
             TestAnswerSerializer(answer).data,

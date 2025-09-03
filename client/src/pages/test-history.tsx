@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { TestSession } from "@/types/api";
 import { API_CONFIG } from "@/config/api";
+import { AvailablePlatformTestsResponse } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,6 +25,24 @@ export default function TestHistory() {
   const { data, isLoading, error } = useQuery<any, Error>({
     queryKey: [API_CONFIG.ENDPOINTS.TEST_SESSIONS],
   });
+
+  // Fetch available platform tests once to map platformTest id -> testName
+  const { data: platformData } = useQuery<AvailablePlatformTestsResponse | any>({
+    queryKey: [API_CONFIG.ENDPOINTS.PLATFORM_TESTS_AVAILABLE],
+    staleTime: 1000 * 60 * 5, // cache for 5 minutes
+  });
+
+  const platformNameMap = useMemo(() => {
+    const m = new Map<number, string>();
+    if (!platformData) return m;
+    const scheduled = platformData.scheduledTests ?? platformData.results?.scheduledTests ?? [];
+    const open = platformData.openTests ?? platformData.results?.openTests ?? [];
+    const all = Array.isArray(scheduled) ? scheduled.concat(Array.isArray(open) ? open : []) : [];
+    for (const p of all) {
+      if (p && typeof p.id === 'number' && p.testName) m.set(p.id, p.testName);
+    }
+    return m;
+  }, [platformData]);
 
   // Normalise paginated or plain-list responses
   const sessions: TestSession[] = useMemo(() => {
@@ -81,6 +100,7 @@ export default function TestHistory() {
                   <thead>
                     <tr className="text-left text-sm text-slate-600">
                       <th className="py-3 px-4">Test Number</th>
+                      <th className="py-3 px-4">Test Name</th>
                       <th className="py-3 px-4">Correct</th>
                       <th className="py-3 px-4">Incorrect</th>
                       <th className="py-3 px-4">Unanswered</th>
@@ -97,6 +117,15 @@ export default function TestHistory() {
                       >
                         {/* Display sequential test number per-student where top row = latest test number */}
                         <td className="py-4 px-4 align-middle font-medium text-slate-800">#{sessions.length - idx}</td>
+                        <td className="py-4 px-4 align-middle text-slate-700">
+                          {(() => {
+                            if (s.testType === 'platform') {
+                              const name = s.platformTest ? platformNameMap.get(Number(s.platformTest)) : null;
+                              return name ?? 'Platform Test';
+                            }
+                            return 'Practice Test';
+                          })()}
+                        </td>
                         {/* Use authoritative results when available */}
                         {(() => {
                           const r = resultsQueries[idx];

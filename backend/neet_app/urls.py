@@ -24,6 +24,9 @@ from .views.insights_views import (
 from .views.google_auth_views import (
     google_auth, link_google_account, unlink_google_account
 )
+from .views.platform_test_views import (
+    list_available_platform_tests, start_platform_test, get_platform_test_details
+)
 from .authentication import StudentTokenObtainPairView
 from .views.password_reset_views import forgot_password, verify_reset_token, reset_password
 
@@ -85,4 +88,9 @@ urlpatterns = [
     path('insights/cache/', get_insights_cache, name='insights-cache'),
     path('insights/topics/', get_topic_details, name='topic-details'),
     path('insights/config/', get_insights_config, name='insights-config'),
+    
+    # Platform Test endpoints for scheduled/open tests
+    path('platform-tests/available/', list_available_platform_tests, name='list-available-platform-tests'),
+    path('platform-tests/<int:test_id>/', get_platform_test_details, name='platform-test-details'),
+    path('platform-tests/<int:test_id>/start/', start_platform_test, name='start-platform-test'),
 ]

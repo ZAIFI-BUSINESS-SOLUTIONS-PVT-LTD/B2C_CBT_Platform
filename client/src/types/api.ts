@@ -86,12 +86,67 @@ export interface Question {
 }
 
 /**
+ * Type representing a PlatformTest record as it will be returned by your Django API.
+ * Directly corresponds to the 'PlatformTest' model in your models.py.
+ */
+export interface PlatformTest {
+  id: number; // models.AutoField(primary_key=True) -> number
+  testName: string; // models.TextField(null=False) -> string (camelCase from test_name)
+  testCode: string; // models.CharField(max_length=50, unique=True, null=False) -> string (camelCase from test_code)
+  testYear: number | null; // models.IntegerField(null=True, blank=True) -> number or null (camelCase from test_year)
+  testType: string | null; // models.TextField(null=True, blank=True) -> string or null (camelCase from test_type)
+  description: string | null; // models.TextField(null=True, blank=True) -> string or null
+  instructions: string | null; // models.TextField(null=True, blank=True) -> string or null
+  timeLimit: number; // models.IntegerField(null=False) -> number (camelCase from time_limit)
+  totalQuestions: number; // models.IntegerField(null=False) -> number (camelCase from total_questions)
+  selectedTopics: number[]; // models.JSONField(null=False) -> number[] (camelCase from selected_topics)
+  questionDistribution: any | null; // models.JSONField(null=True, blank=True) -> any or null (camelCase from question_distribution)
+  isActive: boolean; // models.BooleanField(default=True) -> boolean (camelCase from is_active)
+  createdAt: string; // models.DateTimeField(auto_now_add=True, null=False) -> string (camelCase from created_at)
+  updatedAt: string; // models.DateTimeField(auto_now=True, null=False) -> string (camelCase from updated_at)
+  scheduledDateTime: string | null; // models.DateTimeField(null=True, blank=True) -> string or null (camelCase from scheduled_date_time)
+  // Computed properties
+  isScheduled: boolean; // Whether this test has a scheduled date/time
+  isAvailable: boolean; // Whether this test is currently available to attempt
+  availabilityStatus: 'scheduled' | 'open' | 'expired'; // Status of the test
+  // Per-student computed flags returned by the available-tests endpoint
+  hasCompleted?: boolean; // Whether the currently-authenticated student has completed this test
+  hasActiveSession?: boolean; // Whether the currently-authenticated student has an active session for this test
+}
+
+/**
+ * Type for available platform tests list response
+ */
+export interface AvailablePlatformTestsResponse {
+  scheduledTests: PlatformTest[];
+  openTests: PlatformTest[];
+}
+
+/**
+ * Type for starting a platform test
+ */
+export interface StartPlatformTestRequest {
+  testId: number;
+}
+
+/**
+ * Type for platform test start response
+ */
+export interface StartPlatformTestResponse {
+  session: TestSession;
+  questions: Question[];
+  testDetails: PlatformTest;
+}
+
+/**
  * Type representing a TestSession record as it will be returned by your Django API.
  * Directly corresponds to the 'TestSession' model in your models.py.
  */
 export interface TestSession {
   id: number; // models.AutoField(primary_key=True) -> number
   studentId: string; // models.CharField(max_length=20, null=False) -> string (camelCase from student_id)
+  testType: 'custom' | 'platform'; // models.CharField(choices=[('custom', 'Custom Test'), ('platform', 'Platform Test')]) (camelCase from test_type)
+  platformTest: number | null; // models.ForeignKey(PlatformTest) -> number or null (camelCase from platform_test)
   selectedTopics: string[]; // models.JSONField(null=False) storing string IDs -> string[] (camelCase from selected_topics)
   physicsTopics: string[]; // models.JSONField(default=list, blank=True) -> string[] (camelCase from physics_topics)
   chemistryTopics: string[]; // models.JSONField(default=list, blank=True) -> string[] (camelCase from chemistry_topics)

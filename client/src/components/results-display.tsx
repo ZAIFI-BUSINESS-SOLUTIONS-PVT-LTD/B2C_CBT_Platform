@@ -213,7 +213,7 @@ export function ResultsDisplay({ results }: ResultsDisplayProps) {
                 Performance Analytics
               </Button>
               <Button
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/test-history')}
                 className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 text-xs font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
               >
                 <BarChart3 className="h-3 w-3 mr-1" />

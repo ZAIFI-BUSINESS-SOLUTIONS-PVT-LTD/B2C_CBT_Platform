@@ -1,6 +1,6 @@
 # your_app_name/serializers.py
 from rest_framework import serializers
-from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage
+from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, PlatformTest
 from django.db.models import F
 from django.utils import timezone
 
@@ -9,6 +9,39 @@ class TopicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Topic
         fields = '__all__'
+
+
+class PlatformTestSerializer(serializers.ModelSerializer):
+    is_scheduled = serializers.SerializerMethodField()
+    is_open = serializers.SerializerMethodField()
+    is_available_now = serializers.SerializerMethodField()
+    availability_status = serializers.SerializerMethodField()
+    duration = serializers.SerializerMethodField()  # Alias for time_limit
+    
+    class Meta:
+        model = PlatformTest
+        fields = [
+            'id', 'test_name', 'test_code', 'test_year', 'test_type',
+            'description', 'instructions', 'time_limit', 'duration', 'total_questions',
+            'scheduled_date_time', 'is_scheduled', 'is_open', 'is_available_now',
+            'availability_status', 'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+    
+    def get_is_scheduled(self, obj):
+        return obj.is_scheduled_test()
+    
+    def get_is_open(self, obj):
+        return obj.is_open_test()
+    
+    def get_is_available_now(self, obj):
+        return obj.is_available_now()
+    
+    def get_availability_status(self, obj):
+        return obj.get_availability_status()
+    
+    def get_duration(self, obj):
+        return obj.time_limit
 
 
 # --- SECURITY CRITICAL ---
@@ -30,12 +63,14 @@ class QuestionSerializer(serializers.ModelSerializer):
 class TestSessionSerializer(serializers.ModelSerializer):
     student_name = serializers.SerializerMethodField()
     overall_score = serializers.SerializerMethodField()
+    platform_test_details = serializers.SerializerMethodField()
+    test_name = serializers.SerializerMethodField()
     
     class Meta:
         model = TestSession
         fields = [
-            'id', 'student_id', 'student_name', 'selected_topics', 
-            'physics_topics', 'chemistry_topics', 'botany_topics', 'zoology_topics',
+            'id', 'student_id', 'student_name', 'test_type', 'platform_test', 'platform_test_details',
+            'test_name', 'selected_topics', 'physics_topics', 'chemistry_topics', 'botany_topics', 'zoology_topics',
             'time_limit', 'question_count', 'start_time', 'end_time', 'is_completed',
             'total_questions', 'correct_answers', 'incorrect_answers', 'unanswered',
             'total_time_taken', 'physics_score', 'chemistry_score', 'botany_score',
@@ -53,6 +88,22 @@ class TestSessionSerializer(serializers.ModelSerializer):
     
     def get_overall_score(self, obj):
         return obj.calculate_score_percentage()
+    
+    def get_platform_test_details(self, obj):
+        if obj.test_type == 'platform' and obj.platform_test:
+            return {
+                'id': obj.platform_test.id,
+                'test_name': obj.platform_test.test_name,
+                'test_code': obj.platform_test.test_code,
+                'test_type': obj.platform_test.test_type,
+                'scheduled_date_time': obj.platform_test.scheduled_date_time.isoformat() if obj.platform_test.scheduled_date_time else None,
+                'is_scheduled': obj.platform_test.is_scheduled_test(),
+                'availability_status': obj.platform_test.get_availability_status()
+            }
+        return None
+    
+    def get_test_name(self, obj):
+        return obj.get_test_name()
 
 
 class TestSessionCreateSerializer(serializers.Serializer):
@@ -147,6 +198,12 @@ class TestSessionCreateSerializer(serializers.Serializer):
         # Handle different test types
         test_type = validated_data.get('test_type', 'search')
         selected_topics = validated_data.get('selected_topics', [])
+        # Ensure selected_topics are stored as a list of ints (normalize incoming strings)
+        try:
+            selected_topics = [int(t) for t in selected_topics] if selected_topics is not None else []
+        except (ValueError, TypeError):
+            # If conversion fails, fall back to original list to avoid raising unexpected errors here
+            pass
         time_limit = validated_data.get('time_limit')
         question_count = validated_data.get('question_count')
         
