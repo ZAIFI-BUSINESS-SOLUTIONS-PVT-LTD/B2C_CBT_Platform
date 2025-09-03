@@ -298,3 +298,42 @@ export interface AnalyticsData {
   totalTimeSpent: number;
 }
 
+/**
+ * Platform Test Analytics Data
+ */
+export interface PlatformTestAnalyticsData {
+  availableTests: Array<{
+    id: number;
+    testName: string;
+    testCode: string;
+    testYear: number | null;
+    testType: string | null;
+  }>;
+  selectedTestMetrics: {
+    testId: number;
+    testName: string;
+    testCode: string;
+    overallAccuracy: number;
+    rank: number | null;
+    totalStudents: number;
+    percentile: number | null;
+    avgTimePerQuestion: number;
+    sessionId?: number;
+    testDate?: string;
+    message?: string;
+    error?: string;
+    // Optional leaderboard of top performers for this test
+    leaderboard?: Array<{
+      studentId?: string;
+      studentName: string;
+      overallAccuracy: number | null;
+      physics?: number | null;
+      chemistry?: number | null;
+      botany?: number | null;
+      zoology?: number | null;
+      timeTakenSec?: number | null;
+      rank?: number | null;
+    }>;
+  } | null;
+}
+

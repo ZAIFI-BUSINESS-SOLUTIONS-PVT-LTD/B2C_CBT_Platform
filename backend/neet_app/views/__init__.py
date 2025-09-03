@@ -5,7 +5,7 @@ from .test_session_views import TestSessionViewSet
 from .test_answer_views import TestAnswerViewSet
 from .student_profile_views import StudentProfileViewSet
 from .review_comment_views import ReviewCommentViewSet
-from .dashboard_views import dashboard_analytics, dashboard_comprehensive_analytics
+from .dashboard_views import dashboard_analytics, dashboard_comprehensive_analytics, platform_test_analytics
 from .time_tracking_views import TimeTrackingViewSet
 from .chatbot_views import ChatSessionViewSet, chat_statistics
 from .insights_views import get_student_insights, get_topic_details, get_insights_config
@@ -22,6 +22,7 @@ __all__ = [
     'ChatSessionViewSet',
     'dashboard_analytics',
     'dashboard_comprehensive_analytics',
+    'platform_test_analytics',
     'chat_statistics',
     'get_student_insights',
     'get_topic_details', 

@@ -29,6 +29,7 @@ export const API_CONFIG = {
     // Add other custom endpoints here if you have them, e.g.:
     DASHBOARD_ANALYTICS: '/api/dashboard/analytics/',
     DASHBOARD_COMPREHENSIVE_ANALYTICS: '/api/dashboard/comprehensive-analytics/',
+    DASHBOARD_PLATFORM_TEST_ANALYTICS: '/api/dashboard/platform-test-analytics/',
     
     // Time tracking endpoint
     TEST_SESSION_LOG_TIME: '/api/time-tracking/log_time/',

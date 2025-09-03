@@ -24,6 +24,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   BarChart, 
   Bar, 
@@ -68,9 +69,13 @@ import {
   ChevronRight,
   Timer,
   Lightbulb,
-  MessageCircle
+  MessageCircle,
+  Medal,
+  TrendingDown
 } from "lucide-react";
 import { StudentProfile } from "@/components/student-profile";
+import { API_CONFIG } from "@/config/api";
+import { authenticatedFetch } from "@/lib/auth";
 
 // Color scheme for charts
 const COLORS = {
@@ -118,6 +123,14 @@ interface AnalyticsData {
     // averageScore removed: field no longer exists
   }>;
   subjectAccuracyPast7?: Array<{
+    subject: string;
+    totalQuestions: number;
+    correctAnswers: number;
+    accuracy: number;
+  }>;
+  topicPerformance?: Array<{
+    topicId?: number | string;
+    topic: string;
     subject: string;
     totalQuestions: number;
     correctAnswers: number;
@@ -206,6 +219,51 @@ interface InsightsData {
   cached?: boolean;
 }
 
+interface PlatformTestAnalyticsData {
+  availableTests: Array<{
+    id: number;
+    testName: string;
+    testCode: string;
+    testYear: number | null;
+    testType: string | null;
+  }>;
+  selectedTestMetrics: {
+    testId: number;
+    testName: string;
+    testCode: string;
+    overallAccuracy: number;
+    rank: number | null;
+    totalStudents: number;
+    percentile: number | null;
+    avgTimePerQuestion: number;
+    sessionId?: number;
+    testDate?: string;
+    message?: string;
+    error?: string;
+    leaderboard?: Array<{
+      studentId: string;
+      studentName: string;
+      accuracy: number;
+      physics?: number | null;
+      chemistry?: number | null;
+      botany?: number | null;
+      zoology?: number | null;
+      timeTakenSec: number;
+      rank: number;
+    }>;
+    subjectAccuracyForTest?: Array<{
+      subject: string;
+      accuracy: number | null;
+      totalQuestions: number;
+    }>;
+    timeDistributionForTest?: {
+      overall: Array<{ status: string; timeSec: number }>;
+      bySubject: { [subject: string]: Array<{ status: string; timeSec: number }> };
+      subjects: string[];
+    };
+  } | null;
+}
+
 const CHART_COLORS = [COLORS.primary, COLORS.success, COLORS.warning, COLORS.purple];
 
 /**
@@ -214,6 +272,7 @@ const CHART_COLORS = [COLORS.primary, COLORS.success, COLORS.warning, COLORS.pur
 export default function LandingDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [timeDistSubject, setTimeDistSubject] = useState<string>('All');
+  const [selectedPlatformTestId, setSelectedPlatformTestId] = useState<string | null>(null);
   const { isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
 
@@ -254,6 +313,39 @@ export default function LandingDashboard() {
     refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
     enabled: isAuthenticated && !loading, // Only run when authenticated
   });
+
+  // Fetch platform test analytics data
+  const { data: platformTestData, isLoading: platformTestLoading } = useQuery<PlatformTestAnalyticsData>({
+    queryKey: [API_CONFIG.ENDPOINTS.DASHBOARD_PLATFORM_TEST_ANALYTICS, selectedPlatformTestId],
+    queryFn: async () => {
+      const endpoint = selectedPlatformTestId 
+        ? `${API_CONFIG.ENDPOINTS.DASHBOARD_PLATFORM_TEST_ANALYTICS}?test_id=${selectedPlatformTestId}`
+        : API_CONFIG.ENDPOINTS.DASHBOARD_PLATFORM_TEST_ANALYTICS;
+      const url = `${API_CONFIG.BASE_URL}${endpoint}`;
+
+      const response = await authenticatedFetch(url);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch platform test analytics');
+      }
+
+      return response.json();
+    },
+    enabled: isAuthenticated && !loading,
+    refetchInterval: 30000,
+  });
+
+  // Debug: log platform test data so we can inspect in browser console
+  useEffect(() => {
+    try {
+      console.log('PlatformTestData', { platformTestData, platformTestLoading });
+    } catch (e) {
+      // ignore in production
+    }
+  }, [platformTestData, platformTestLoading]);
+
+  // Local state for selected subject within selected-test view (for time distribution slicer)
+  const [selectedTestSubjectFilter, setSelectedTestSubjectFilter] = useState<string>('All');
 
 
 
@@ -530,131 +622,380 @@ export default function LandingDashboard() {
           </InsightCard>
         </div>
 
-        {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <MetricCard
-            title="Total Tests"
-            value={analytics.totalTests}
-            icon={<Trophy className="h-5 w-5" />}
-            color="bg-[#4F83FF]"
-          />
-          <MetricCard
-            title="Overall Accuracy"
-            value={`${analytics.overallAccuracy.toFixed(1)}%`}
-            icon={<Target className="h-5 w-5" />}
-            color="bg-[#8B5CF6]"
-          />
-          <MetricCard
-            title="Avg. Speed"
-            value={`${Math.round(analytics.averageTimePerQuestion)}s`}
-            icon={<Timer className="h-5 w-5" />}
-            color="bg-[#F59E0B]"
-          />
-          <MetricCard
-            title="Questions"
-            value={`${analytics.uniqueQuestionsAttempted ?? 0}/${analytics.totalQuestionsInBank ?? 0}`}
-            icon={<BookOpen className="h-5 w-5" />}
-            color="bg-[#10B981]"
-          />
-        </div>
+  {/* Overview Cards moved into Overview tab (see TabsContent value="overview") */}
 
-        {/* Main Dashboard Content */}
+        {/* Main Dashboard Content with Tabs */}
         <div className="w-full">
-          {/* Performance Overview - Full Width */}
-          <div className="w-full space-y-6">
-            {/* Performance Overview */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  Performance Overview
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                  {/* New: Two pie charts above the Trends chart */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-                    <Card className="p-4">
-                      <h4 className="text-md font-medium mb-2">Subject-wise Accuracy (Past 7 tests)</h4>
-                      <div className="h-48 flex items-center justify-center">
-                        {analytics.subjectAccuracyPast7 && analytics.subjectAccuracyPast7.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={analytics.subjectAccuracyPast7}
-                                dataKey="accuracy"
-                                nameKey="subject"
-                                innerRadius={40}
-                                outerRadius={70}
-                                label={(entry) => `${entry.subject}: ${entry.accuracy}%`}
-                              >
-                                {analytics.subjectAccuracyPast7.map((entry, idx) => (
-                                  <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
-                                ))}
-                              </Pie>
-                              <Tooltip formatter={(value: any) => `${value}%`} />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <div className="text-sm text-gray-500">No data - take some tests to see subject accuracy.</div>
-                        )}
-                      </div>
-                    </Card>
+          <Tabs defaultValue="overview">
+            <TabsList className="mb-4">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="alternate">Alternate</TabsTrigger>
+            </TabsList>
 
-                    <Card className="p-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-md font-medium mb-2">Time Distribution (Past 7 tests)</h4>
-                        <select
-                          className="border rounded px-2 py-1 text-sm"
-                          value={timeDistSubject}
-                          onChange={(e) => setTimeDistSubject(e.target.value)}
-                        >
-                          <option value="All">All</option>
-                          {analytics.timeDistributionPast7?.subjects?.map((s) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
+            <TabsContent value="overview">
+              {/* Metric Cards (Overview) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <MetricCard
+                  title="Total Tests"
+                  value={analytics.totalTests}
+                  icon={<Trophy className="h-5 w-5" />}
+                  color="bg-[#4F83FF]"
+                />
+                <MetricCard
+                  title="Overall Accuracy"
+                  value={`${analytics.overallAccuracy.toFixed(1)}%`}
+                  icon={<Target className="h-5 w-5" />}
+                  color="bg-[#8B5CF6]"
+                />
+                <MetricCard
+                  title="Avg. Speed"
+                  value={`${Math.round(analytics.averageTimePerQuestion)}s`}
+                  icon={<Timer className="h-5 w-5" />}
+                  color="bg-[#F59E0B]"
+                />
+                <MetricCard
+                  title="Questions"
+                  value={`${analytics.uniqueQuestionsAttempted ?? 0}/${analytics.totalQuestionsInBank ?? 0}`}
+                  icon={<BookOpen className="h-5 w-5" />}
+                  color="bg-[#10B981]"
+                />
+              </div>
+
+              {/* Performance Overview - Full Width (existing content) */}
+              <div className="w-full space-y-6">
+                {/* Performance Overview */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Activity className="h-5 w-5" />
+                      Performance Overview
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                      {/* New: Two pie charts above the Trends chart */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                        <Card className="p-4">
+                          <h4 className="text-md font-medium mb-2">Subject-wise Accuracy (Past 7 tests)</h4>
+                          <div className="h-48 flex items-center justify-center">
+                            {analytics.subjectAccuracyPast7 && analytics.subjectAccuracyPast7.length > 0 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={analytics.subjectAccuracyPast7}
+                                    dataKey="accuracy"
+                                    nameKey="subject"
+                                    innerRadius={40}
+                                    outerRadius={70}
+                                    label={(entry) => `${entry.subject}: ${entry.accuracy}%`}
+                                  >
+                                    {analytics.subjectAccuracyPast7.map((entry, idx) => (
+                                      <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                                    ))}
+                                  </Pie>
+                                  <Tooltip formatter={(value: any) => `${value}%`} />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            ) : (
+                              <div className="text-sm text-gray-500">No data - take some tests to see subject accuracy.</div>
+                            )}
+                          </div>
+                        </Card>
+
+                        <Card className="p-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-md font-medium mb-2">Time Distribution (Past 7 tests)</h4>
+                            <select
+                              className="border rounded px-2 py-1 text-sm"
+                              value={timeDistSubject}
+                              onChange={(e) => setTimeDistSubject(e.target.value)}
+                            >
+                              <option value="All">All</option>
+                              {analytics.timeDistributionPast7?.subjects?.map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="h-48 flex items-center justify-center">
+                            {analytics.timeDistributionPast7 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={(timeDistSubject === 'All' || !timeDistSubject)
+                                      ? analytics.timeDistributionPast7.overall.map(d => ({ name: d.status, value: Number((d.avgTimeSec ?? d.timeSec) || 0) }))
+                                      : analytics.timeDistributionPast7.bySubject[timeDistSubject].map(d => ({ name: d.status, value: Number((d.avgTimeSec ?? d.timeSec) || 0) }))
+                                    }
+                                    dataKey="value"
+                                    nameKey="name"
+                                    innerRadius={40}
+                                    outerRadius={70}
+                                    label={(entry) => `${entry.name}: ${Math.round(entry.value)}s`}
+                                  >
+                                    {((timeDistSubject === 'All' || !timeDistSubject)
+                                      ? analytics.timeDistributionPast7.overall
+                                      : analytics.timeDistributionPast7.bySubject[timeDistSubject]
+                                    ).map((entry, idx) => (
+                                      <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                                    ))}
+                                  </Pie>
+                                  <Tooltip formatter={(value: any) => `${Math.round(value)}s`} />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            ) : (
+                              <div className="text-sm text-gray-500">No timing data available yet.</div>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">Showing average time spent per test on correct / incorrect / unanswered across your most recent 7 tests.</p>
+                        </Card>
                       </div>
-                      <div className="h-48 flex items-center justify-center">
-                        {analytics.timeDistributionPast7 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={(timeDistSubject === 'All' || !timeDistSubject)
-                                  ? analytics.timeDistributionPast7.overall.map(d => ({ name: d.status, value: Number((d.avgTimeSec ?? d.timeSec) || 0) }))
-                                  : analytics.timeDistributionPast7.bySubject[timeDistSubject].map(d => ({ name: d.status, value: Number((d.avgTimeSec ?? d.timeSec) || 0) }))
+
+                      {/* Show only the Trends chart in Performance Overview (removed subject-wise chart) */}
+                      <div className="w-full space-y-4">
+                        <h3 className="text-lg font-medium">Trends</h3>
+                        <PerformanceTrendsChart data={analytics.timeBasedTrends} />
+                          {/* New metric and Topic-Accuracy table */}
+                          <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                            <Card className="p-4">
+                              <h4 className="text-sm text-gray-600">Topics Attempted</h4>
+                              <div className="text-2xl font-bold text-[#1F2937]">{analytics.topicPerformance ? analytics.topicPerformance.length : 0}</div>
+                              <p className="text-xs text-gray-500 mt-1">Distinct topics you've attempted across all completed tests</p>
+                            </Card>
+
+                            <div className="lg:col-span-2 bg-white rounded-lg border border-[#E2E8F0] p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="font-medium">Topic Performance</h4>
+                                <p className="text-xs text-gray-500">Accuracy = correct answers / total answers per topic</p>
+                              </div>
+                              <div className="overflow-x-auto max-h-64">
+                                <table className="min-w-full text-left text-sm">
+                                  <thead>
+                                    <tr className="text-xs text-gray-500 border-b">
+                                      <th className="py-2 px-3">Topic</th>
+                                      <th className="py-2 px-3">Subject</th>
+                                      <th className="py-2 px-3">Correct / Total</th>
+                                      <th className="py-2 px-3">Accuracy</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {analytics.topicPerformance && analytics.topicPerformance.length > 0 ? (
+                                      analytics.topicPerformance.map((row: any) => (
+                                        <tr key={row.topicId || row.topic} className="border-b">
+                                          <td className="py-2 px-3 truncate max-w-xs">{row.topic}</td>
+                                          <td className="py-2 px-3">{row.subject}</td>
+                                          <td className="py-2 px-3">{row.correctAnswers}/{row.totalQuestions}</td>
+                                          <td className="py-2 px-3">{row.accuracy != null ? `${row.accuracy.toFixed(1)}%` : 'N/A'}</td>
+                                        </tr>
+                                      ))
+                                    ) : (
+                                      <tr>
+                                        <td colSpan={4} className="py-4 px-3 text-sm text-gray-500">No topic data yet. Take tests to populate topic performance.</td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </div>
+                      </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="alternate">
+              <div className="w-full space-y-6">
+                {/* Platform Test Selector */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Platform Test Analytics</CardTitle>
+                    <CardDescription>Select a platform test to view your performance metrics</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Select value={selectedPlatformTestId || ""} onValueChange={setSelectedPlatformTestId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select a platform test..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {platformTestData?.availableTests.map((test) => (
+                          <SelectItem key={test.id} value={test.id.toString()}>
+                            {test.testName} {test.testYear && `(${test.testYear})`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </CardContent>
+                </Card>
+
+                {/* Platform Test Metrics Cards */}
+                {selectedPlatformTestId && platformTestData?.selectedTestMetrics && (
+                  <>
+                    {platformTestData.selectedTestMetrics.message ? (
+                      <Card>
+                        <CardContent className="p-6 text-center">
+                          <p className="text-gray-600">{platformTestData.selectedTestMetrics.message}</p>
+                        </CardContent>
+                      </Card>
+                    ) : platformTestData.selectedTestMetrics.error ? (
+                      <Card>
+                        <CardContent className="p-6 text-center">
+                          <p className="text-red-600">{platformTestData.selectedTestMetrics.error}</p>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <MetricCard
+                          title="Overall Accuracy"
+                          value={`${platformTestData.selectedTestMetrics.overallAccuracy}%`}
+                          icon={<Target className="h-5 w-5" />}
+                          color="bg-[#4F83FF]"
+                        />
+                        <MetricCard
+                          title="Rank"
+                          value={platformTestData.selectedTestMetrics.rank ? `${platformTestData.selectedTestMetrics.rank}/${platformTestData.selectedTestMetrics.totalStudents}` : 'N/A'}
+                          icon={<Medal className="h-5 w-5" />}
+                          color="bg-[#8B5CF6]"
+                        />
+                        <MetricCard
+                          title="Percentile"
+                          value={platformTestData.selectedTestMetrics.percentile ? `${platformTestData.selectedTestMetrics.percentile}%` : 'N/A'}
+                          icon={<TrendingUp className="h-5 w-5" />}
+                          color="bg-[#10B981]"
+                        />
+                        <MetricCard
+                          title="Avg Time/Question"
+                          value={`${platformTestData.selectedTestMetrics.avgTimePerQuestion}s`}
+                          icon={<Timer className="h-5 w-5" />}
+                          color="bg-[#F59E0B]"
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Leaderboard: show top students for selected test */}
+                {/* Per-selected-test charts: subject-wise accuracy and time distribution */}
+                {selectedPlatformTestId && platformTestData?.selectedTestMetrics && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                    <div className="col-span-1 bg-white rounded-lg shadow p-4">
+                      <h4 className="font-medium mb-2">Subject-wise Accuracy</h4>
+                      {platformTestData.selectedTestMetrics.subjectAccuracyForTest && (
+                        <ResponsiveContainer width="100%" height={200}>
+                          <PieChart>
+                            <Pie data={platformTestData.selectedTestMetrics.subjectAccuracyForTest.map(s => ({ name: s.subject, value: s.accuracy || 0 }))} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
+                              {platformTestData.selectedTestMetrics.subjectAccuracyForTest.map((_, idx) => (
+                                <Cell key={`cell-${idx}`} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      )}
+                      {!platformTestData.selectedTestMetrics.subjectAccuracyForTest && (
+                        <div className="text-sm text-gray-500">No subject-wise data available for this test.</div>
+                      )}
+                    </div>
+
+                    <div className="col-span-2 bg-white rounded-lg shadow p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium">Time Distribution (s)</h4>
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm text-gray-600">Subject:</label>
+                          <Select value={selectedTestSubjectFilter} onValueChange={setSelectedTestSubjectFilter}>
+                            <SelectTrigger className="w-32">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={"All"}>All</SelectItem>
+                              {platformTestData.selectedTestMetrics.timeDistributionForTest?.subjects?.map((s) => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {platformTestData.selectedTestMetrics.timeDistributionForTest && (
+                        <ResponsiveContainer width="100%" height={200}>
+                          <PieChart>
+                            <Pie
+                              data={(() => {
+                                if (selectedTestSubjectFilter === 'All') {
+                                  return platformTestData.selectedTestMetrics.timeDistributionForTest.overall.map(x => ({ name: x.status, value: x.timeSec }));
                                 }
-                                dataKey="value"
-                                nameKey="name"
-                                innerRadius={40}
-                                outerRadius={70}
-                                label={(entry) => `${entry.name}: ${Math.round(entry.value)}s`}
-                              >
-                                {((timeDistSubject === 'All' || !timeDistSubject)
-                                  ? analytics.timeDistributionPast7.overall
-                                  : analytics.timeDistributionPast7.bySubject[timeDistSubject]
-                                ).map((entry, idx) => (
-                                  <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
-                                ))}
-                              </Pie>
-                              <Tooltip formatter={(value: any) => `${Math.round(value)}s`} />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <div className="text-sm text-gray-500">No timing data available yet.</div>
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2">Showing average time spent per test on correct / incorrect / unanswered across your most recent 7 tests.</p>
-                    </Card>
+                                const bySub = platformTestData.selectedTestMetrics.timeDistributionForTest.bySubject[selectedTestSubjectFilter];
+                                return bySub ? bySub.map(x => ({ name: x.status, value: x.timeSec })) : [];
+                              })()}
+                              dataKey="value"
+                              nameKey="name"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              label
+                            >
+                              {platformTestData.selectedTestMetrics.timeDistributionForTest.overall.map((_, idx) => (
+                                <Cell key={`cell-time-${idx}`} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                              ))}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      )}
+                      {!platformTestData.selectedTestMetrics.timeDistributionForTest && (
+                        <div className="text-sm text-gray-500">No timing breakdown available for this test.</div>
+                      )}
+                    </div>
                   </div>
+                )}
 
-                  {/* Show only the Trends chart in Performance Overview (removed subject-wise chart) */}
-                  <div className="w-full space-y-4">
-                    <h3 className="text-lg font-medium">Trends</h3>
-                    <PerformanceTrendsChart data={analytics.timeBasedTrends} />
+                {platformTestData?.selectedTestMetrics?.leaderboard && platformTestData.selectedTestMetrics.leaderboard.length > 0 && (
+                  <div className="bg-white rounded-lg shadow p-4 mt-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-medium">Leaderboard</h3>
+                      <div className="text-sm text-gray-500">Top {platformTestData.selectedTestMetrics.leaderboard.length}</div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-left">
+                        <thead>
+                          <tr className="text-xs text-gray-500 border-b">
+                            <th className="py-2 px-3">Rank</th>
+                            <th className="py-2 px-3">Student</th>
+                            <th className="py-2 px-3">Overall %</th>
+                            <th className="py-2 px-3">Physics %</th>
+                            <th className="py-2 px-3">Chemistry %</th>
+                            <th className="py-2 px-3">Botany %</th>
+                            <th className="py-2 px-3">Zoology %</th>
+                            <th className="py-2 px-3">Time (s)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {platformTestData.selectedTestMetrics.leaderboard.map((row) => (
+                            <tr key={`${row.studentId}-${row.rank}`} className="text-sm border-b">
+                              <td className="py-2 px-3">{row.rank}</td>
+                              <td className="py-2 px-3">{row.studentName || 'Anonymous'}</td>
+                              <td className="py-2 px-3">{row.accuracy != null ? `${row.accuracy.toFixed(2)}%` : 'N/A'}</td>
+                              <td className="py-2 px-3">{row.physics != null ? `${row.physics.toFixed(2)}%` : 'N/A'}</td>
+                              <td className="py-2 px-3">{row.chemistry != null ? `${row.chemistry.toFixed(2)}%` : 'N/A'}</td>
+                              <td className="py-2 px-3">{row.botany != null ? `${row.botany.toFixed(2)}%` : 'N/A'}</td>
+                              <td className="py-2 px-3">{row.zoology != null ? `${row.zoology.toFixed(2)}%` : 'N/A'}</td>
+                              <td className="py-2 px-3">{row.timeTakenSec != null ? row.timeTakenSec : 'N/A'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-              </CardContent>
-            </Card>
-          </div>
+                )}
+
+                {/* Placeholder when no test selected */}
+                {!selectedPlatformTestId && (
+                  <Card>
+                    <CardContent className="p-8 text-center">
+                      <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Platform Test Analytics</h3>
+                      <p className="text-gray-600">Select a platform test above to view your detailed performance metrics including accuracy, rank, percentile, and timing.</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

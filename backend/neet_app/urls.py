@@ -7,7 +7,7 @@ from .views import (
     TopicViewSet, QuestionViewSet, TestSessionViewSet, TestAnswerViewSet,
     StudentProfileViewSet, ReviewCommentViewSet, TimeTrackingViewSet,
     ChatSessionViewSet, chat_statistics,
-    dashboard_analytics, dashboard_comprehensive_analytics
+    dashboard_analytics, dashboard_comprehensive_analytics, platform_test_analytics
 )
 from .views.utils import (
     clean_existing_questions, sync_topics_from_database_question, 
@@ -68,6 +68,7 @@ urlpatterns = [
     # Dashboard endpoints
     path('dashboard/analytics/', dashboard_analytics, name='dashboard-analytics'),
     path('dashboard/comprehensive-analytics/', dashboard_comprehensive_analytics, name='dashboard-comprehensive-analytics'),
+    path('dashboard/platform-test-analytics/', platform_test_analytics, name='platform-test-analytics'),
     
     # PostgreSQL-based sync endpoints (new)
     path('dashboard/sync-topics/', sync_topics_from_database_question, name='sync-topics-from-database-question'),

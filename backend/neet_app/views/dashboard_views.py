@@ -4,7 +4,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..models import Question, TestAnswer, TestSession, Topic
+from ..models import Question, TestAnswer, TestSession, Topic, PlatformTest, StudentProfile
 from ..serializers import QuestionSerializer, TestAnswerSerializer, TestSessionSerializer
 
 
@@ -198,6 +198,9 @@ def dashboard_comprehensive_analytics(request):
             ,
             'uniqueQuestionsAttempted': 0,
             'totalQuestionsInBank': Question.objects.count()
+            ,
+            'topicPerformance': [],
+            'topicsAttemptedCount': 0
         })
 
     total_tests = completed_sessions.count()
@@ -342,6 +345,55 @@ def dashboard_comprehensive_analytics(request):
     unique_questions_attempted = all_answers_for_completed_sessions.values_list('question_id', flat=True).distinct().count()
     total_questions_in_bank = Question.objects.count()
 
+    # Topic-level performance: compute per-topic total and correct counts for this student
+    # Aggregation done on TestAnswer rows within completed sessions for this student
+    topic_performance = []
+    topic_agg = all_answers_for_completed_sessions.values(
+        'question__topic_id',
+        'question__topic__name',
+        'question__topic__subject'
+    ).annotate(
+        total=Count('id'),
+        correct=Count('id', filter=Q(is_correct=True))
+    ).order_by('-total')
+
+    for t in topic_agg:
+        total = t.get('total', 0) or 0
+        correct = t.get('correct', 0) or 0
+        accuracy = (correct / total * 100) if total > 0 else 0
+        topic_performance.append({
+            'topicId': t.get('question__topic_id'),
+            'topic': t.get('question__topic__name'),
+            'subject': t.get('question__topic__subject'),
+            'totalQuestions': total,
+            'correctAnswers': correct,
+            'accuracy': round(accuracy, 2)
+        })
+
+    topics_attempted_count = len(topic_performance)
+
+    # Fallback: if aggregation returned no rows but there are answers, compute per-topic counts explicitly
+    if topics_attempted_count == 0 and total_questions_attempted > 0:
+        topic_ids = all_answers_for_completed_sessions.values_list('question__topic_id', flat=True).distinct()
+        for tid in topic_ids:
+            topic_obj = Topic.objects.filter(id=tid).first()
+            if not topic_obj:
+                continue
+            subj_answers = all_answers_for_completed_sessions.filter(question__topic_id=tid)
+            total = subj_answers.count()
+            correct = subj_answers.filter(is_correct=True).count()
+            accuracy = (correct / total * 100) if total > 0 else 0
+            topic_performance.append({
+                'topicId': tid,
+                'topic': topic_obj.name,
+                'subject': topic_obj.subject,
+                'totalQuestions': total,
+                'correctAnswers': correct,
+                'accuracy': round(accuracy, 2)
+            })
+
+        topics_attempted_count = len(topic_performance)
+
     # --- New: Aggregations for the past 7 tests ---
     # recent_sessions_desc already contains up to 7 most recent sessions (ordered desc)
     recent_sessions_for_agg = list(recent_sessions_desc)
@@ -420,6 +472,8 @@ def dashboard_comprehensive_analytics(request):
         'studyRecommendations': study_recommendations,
         'uniqueQuestionsAttempted': unique_questions_attempted,
         'totalQuestionsInBank': total_questions_in_bank,
+    'topicPerformance': topic_performance,
+    'topicsAttemptedCount': topics_attempted_count,
         # New payloads for pie charts (past 7 tests)
         'subjectAccuracyPast7': subject_accuracy_past7,
         'timeDistributionPast7': {
@@ -428,3 +482,268 @@ def dashboard_comprehensive_analytics(request):
             'subjects': subjects_list
         }
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def platform_test_analytics(request):
+    """
+    Provides analytics for platform tests including available tests and student performance.
+    Returns platform test data for the Alternate tab metrics.
+    """
+    # Get the authenticated student
+    if not hasattr(request.user, 'student_id'):
+        return Response({"error": "User not properly authenticated"}, status=401)
+    
+    student_id = request.user.student_id
+    
+    # Get list of platform tests the student has taken (slicer should show only tests the student has taken)
+    taken_platform_test_ids = TestSession.objects.filter(
+        student_id=student_id,
+        platform_test__isnull=False
+    ).values_list('platform_test_id', flat=True).distinct()
+
+    platform_tests_qs = PlatformTest.objects.filter(
+        id__in=taken_platform_test_ids,
+        is_active=True
+    ).values('id', 'test_name', 'test_code', 'test_year', 'test_type').order_by('-test_year', 'test_name')
+
+    available_tests = []
+    for pt in platform_tests_qs:
+        available_tests.append({
+            'id': pt.get('id'),
+            'testName': pt.get('test_name'),
+            'testCode': pt.get('test_code'),
+            'testYear': pt.get('test_year'),
+            'testType': pt.get('test_type'),
+        })
+    
+    # Get platform test ID from query params (optional)
+    selected_test_id = request.GET.get('test_id')
+    
+    # Initialize response data
+    response_data = {
+        'availableTests': available_tests,
+        'selectedTestMetrics': None
+    }
+    
+    # If a specific test is selected, calculate metrics for that test
+    if selected_test_id:
+        try:
+            selected_test = PlatformTest.objects.get(id=selected_test_id, is_active=True)
+        except PlatformTest.DoesNotExist:
+            response_data['selectedTestMetrics'] = {
+                'error': 'Platform test not found or inactive.'
+            }
+        else:
+            # Gather all completed sessions for this platform test ordered by start_time desc
+            all_sessions = TestSession.objects.filter(
+                test_type='platform',
+                platform_test=selected_test,
+                is_completed=True
+            ).order_by('-start_time')
+
+            # Build per-student best percentage mapping (student_id -> best_percent)
+            student_best = {}
+            # Also keep track of the most recent session for the authenticated student
+            student_most_recent_session = None
+
+            for s in all_sessions:
+                # Prefer calculating accuracy from TestAnswer records to avoid stale/zero fields on TestSession
+                answers_qs = TestAnswer.objects.filter(session=s)
+                total_answers = answers_qs.count()
+                if total_answers > 0:
+                    correct_count = answers_qs.filter(is_correct=True).count()
+                    percent = (correct_count / total_answers) * 100
+                else:
+                    # Fallback to TestSession stored fields if TestAnswer rows are missing
+                    if s.total_questions and s.total_questions > 0:
+                        percent = (s.correct_answers / s.total_questions) * 100
+                    else:
+                        percent = 0
+
+                prev = student_best.get(s.student_id)
+                if prev is None or percent > prev:
+                    student_best[s.student_id] = percent
+
+                if s.student_id == student_id and student_most_recent_session is None:
+                    student_most_recent_session = s
+
+            total_students = len(student_best)
+
+            # Compute current student's metrics if they have a session
+            if student_most_recent_session:
+                # Prefer TestAnswer-based calculation for student's most recent session
+                cur_answers = TestAnswer.objects.filter(session=student_most_recent_session)
+                cur_total = cur_answers.count()
+                if cur_total > 0:
+                    cur_correct = cur_answers.filter(is_correct=True).count()
+                    overall_accuracy = (cur_correct / cur_total) * 100
+                else:
+                    overall_accuracy = (student_most_recent_session.correct_answers / student_most_recent_session.total_questions * 100) if student_most_recent_session.total_questions else 0
+
+                # Determine rank using best percentage across students (robust to ties)
+                # Ensure current student is present in the mapping
+                current_percent = student_best.get(student_id)
+                if current_percent is None:
+                    # Fallback: use most recent session percent
+                    current_percent = overall_accuracy
+                    student_best[student_id] = current_percent
+
+                # Create a descending ordered list of (student_id, percent)
+                sorted_by_percent = sorted(student_best.items(), key=lambda kv: kv[1], reverse=True)
+
+                # Find rank as the 1-based index of the first occurrence of this student's percent
+                rank = 1
+                for idx, (sid, pct) in enumerate(sorted_by_percent, start=1):
+                    if sid == student_id:
+                        rank = idx
+                        break
+
+                # Percentile: robust calculation handling ties and avoiding division by zero
+                if total_students > 0:
+                    num_below = sum(1 for pct in student_best.values() if pct < current_percent)
+                    num_equal = sum(1 for pct in student_best.values() if pct == current_percent)
+                    # Use midpoint rank for ties: add half of equals
+                    percentile = ((num_below + (num_equal / 2)) / total_students) * 100
+                else:
+                    percentile = 0
+
+                # Avg time per question: prefer stored total_time_taken; fallback to summing TestAnswer.time_taken
+                if student_most_recent_session.total_time_taken and student_most_recent_session.total_questions:
+                    avg_time_per_question = student_most_recent_session.total_time_taken / student_most_recent_session.total_questions
+                else:
+                    ans_agg = TestAnswer.objects.filter(session=student_most_recent_session).aggregate(total_time=Sum('time_taken'), cnt=Count('id'))
+                    total_time = ans_agg.get('total_time') or 0
+                    cnt = ans_agg.get('cnt') or 0
+                    avg_time_per_question = (total_time / cnt) if cnt > 0 else 0
+
+                # Subject-wise accuracy for this student in the selected test
+                subjects = ['Physics', 'Chemistry', 'Botany', 'Zoology']
+                subject_accuracy_for_test = []
+                for subj in subjects:
+                    subj_answers = TestAnswer.objects.filter(session=student_most_recent_session, question__topic__subject__iexact=subj)
+                    subj_total = subj_answers.count()
+                    subj_correct = subj_answers.filter(is_correct=True).count()
+                    subj_accuracy = (subj_correct / subj_total * 100) if subj_total > 0 else None
+                    subject_accuracy_for_test.append({
+                        'subject': subj,
+                        'accuracy': round(subj_accuracy, 2) if subj_accuracy is not None else None,
+                        'totalQuestions': subj_total
+                    })
+
+                # Time distribution for this student's most recent session of the selected test
+                overall_correct_time = TestAnswer.objects.filter(session=student_most_recent_session, is_correct=True).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+                overall_incorrect_time = TestAnswer.objects.filter(session=student_most_recent_session, is_correct=False).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+                overall_unanswered_time = TestAnswer.objects.filter(session=student_most_recent_session).filter(Q(is_correct__isnull=True) | Q(selected_answer__isnull=True)).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+
+                time_distribution_overall_test = [
+                    {'status': 'correct', 'timeSec': overall_correct_time},
+                    {'status': 'incorrect', 'timeSec': overall_incorrect_time},
+                    {'status': 'unanswered', 'timeSec': overall_unanswered_time},
+                ]
+
+                # By-subject breakdown for this session
+                time_distribution_by_subject_test = {}
+                for subj in subjects:
+                    subj_answers = TestAnswer.objects.filter(session=student_most_recent_session, question__topic__subject__iexact=subj)
+                    correct_t = subj_answers.filter(is_correct=True).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+                    incorrect_t = subj_answers.filter(is_correct=False).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+                    unanswered_t = subj_answers.filter(Q(is_correct__isnull=True) | Q(selected_answer__isnull=True)).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+                    time_distribution_by_subject_test[subj] = [
+                        {'status': 'correct', 'timeSec': correct_t},
+                        {'status': 'incorrect', 'timeSec': incorrect_t},
+                        {'status': 'unanswered', 'timeSec': unanswered_t},
+                    ]
+
+                response_data['selectedTestMetrics'] = {
+                    'testId': selected_test.id,
+                    'testName': selected_test.test_name,
+                    'testCode': selected_test.test_code,
+                    'overallAccuracy': round(overall_accuracy, 1),
+                    'rank': rank,
+                    'totalStudents': total_students,
+                    'percentile': round(percentile, 1) if percentile is not None else None,
+                    'avgTimePerQuestion': round(avg_time_per_question, 1),
+                    'sessionId': student_most_recent_session.id,
+                    'testDate': student_most_recent_session.start_time.isoformat() if student_most_recent_session.start_time else None,
+                    'subjectAccuracyForTest': subject_accuracy_for_test,
+                    'timeDistributionForTest': {
+                        'overall': time_distribution_overall_test,
+                        'bySubject': time_distribution_by_subject_test,
+                        'subjects': subjects
+                    }
+                }
+                # Build leaderboard: top 3 students by best percent (rank ascending)
+                leaderboard = []
+                # sorted_by_percent already computed earlier as sorted(student_best.items(), key=lambda kv: kv[1], reverse=True)
+                # ensure it's available here
+                sorted_students = sorted(student_best.items(), key=lambda kv: kv[1], reverse=True)
+
+                def select_best_session_for_student(sid, target_percent):
+                    # Find session for this student with percent closest to target_percent (prefer highest percent and lower time)
+                    candidate_sessions = all_sessions.filter(student_id=sid)
+                    best_s = None
+                    best_diff = None
+                    for cs in candidate_sessions:
+                        pct = (cs.correct_answers / cs.total_questions * 100) if cs.total_questions else 0
+                        diff = abs(pct - target_percent)
+                        if best_diff is None or diff < best_diff or (diff == best_diff and (cs.total_time_taken or 0) < (best_s.total_time_taken or 0)):
+                            best_diff = diff
+                            best_s = cs
+                    return best_s
+
+                subjects = ['Physics', 'Chemistry', 'Botany', 'Zoology']
+                for sid, pct in sorted_students[:3]:
+                    s_session = select_best_session_for_student(sid, pct)
+                    if not s_session:
+                        continue
+
+                    # Calculate per-subject accuracies from TestAnswer table for this session
+                    subj_acc = {}
+                    for subj in subjects:
+                        subj_answers = TestAnswer.objects.filter(session=s_session, question__topic__subject__iexact=subj)
+                        total = subj_answers.count()
+                        correct = subj_answers.filter(is_correct=True).count()
+                        subj_acc[subj.lower()] = round((correct / total * 100), 2) if total > 0 else None
+
+                    # Time taken
+                    if s_session.total_time_taken:
+                        time_taken = s_session.total_time_taken
+                    else:
+                        time_taken = TestAnswer.objects.filter(session=s_session).aggregate(total_time=Sum('time_taken'))['total_time'] or 0
+
+                    # Student name
+                    student_profile = StudentProfile.objects.filter(student_id=sid).first()
+                    student_name = student_profile.full_name if student_profile else sid
+
+                    leaderboard.append({
+                        'studentId': sid,
+                        'studentName': student_name,
+                        'accuracy': round(pct, 2),
+                        'physics': subj_acc.get('physics'),
+                        'chemistry': subj_acc.get('chemistry'),
+                        'botany': subj_acc.get('botany'),
+                        'zoology': subj_acc.get('zoology'),
+                        'timeTakenSec': time_taken,
+                        'rank': sorted_students.index((sid, pct)) + 1
+                    })
+
+                # Sort leaderboard by rank asc and attach
+                leaderboard = sorted(leaderboard, key=lambda x: x['rank'])
+                response_data['selectedTestMetrics']['leaderboard'] = leaderboard
+            else:
+                # Student hasn't taken this test; still report total students who have taken it
+                response_data['selectedTestMetrics'] = {
+                    'testId': selected_test.id,
+                    'testName': selected_test.test_name,
+                    'testCode': selected_test.test_code,
+                    'message': 'You have not taken this test yet.',
+                    'overallAccuracy': 0,
+                    'rank': None,
+                    'totalStudents': total_students,
+                    'percentile': None,
+                    'avgTimePerQuestion': 0
+                }
+    # Ensure we always return a Response
+    return Response(response_data)
