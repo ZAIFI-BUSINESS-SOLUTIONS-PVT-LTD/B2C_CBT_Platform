@@ -176,7 +176,7 @@ def clean_mathematical_text(text):
         return original_text
 
 
-def generate_questions_for_topics(selected_topics, question_count=None, exclude_question_ids=None):
+def generate_questions_for_topics(selected_topics, question_count=None, exclude_question_ids=None, difficulty_distribution=None):
     """
     Generate questions for the selected topics with cleaned mathematical expressions.
     Enhanced with fallback logic for topics without questions and question exclusion.
@@ -198,7 +198,7 @@ def generate_questions_for_topics(selected_topics, question_count=None, exclude_
         else:
             # Ensure it's a set for efficient lookup
             exclude_question_ids = set(exclude_question_ids)
-        
+
         # Get all questions for the selected topics, excluding recent ones
         questions = Question.objects.filter(topic_id__in=selected_topics)
         if exclude_question_ids:
@@ -236,6 +236,139 @@ def generate_questions_for_topics(selected_topics, question_count=None, exclude_
                     logger.error("No questions found in the entire database!")
                     return Question.objects.none()
         
+        # If difficulty distribution is requested, try to select per-difficulty
+        if difficulty_distribution and question_count:
+            # difficulty_distribution can be percentages (sum 100) or absolute counts
+            dist = difficulty_distribution.copy() if isinstance(difficulty_distribution, dict) else {}
+            easy_req = dist.get('easy')
+            medium_req = dist.get('medium')
+            hard_req = dist.get('hard')
+
+            # If values look like percentages (sum 100), convert to counts
+            if all(isinstance(x, (int, float)) for x in [easy_req or 0, medium_req or 0, hard_req or 0]):
+                total_dist = (easy_req or 0) + (medium_req or 0) + (hard_req or 0)
+                if total_dist == 100:
+                    easy_req = int((easy_req or 0) * question_count / 100)
+                    medium_req = int((medium_req or 0) * question_count / 100)
+                    hard_req = int((hard_req or 0) * question_count / 100)
+
+            # Fallback: if any are None, treat as 0
+            easy_req = int(easy_req or 0)
+            medium_req = int(medium_req or 0)
+            hard_req = int(hard_req or 0)
+
+            # Adjust rounding: ensure total equals question_count by adding to easy
+            total_req = easy_req + medium_req + hard_req
+            if total_req < question_count:
+                easy_req += (question_count - total_req)
+
+            # Normalize difficulty labels and partition questions in Python for robustness
+            def _normalize_label(val):
+                if not val:
+                    return 'unknown'
+                s = str(val).strip().lower()
+                # common canonical variants
+                if s in ('easy', 'e', '1', 'beginner', 'low'):
+                    return 'easy'
+                if s in ('medium', 'med', 'm', '2', 'intermediate'):
+                    return 'medium'
+                if s in ('hard', 'h', '3', 'advanced', 'high'):
+                    return 'hard'
+                # numeric strings like '1', '2', '3' handled above; try to map digits
+                if s.isdigit():
+                    if s == '1':
+                        return 'easy'
+                    if s == '2':
+                        return 'medium'
+                    if s == '3':
+                        return 'hard'
+                # fallback heuristics
+                if 'easy' in s:
+                    return 'easy'
+                if 'medium' in s or 'intermediate' in s:
+                    return 'medium'
+                if 'hard' in s or 'advanced' in s:
+                    return 'hard'
+                return 'unknown'
+
+            easy_list = []
+            medium_list = []
+            hard_list = []
+            unknown_list = []
+
+            # iterate once over questions to partition them deterministically
+            for q in questions:
+                label = _normalize_label(q.difficulty)
+                if label == 'easy':
+                    easy_list.append(q)
+                elif label == 'medium':
+                    medium_list.append(q)
+                elif label == 'hard':
+                    hard_list.append(q)
+                else:
+                    unknown_list.append(q)
+
+            logger.info(f"Question difficulty buckets: easy={len(easy_list)}, medium={len(medium_list)}, hard={len(hard_list)}, unknown={len(unknown_list)}")
+
+            selected = []
+            used_ids = set()
+
+            def take_from_list(lst, n, used_ids):
+                if n <= 0 or not lst:
+                    return []
+                available = [q for q in lst if q.id not in used_ids]
+                if not available:
+                    return []
+                random.shuffle(available)
+                return available[:n]
+
+            # Helper to try multiple buckets in order until we satisfy n
+            def take_with_fallback(bucket_lists, n, used_ids):
+                taken = []
+                remaining = n
+                for lst in bucket_lists:
+                    if remaining <= 0:
+                        break
+                    if not lst:
+                        continue
+                    more = take_from_list(lst, remaining, used_ids)
+                    if more:
+                        taken.extend(more)
+                        used_ids.update(q.id for q in more)
+                        remaining = n - len(taken)
+                return taken
+
+            # Selection with ordered fallback per your requirement:
+            # easy falls back to unknown
+            # medium falls back to easy then unknown
+            # hard falls back to medium then easy then unknown
+            sel_easy = take_with_fallback([easy_list, unknown_list], easy_req, used_ids)
+            selected.extend(sel_easy)
+
+            sel_medium = take_with_fallback([medium_list, easy_list, unknown_list], medium_req, used_ids)
+            selected.extend(sel_medium)
+
+            sel_hard = take_with_fallback([hard_list, medium_list, easy_list, unknown_list], hard_req, used_ids)
+            selected.extend(sel_hard)
+
+            # If still shortages, fill from the remaining pool (any leftover question in the same topic set)
+            if len(selected) < question_count:
+                remaining_needed = question_count - len(selected)
+                remaining_pool = [q for q in list(questions) if q.id not in used_ids]
+                if remaining_pool:
+                    random.shuffle(remaining_pool)
+                    more = remaining_pool[:remaining_needed]
+                    selected.extend(more); used_ids.update(q.id for q in more)
+
+            logger.info(f"Selected per-difficulty counts -> easy={len(sel_easy)}, medium={len(sel_medium)}, hard={len(sel_hard)}, total_selected={len(selected)} (requested {question_count})")
+
+            # Return queryset built from selected ids
+            if selected:
+                q_ids = [q.id for q in selected]
+                return Question.objects.filter(id__in=q_ids)
+
+            # else fall through to regular selection logic
+
         # If question_count is specified and we have more questions than needed,
         # prioritize non-excluded questions and randomly select
         if question_count and questions.count() > question_count:

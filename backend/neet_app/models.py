@@ -77,6 +77,11 @@ class PlatformTest(models.Model):
     # Question selection criteria
     selected_topics = models.JSONField(null=False)  # Array of topic IDs included in this test
     question_distribution = models.JSONField(null=True, blank=True)  # Optional: questions per subject/topic
+    # Difficulty distribution: optional dict describing how many/percent of easy/medium/hard
+    # Examples:
+    # - {'easy': 40, 'medium': 40, 'hard': 20}  (percentages summing to 100)
+    # - {'easy': 5, 'medium': 10, 'hard': 5}  (absolute counts summing to total_questions)
+    difficulty_distribution = models.JSONField(null=True, blank=True)
     
     # Test metadata
     is_active = models.BooleanField(default=True)  # Whether test is available for students

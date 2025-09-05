@@ -12,15 +12,16 @@ djangorestframework-camel-case==1.4.2
 # JWT Authentication
 djangorestframework-simplejwt==5.3.0
 
-# AI and Chatbot Dependencies (Updated versions)
-google-generativeai==0.8.3
-langchain==0.3.9
-langchain-google-genai==2.0.5
-langchain-community==0.3.8
+# AI and Chatbot Dependencies (Pinned to local environment)
+google-generativeai==0.3.2
+langchain==0.1.0
+langchain-google-genai==0.0.8
+langchain-community==0.0.13
+langchain-groq==0.3.7
 python-decouple==3.8
 
 # Database
-sqlalchemy==2.0.36
+sqlalchemy==2.0.35
 
 # Graph Database (if using Neo4j features)
 neomodel==5.3.3
@@ -32,6 +33,6 @@ requests==2.31.0
 # Development and Testing Dependencies
 # (Optional - can be moved to separate requirements-dev.txt)
 # These are used in test files but not required for production
-langchain-groq==0.1.2
+#langchain-groq==0.3.7
 spacy==3.7.4
-pydantic==2.7.1
+pydantic==2.7.4

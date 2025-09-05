@@ -1,4 +1,5 @@
 from django.utils import timezone
+import random
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -161,19 +162,19 @@ def start_platform_test(request, test_id):
     
     # --- Ensure the session has actual assigned questions (same logic as TestSessionViewSet.create) ---
     try:
-        # Exclude recently attempted questions for this student
-        recent_question_ids = TestSession.get_recent_question_ids_for_student(student_id)
-
         # Import selection utilities here
         from .utils import generate_questions_for_topics
 
-        # Determine available questions for the selected topics
-        available_questions = generate_questions_for_topics(
+        # Determine available questions for the selected topics (do NOT exclude recent questions)
+        # We convert to a list so we can randomly sample from it.
+        available_questions_qs = generate_questions_for_topics(
             test_session.selected_topics,
-            None,  # get all to check availability
-            exclude_question_ids=recent_question_ids
+            test_session.question_count,  # request per-difficulty selection for this many questions
+            None,
+            platform_test.difficulty_distribution
         )
-        available_count = available_questions.count()
+        available_questions_list = list(available_questions_qs)
+        available_count = len(available_questions_list)
 
         if available_count == 0:
             # No questions available for this platform test; mark session and return error
@@ -193,12 +194,12 @@ def start_platform_test(request, test_id):
             test_session.total_questions = available_count
             test_session.save(update_fields=['question_count', 'total_questions'])
 
-        # Select the final set of questions limited to session.question_count
-        selected_questions = generate_questions_for_topics(
-            test_session.selected_topics,
-            test_session.question_count,
-            exclude_question_ids=recent_question_ids
-        )
+        # Select the final set of questions randomly from the available pool
+        if available_count <= test_session.question_count:
+            selected_questions = available_questions_list
+        else:
+            # random.sample returns a list of unique items of length question_count
+            selected_questions = random.sample(available_questions_list, test_session.question_count)
 
         # Create TestAnswer records for the assigned questions (initially unanswered)
         test_answer_objs = []
@@ -237,6 +238,19 @@ def start_platform_test(request, test_id):
         },
         status=status.HTTP_201_CREATED
     )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_available_topics(request):
+    """
+    Return list of available topics (id and name) so admin can choose topics by name instead of IDs.
+    """
+    from ..models import Topic
+
+    topics = Topic.objects.all().order_by('subject', 'name')
+    topics_list = [{'id': t.id, 'name': t.name, 'subject': t.subject, 'chapter': t.chapter} for t in topics]
+    return Response({'topics': topics_list})
 
 
 @api_view(['GET'])

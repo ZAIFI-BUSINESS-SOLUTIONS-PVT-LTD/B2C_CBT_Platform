@@ -23,6 +23,7 @@ class PlatformTestSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'test_name', 'test_code', 'test_year', 'test_type',
             'description', 'instructions', 'time_limit', 'duration', 'total_questions',
+            'difficulty_distribution',
             'scheduled_date_time', 'is_scheduled', 'is_open', 'is_available_now',
             'availability_status', 'is_active', 'created_at', 'updated_at'
         ]

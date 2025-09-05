@@ -59,6 +59,8 @@ export function ChapterSelection() {
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);      // Selected topic IDs
   const [timeLimit, setTimeLimit] = useState<number>(60);                  // Time limit in minutes
   const [questionCount, setQuestionCount] = useState<number>(20);          // Number of questions
+  // Track which slider was changed last so we use either time or questions (this OR that)
+  const [lastChanged, setLastChanged] = useState<'time' | 'questions'>('questions');
   
   // === NEW UI STATE FOR WIREFRAME ===
   const [testType, setTestType] = useState<"random" | "custom" | "search">("random"); // Test type selection
@@ -405,34 +407,73 @@ export function ChapterSelection() {
       return;
     }
 
-    // VALIDATION: Check question count and time limit
-    if (!questionCount || questionCount <= 0) {
-      toast({
-        title: "Invalid question count",
-        description: "Please set a valid number of questions.",
-        variant: "destructive",
-      });
+    // VALIDATION: For random tests the backend expects BOTH fields.
+    if (testType === 'random') {
+      if (!questionCount || questionCount <= 0) {
+        toast({
+          title: "Invalid question count",
+          description: "Please set a valid number of questions for random tests.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!timeLimit || timeLimit <= 0) {
+        toast({
+          title: "Invalid time limit",
+          description: "Please set a valid time limit for random tests.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // For random tests include both fields (backend requires both for random selection)
+      const payloadRandom: any = {
+        selected_topics: finalSelectedTopics,
+        selection_mode: lastChanged === 'questions' ? 'question_count' : 'time_limit',
+        question_count: questionCount,
+        time_limit: timeLimit,
+        test_type: testType,
+      };
+
+      console.log('🚀 Creating RANDOM test with payload:', payloadRandom);
+      createTestMutation.mutate(payloadRandom);
       return;
     }
-    
-    if (!timeLimit || timeLimit <= 0) {
-      toast({
-        title: "Invalid time limit",
-        description: "Please set a valid time limit.",
-        variant: "destructive",
-      });
-      return;
+
+    // NON-RANDOM: Only validate/send the field the user last changed (either time_limit OR question_count)
+    if (lastChanged === 'questions') {
+      if (!questionCount || questionCount <= 0) {
+        toast({
+          title: "Invalid question count",
+          description: "Please set a valid number of questions.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      if (!timeLimit || timeLimit <= 0) {
+        toast({
+          title: "Invalid time limit",
+          description: "Please set a valid time limit.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
-    
-    // Create test session with new payload structure
-    // Always pass both question_count and time_limit from user selections
-    const payload = {
+
+    // Create test session payload: send only the selected mode (either question_count or time_limit)
+    const selection_mode = lastChanged === 'questions' ? 'question_count' : 'time_limit';
+    const payload: any = {
       selected_topics: finalSelectedTopics,
-      selection_mode: 'question_count', // Use question count mode
-      question_count: questionCount, // Number of questions from slider
-      time_limit: timeLimit, // Time limit from slider (in minutes)
+      selection_mode,
       test_type: testType,
     };
+
+    if (selection_mode === 'question_count') {
+      payload.question_count = questionCount;
+    } else {
+      payload.time_limit = timeLimit;
+    }
     
     // Debug log to verify payload
     console.log('🚀 Creating test with payload:', payload);
@@ -841,7 +882,14 @@ export function ChapterSelection() {
                     </Label>
                     <Slider
                       value={[timeLimit]}
-                      onValueChange={(value) => setTimeLimit(value[0])}
+                      onValueChange={(value) => {
+                        const val = value[0];
+                        // When time is changed, adjust question count to match (capped to question max)
+                        const cappedQuestion = Math.min(val, 180); // question slider max is 180
+                        setTimeLimit(val);
+                        setQuestionCount(cappedQuestion);
+                        setLastChanged('time');
+                      }}
                       max={180}
                       min={5}
                       step={5}
@@ -860,15 +908,22 @@ export function ChapterSelection() {
                     </Label>
                     <Slider
                       value={[questionCount]}
-                      onValueChange={(value) => setQuestionCount(value[0])}
-                      max={100}
+                      onValueChange={(value) => {
+                        const val = value[0];
+                        // When question count is changed, adjust time to match (capped to time max)
+                        const cappedTime = Math.min(val, 180); // time slider max is 180
+                        setQuestionCount(val);
+                        setTimeLimit(cappedTime);
+                        setLastChanged('questions');
+                      }}
+                      max={180}
                       min={5}
                       step={5}
                       className="w-full"
                     />
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
                       <span>5 questions</span>
-                      <span>100 questions</span>
+                      <span>180 questions</span>
                     </div>
                   </div>
                 </div>

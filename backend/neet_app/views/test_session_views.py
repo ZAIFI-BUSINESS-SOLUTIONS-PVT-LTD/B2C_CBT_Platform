@@ -353,14 +353,49 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             
             if needs_cleaning:
                 from .utils import clean_mathematical_text
-                q.question = clean_mathematical_text(q.question)
-                q.option_a = clean_mathematical_text(q.option_a)
-                q.option_b = clean_mathematical_text(q.option_b)
-                q.option_c = clean_mathematical_text(q.option_c)
-                q.option_d = clean_mathematical_text(q.option_d)
-                if q.explanation:
-                    q.explanation = clean_mathematical_text(q.explanation)
-                q.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation'])
+                # Clean fields but be defensive: saving cleaned text may conflict with
+                # an existing question due to a unique constraint on
+                # (question, topic_id, option_a, option_b, option_c, option_d).
+                new_question = clean_mathematical_text(q.question)
+                new_option_a = clean_mathematical_text(q.option_a)
+                new_option_b = clean_mathematical_text(q.option_b)
+                new_option_c = clean_mathematical_text(q.option_c)
+                new_option_d = clean_mathematical_text(q.option_d)
+                new_explanation = clean_mathematical_text(q.explanation) if q.explanation else None
+
+                # Check for an existing question with identical cleaned fields (exclude self)
+                try:
+                    duplicate_exists = Question.objects.filter(
+                        question=new_question,
+                        topic_id=q.topic_id,
+                        option_a=new_option_a,
+                        option_b=new_option_b,
+                        option_c=new_option_c,
+                        option_d=new_option_d,
+                    ).exclude(pk=q.pk).exists()
+                except Exception:
+                    # On unexpected DB error, don't block submit; fallback to attempting save
+                    duplicate_exists = False
+
+                if duplicate_exists:
+                    logger.warning(
+                        'Skipping save for question %s because cleaned text would duplicate an existing question',
+                        q.id
+                    )
+                else:
+                    # Apply cleaned values and attempt save; catch IntegrityError as defensive measure
+                    q.question = new_question
+                    q.option_a = new_option_a
+                    q.option_b = new_option_b
+                    q.option_c = new_option_c
+                    q.option_d = new_option_d
+                    if new_explanation is not None:
+                        q.explanation = new_explanation
+                    try:
+                        q.save(update_fields=['question', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation'])
+                    except Exception as e:
+                        # Catch IntegrityError or other DB errors and log; do not abort submission
+                        logger.exception('Failed to save cleaned question %s: %s', getattr(q, 'id', 'unknown'), str(e))
             question_map[q.id] = q
 
         # Process all TestAnswer objects (now includes all assigned questions)

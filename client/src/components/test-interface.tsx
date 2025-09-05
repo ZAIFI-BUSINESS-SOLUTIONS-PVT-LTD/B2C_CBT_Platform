@@ -1074,6 +1074,16 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 p-4">
+      {/* Preparing results overlay: shown while submit is in progress to improve UX */}
+      {isSubmitting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90">
+          <div className="text-center px-6 py-8 max-w-sm rounded-lg">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+            <h2 className="text-xl font-semibold text-[#1F2937]">Preparing your results...</h2>
+            <p className="text-sm text-gray-600 mt-2">We are finalizing your test results. This may take a few seconds.</p>
+          </div>
+        </div>
+      )}
       {/* START OVERLAY: require user gesture to enter fullscreen */}
       {!started && testData?.questions && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
