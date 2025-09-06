@@ -114,6 +114,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   
   // Prevent state updates / handlers from running while a submit is in progress
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Client-side test start timestamp (set when user first lands on first question)
+  const [clientTestStartTime, setClientTestStartTime] = useState<number | null>(null);
   
   // === TIME TRACKING ===
   const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now()); // When current question started
@@ -183,6 +185,17 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     }
   }, [testData]);
 
+  // Set client-side test start timestamp when user first lands on the first question
+  useEffect(() => {
+    // Only set once: when testData is available, started (entered fullscreen or clicked start),
+    // and we are on the first question (index 0)
+    if (!clientTestStartTime && testData && started && currentQuestionIndex === 0) {
+      const now = Date.now();
+      console.log('⏱️ Client test start time set:', new Date(now).toISOString());
+      setClientTestStartTime(now);
+    }
+  }, [clientTestStartTime, testData, started, currentQuestionIndex]);
+
   // === ANSWER SUBMISSION MUTATION ===
   // This mutation handles real-time answer submission as students answer questions
   const submitAnswerMutation = useMutation({
@@ -219,7 +232,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
   const submitTestMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(`/api/test-sessions/${sessionId}/submit/`, "POST");
+      // Send client-side start/end timestamps to ensure server computes duration based on active test time
+      const payload: any = {};
+      if (clientTestStartTime) payload.clientStartTime = new Date(clientTestStartTime).toISOString();
+      // client end time should be recorded at moment of submit click (avoid including post-processing time)
+      payload.clientEndTime = new Date().toISOString();
+
+      const response = await apiRequest(`/api/test-sessions/${sessionId}/submit/`, "POST", payload);
       return response;
     },
     onSuccess: () => {
@@ -255,7 +274,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       });
       
       // Navigate to results
-      navigate(`/results/${sessionId}`);
+  navigate(`/results/${sessionId}`);
   // Clean up state after navigation
   setIsSubmitting(false);
   setSuppressFullscreenExitDialog(false);

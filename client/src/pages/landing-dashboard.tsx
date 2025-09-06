@@ -628,8 +628,8 @@ export default function LandingDashboard() {
         <div className="w-full">
           <Tabs defaultValue="overview">
             <TabsList className="mb-4">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="alternate">Alternate</TabsTrigger>
+              <TabsTrigger value="overview">Practice Arena</TabsTrigger>
+              <TabsTrigger value="alternate">Battle Arena</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview">
@@ -806,7 +806,7 @@ export default function LandingDashboard() {
                 {/* Platform Test Selector */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Platform Test Analytics</CardTitle>
+                    <CardTitle>Platform Tests Analytics</CardTitle>
                     <CardDescription>Select a platform test to view your performance metrics</CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -1180,8 +1180,14 @@ function PerformanceTrendsChart({ data }: { data: any[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="testNumber" type="number" domain={["dataMin", "dataMax"]} allowDecimals={false} tickFormatter={(v) => (v != null ? `Practice test ${v}` : '')}>
-            <Label value="Test #" offset={-5} position="insideBottom" />
+          <XAxis
+            dataKey="testNumber"
+            type="number"
+            domain={["dataMin", "dataMax"]}
+            allowDecimals={false}
+            tickFormatter={(v) => (v != null ? `${v}` : '')} // show only the test number on ticks
+          >
+            <Label value="Practice test" offset={-5} position="insideBottom" />
           </XAxis>
           <YAxis>
             <Label value="Accuracy (%)" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} />

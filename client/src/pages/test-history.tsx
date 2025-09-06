@@ -55,9 +55,25 @@ export default function TestHistory() {
     return [];
   }, [data]);
 
+  // Helper to detect completed sessions across possible API shapes
+  const isCompletedSession = (s: any) => {
+    return Boolean(
+      s?.is_completed === true ||
+      s?.isCompleted === true ||
+      s?.status === 'completed' ||
+      s?.completed === true ||
+      s?.is_completed === 1
+    );
+  };
+
+  // Only keep completed sessions for the history listing
+  const filteredSessions = useMemo(() => {
+    return sessions.filter(isCompletedSession);
+  }, [sessions]);
+
   // For each session, fetch the authoritative results payload so counts match Results page
   const resultsQueries = useQueries({
-    queries: sessions.map((s) => ({
+    queries: filteredSessions.map((s) => ({
       queryKey: [API_CONFIG.ENDPOINTS.TEST_SESSION_RESULTS(s.id as number)],
       enabled: !!s.id,
     })),
@@ -71,8 +87,8 @@ export default function TestHistory() {
             <h1 className="text-2xl font-extrabold text-slate-900">Test History</h1>
             <p className="text-sm text-slate-500 mt-1">Your recent practice tests and quick access to detailed analytics.</p>
           </div>
-          <div className="flex items-center space-x-3">
-            <Badge className="text-sm">Total: {sessions.length}</Badge>
+            <div className="flex items-center space-x-3">
+            <Badge className="text-sm">Total: {filteredSessions.length}</Badge>
             <Button onClick={() => navigate('/dashboard')} className="px-3 py-2 text-sm bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg hover:shadow-xl"> 
               <BarChart3 className="h-4 w-4 mr-2 inline" /> Analytics
             </Button>
@@ -110,13 +126,13 @@ export default function TestHistory() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sessions.map((s, idx) => (
+          {filteredSessions.map((s, idx) => (
                       <tr
                         key={s.id}
                         className={`transform transition-all hover:shadow-md hover:-translate-y-0.5 bg-white rounded-lg`}
                       >
                         {/* Display sequential test number per-student where top row = latest test number */}
-                        <td className="py-4 px-4 align-middle font-medium text-slate-800">#{sessions.length - idx}</td>
+            <td className="py-4 px-4 align-middle font-medium text-slate-800">#{filteredSessions.length - idx}</td>
                         <td className="py-4 px-4 align-middle text-slate-700">
                           {(() => {
                             if (s.testType === 'platform') {

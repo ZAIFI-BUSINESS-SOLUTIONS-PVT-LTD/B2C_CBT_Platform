@@ -23,14 +23,15 @@ import {
 
 export interface ResultsDisplayProps {
   results: {
-    sessionId: number;
+    sessionId?: number;
     totalQuestions: number;
     correctAnswers: number;
     incorrectAnswers: number;
     unansweredQuestions: number;
     scorePercentage: number;
     timeTaken: number;
-    subjectPerformance: Record<string, { correct: number; total: number }>;
+    // changed to an array so each entry carries the subject name explicitly
+    subjectPerformance: Array<{ subject: string; correct: number; total: number }>;
     detailedAnswers: Array<{
       questionId: number;
       question: string;
@@ -162,8 +163,8 @@ export function ResultsDisplay({ results }: ResultsDisplayProps) {
                 Subject-wise Performance
               </h4>
               <div className="space-y-3">
-                {Object.entries(results.subjectPerformance).map(([subject, performance]) => {
-                  const percentage = Math.round((performance.correct / performance.total) * 100);
+                {results.subjectPerformance.map(({ subject, correct, total }) => {
+                  const percentage = total > 0 ? Math.round((correct / total) * 100) : 0;
                   return (
                     <div
                       key={subject}
@@ -174,7 +175,7 @@ export function ResultsDisplay({ results }: ResultsDisplayProps) {
                         <div className="ml-2">
                           <div className="font-medium text-slate-900 text-sm">{subject}</div>
                           <div className="text-xs text-slate-600">
-                            {performance.correct}/{performance.total} questions
+                            {correct}/{total} questions
                           </div>
                         </div>
                       </div>

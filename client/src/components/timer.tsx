@@ -13,7 +13,7 @@
  * when time runs out.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Clock } from "lucide-react";
 
 /**
@@ -33,25 +33,53 @@ interface TimerProps {
 export function Timer({ initialMinutes, onTimeUp, className = "", paused = false }: TimerProps) {
   // === TIMER STATE ===
   const [timeLeft, setTimeLeft] = useState((initialMinutes || 0) * 60);  // Time left in seconds
+  const intervalRef = useRef<number | null>(null);
 
   // === TIMER LOGIC ===
+  // Initialize timeLeft when initialMinutes changes (e.g. on mount)
   useEffect(() => {
-    // If time is up, trigger the callback
-    if (timeLeft <= 0) {
-      onTimeUp();
+    setTimeLeft((initialMinutes || 0) * 60);
+  }, [initialMinutes]);
+
+  // Manage the ticking interval. The interval is only created/cleared when
+  // paused state changes (or on unmount). This prevents the interval from
+  // being recreated every second and avoids pauses caused by parent re-renders
+  // or synchronous work elsewhere in the app.
+  useEffect(() => {
+    // If paused, ensure interval is cleared
+    if (paused) {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
       return;
     }
 
-    // If paused, don't start the interval
-    if (paused) return;
+    // Don't create multiple intervals
+    if (intervalRef.current !== null) return;
 
-    // Set up interval to decrement time every second
-    const timer = setInterval(() => {
+    intervalRef.current = window.setInterval(() => {
       setTimeLeft(prev => prev - 1);
     }, 1000);
 
-    // Cleanup interval on component unmount or dependency change
-    return () => clearInterval(timer);
+    return () => {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [paused]);
+
+  // Trigger onTimeUp when timeLeft reaches zero (or below)
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      // Clear interval if running
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      onTimeUp();
+    }
   }, [timeLeft, onTimeUp]);
 
   // === TIME FORMATTING ===

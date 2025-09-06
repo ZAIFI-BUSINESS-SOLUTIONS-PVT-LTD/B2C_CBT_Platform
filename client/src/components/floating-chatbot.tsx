@@ -17,14 +17,7 @@ export function FloatingChatbot() {
     return null;
   }
 
-  if (location === '/chatbot') {
-    console.log('FloatingChatbot - On chatbot page, showing test element');
-    return (
-      <div className="fixed top-4 right-4 z-[9999] bg-yellow-500 text-black p-2 rounded text-xs">
-        On Chatbot
-      </div>
-    );
-  }
+  // Don't render a debug tag on the chatbot page; keep the floating button behavior consistent
 
   console.log('FloatingChatbot - Rendering chatbot icon');
 

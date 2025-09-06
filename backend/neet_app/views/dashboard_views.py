@@ -1,5 +1,6 @@
 import random
 from django.db.models import Avg, Count, Max, Min, Sum, Q
+import random
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -26,10 +27,10 @@ def dashboard_analytics(request):
     # - end_time is not null (submit likely set end_time)
     # - total_time_taken is not null (summary persisted)
     # This is defensive: some older flows may have missed setting the boolean.
+    # Consider only sessions explicitly marked completed
     completed_sessions = TestSession.objects.filter(
-        student_id=student_id
-    ).filter(
-        Q(is_completed=True) | Q(end_time__isnull=False) | Q(total_time_taken__isnull=False)
+        student_id=student_id,
+        is_completed=True
     ).order_by('start_time')
 
     if not completed_sessions.exists():
@@ -169,11 +170,9 @@ def dashboard_comprehensive_analytics(request):
     student_id = request.user.student_id
     
     # Filter all queries by the authenticated student
+    # Only consider sessions that are explicitly completed
     all_sessions = TestSession.objects.filter(student_id=student_id)
-    # Defensive completed sessions filter (see comment above)
-    completed_sessions = all_sessions.filter(
-        Q(is_completed=True) | Q(end_time__isnull=False) | Q(total_time_taken__isnull=False)
-    )
+    completed_sessions = all_sessions.filter(is_completed=True)
 
     if not completed_sessions.exists():
         return Response({
@@ -498,9 +497,11 @@ def platform_test_analytics(request):
     student_id = request.user.student_id
     
     # Get list of platform tests the student has taken (slicer should show only tests the student has taken)
+    # Only include platform tests from sessions that were completed
     taken_platform_test_ids = TestSession.objects.filter(
         student_id=student_id,
-        platform_test__isnull=False
+        platform_test__isnull=False,
+        is_completed=True
     ).values_list('platform_test_id', flat=True).distinct()
 
     platform_tests_qs = PlatformTest.objects.filter(

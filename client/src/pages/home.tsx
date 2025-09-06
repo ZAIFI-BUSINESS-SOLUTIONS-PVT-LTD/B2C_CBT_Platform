@@ -323,8 +323,8 @@ export default function Home() {
 
             {/* Platform Tests Button - Always Active */}
             <NavigationBox
-              title="Platform Tests"
-              description="Take official practice tests and scheduled exams"
+              title="Challenge Hub"
+              description="Take platform-wide practice tests and real exam simulations"
               icon={<CalendarIcon className="h-8 w-8" />}
               href="/scheduled-tests"
               isLocked={false}

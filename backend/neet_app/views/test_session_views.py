@@ -440,10 +440,35 @@ class TestSessionViewSet(viewsets.ModelViewSet):
 
         score_percentage = (correct_answers_count / total_questions_in_session) * 100 if total_questions_in_session > 0 else 0
 
-        # Compute authoritative time taken as the difference between server-side start and end times
-        time_taken_seconds = 0
-        if session.start_time and session.end_time:
-            time_taken_seconds = int((session.end_time - session.start_time).total_seconds())
+        # Compute authoritative time taken.
+        # Prefer client-provided timestamps (so UI can mark exact active test window) to avoid
+        # including server-side processing time that happens after submit button click.
+        time_taken_seconds = None
+        client_start = request.data.get('clientStartTime') or request.data.get('client_start_time')
+        client_end = request.data.get('clientEndTime') or request.data.get('client_end_time')
+        if client_start and client_end:
+            try:
+                from django.utils.dateparse import parse_datetime
+                cs = parse_datetime(client_start)
+                ce = parse_datetime(client_end)
+                if cs and ce:
+                    # If parsed datetimes are naive/aware, subtracting works if both are same type.
+                    # Only accept if end > start
+                    if ce > cs:
+                        time_taken_seconds = int((ce - cs).total_seconds())
+            except Exception:
+                # If parsing fails, fall back to server-side computation below
+                time_taken_seconds = None
+
+        # Fallback: use server-side start/end if client timestamps not provided or invalid
+        if time_taken_seconds is None:
+            if session.start_time and session.end_time:
+                try:
+                    time_taken_seconds = int((session.end_time - session.start_time).total_seconds())
+                except Exception:
+                    time_taken_seconds = 0
+            else:
+                time_taken_seconds = 0
 
         # Persist summarized session metrics so the TestSession row reflects the final results
         try:

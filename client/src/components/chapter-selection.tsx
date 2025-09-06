@@ -70,6 +70,7 @@ export function ChapterSelection() {
   
   // === UI INTERACTION STATE ===
   const [expandedChapters, setExpandedChapters] = useState<string[]>([]);  // Expanded chapter IDs
+  const [expandedSubjects, setExpandedSubjects] = useState<string[]>([]); // Expanded subject cards
   const [searchQuery, setSearchQuery] = useState<string>("");              // Search input value
   const [showSearchResults, setShowSearchResults] = useState<boolean>(false); // Search results visibility
   
@@ -357,6 +358,12 @@ export function ChapterSelection() {
       prev.includes(chapterId)
         ? prev.filter(id => id !== chapterId)  // Collapse if already expanded
         : [...prev, chapterId]                 // Expand if currently collapsed
+    );
+  };
+
+  const handleSubjectToggle = (subject: string) => {
+    setExpandedSubjects(prev =>
+      prev.includes(subject) ? prev.filter(s => s !== subject) : [...prev, subject]
     );
   };
 
@@ -718,22 +725,24 @@ export function ChapterSelection() {
                   </Card>
                 </div>
               </div>
-              {/* Search Topics Section */}
-              <div className="mb-6">
-                <h5 className="text-xs font-semibold text-gray-800 mb-1.5 flex items-center">
-                  <Search className="h-3 w-3 mr-1 text-green-600" />
-                  Search Topics
-                </h5>
-                <SearchBar
-                  searchQuery={searchQuery}
-                  onSearchChange={handleSearchChange}
-                  onClearSearch={clearSearch}
-                  filteredTopics={filteredTopics}
-                  selectedTopics={selectedTopicsCustom}
-                  onTopicSelect={(topicId) => handleCustomTopicToggle(topicId)}
-                  showResults={showSearchResults}
-                />
-              </div>
+              {/* Search Topics Section - only show under "Select Subject" (custom) mode */}
+              {testType === "custom" && (
+                <div className="mb-6">
+                  <h5 className="text-xs font-semibold text-gray-800 mb-1.5 flex items-center">
+                    <Search className="h-3 w-3 mr-1 text-green-600" />
+                    Search Topics
+                  </h5>
+                  <SearchBar
+                    searchQuery={searchQuery}
+                    onSearchChange={handleSearchChange}
+                    onClearSearch={clearSearch}
+                    filteredTopics={filteredTopics}
+                    selectedTopics={selectedTopicsCustom}
+                    onTopicSelect={(topicId) => handleCustomTopicToggle(topicId)}
+                    showResults={showSearchResults}
+                  />
+                </div>
+              )}
               {/* Custom Subject Selection */}
               {testType === "custom" && (
                 <div className="mb-8">
@@ -856,15 +865,59 @@ export function ChapterSelection() {
               
               {/* Search Bar for Search Mode */}
               {testType === "search" && (
-                <SearchBar
-                  searchQuery={searchQuery}
-                  onSearchChange={handleSearchChange}
-                  onClearSearch={clearSearch}
-                  filteredTopics={filteredTopics}
-                  selectedTopics={selectedTopics}
-                  onTopicSelect={handleTopicSelectFromSearch}
-                  showResults={showSearchResults}
-                />
+                <>
+                  <SearchBar
+                    searchQuery={searchQuery}
+                    onSearchChange={handleSearchChange}
+                    onClearSearch={clearSearch}
+                    filteredTopics={filteredTopics}
+                    selectedTopics={selectedTopics}
+                    onTopicSelect={handleTopicSelectFromSearch}
+                    showResults={showSearchResults}
+                  />
+
+                  {/* All Selected Topics (captures selections from search box and list below) */}
+                  {selectedTopics.length > 0 && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-[11px] font-medium text-gray-700">
+                          All Selected Topics ({selectedTopics.length})
+                        </Label>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedTopics([])}
+                          className="text-xs text-red-600 hover:text-red-800 border-red-200 hover:border-red-300"
+                        >
+                          Clear All
+                        </Button>
+                      </div>
+                      <div className="border rounded-md p-3 bg-gray-50 max-h-40 overflow-y-auto">
+                        <div className="flex flex-wrap gap-2">
+                          {selectedTopics.map((topicId) => {
+                            const topic = topics.find(t => t.id.toString() === topicId);
+                            if (!topic) return null;
+                            return (
+                              <div
+                                key={topicId}
+                                className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs"
+                              >
+                                <span>{topic.subject} - {topic.chapter}</span>
+                                <span className="font-medium">{topic.name}</span>
+                                <button
+                                  onClick={() => handleTopicToggle(topicId)}
+                                  className="ml-1 text-purple-600 hover:text-purple-800"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Test Settings */}
@@ -938,7 +991,8 @@ export function ChapterSelection() {
                   </h3>
                 
                 {/* Subject Dropdown Selection */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Use 2 columns on large screens to avoid severe horizontal squashing */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
                   {["Physics", "Chemistry", "Botany", "Zoology"].map((subject) => {
                     // Fix: Make subject matching case-insensitive
                     const subjectTopics = topics.filter((t: Topic) => t.subject.toLowerCase() === subject.toLowerCase());
@@ -951,9 +1005,14 @@ export function ChapterSelection() {
                       sampleChapters: subjectTopics.slice(0, 3).map(t => t.chapter) 
                     });
                     
+                    const isSubjectExpanded = expandedSubjects.includes(subject);
+
                     return (
-                      <Card key={subject} className={`${getSubjectColor(subject)} border-2 transition-all duration-300`}>
-                        <CardHeader className="pb-4">
+                      <Card key={subject} className={`${getSubjectColor(subject)} border-2 transition-all duration-300 flex flex-col min-w-0 overflow-hidden ${isSubjectExpanded ? 'h-[55vh] lg:h-[68vh] lg:col-span-2' : 'h-28 lg:h-32'}`}>
+                        <CardHeader
+                          className={`pb-2 ${isSubjectExpanded ? 'sticky top-0 bg-transparent z-10' : 'cursor-pointer'}`}
+                          onClick={() => handleSubjectToggle(subject)}
+                        >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center">
                               <div className="mr-3">{getSubjectIcon(subject)}</div>
@@ -967,89 +1026,104 @@ export function ChapterSelection() {
                             </Badge>
                           </div>
                         </CardHeader>
-                        <CardContent className="pt-0">
-                          <div className="space-y-3">
-                            {hasChapters ? (
-                              // Chapter dropdown sections
-                              getChaptersForSubject(subject).map((chapter) => {
-                                const chapterTopics = getTopicsByChapter(subject, chapter);
-                                const chapterSelectedCount = chapterTopics.filter((t: Topic) => selectedTopics.includes(t.id.toString())).length;
-                                const isChapterExpanded = expandedChapters.includes(`${subject}-${chapter}`);
-                                
-                                return (
-                                  <div key={chapter} className="border rounded-lg bg-white/50 overflow-hidden">
-                                    <div 
-                                      className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/80 transition-colors"
-                                      onClick={() => handleChapterToggle(`${subject}-${chapter}`)}
-                                    >
-                                      <div className="flex items-center">
-                                        <BookOpen className="h-4 w-4 mr-2 text-gray-600" />
-                                        <span className="font-medium text-gray-800">{chapter}</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <Badge variant="outline" className="text-xs">
-                                          {chapterSelectedCount}/{chapterTopics.length}
-                                        </Badge>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSelectAllInChapter(subject, chapter);
-                                          }}
-                                          className="text-xs px-2 py-1 h-auto"
-                                        >
-                                          {chapterSelectedCount === chapterTopics.length ? "Deselect All" : "Select All"}
-                                        </Button>
-                                        {isChapterExpanded ? (
-                                          <ChevronDown className="h-4 w-4 text-gray-500" />
-                                        ) : (
-                                          <ChevronRight className="h-4 w-4 text-gray-500" />
-                                        )}
-                                      </div>
-                                    </div>
-                                    
-                                    {isChapterExpanded && (
-                                      <div className="border-t bg-gray-50/50 p-3">
-                                        <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
-                                          {chapterTopics.map((topic: Topic) => (
-                                            <div key={topic.id} className="flex items-center space-x-2 p-2 hover:bg-white rounded-md transition-colors">
-                                              <Checkbox
-                                                id={`topic-${topic.id}`}
-                                                checked={selectedTopics.includes(topic.id.toString())}
-                                                onCheckedChange={() => handleTopicToggle(topic.id.toString())}
-                                                className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                                              />
-                                              <Label htmlFor={`topic-${topic.id}`} className="text-sm cursor-pointer flex-1">
-                                                <div className="flex items-center">
-                                                  <span className="mr-2">{topic.icon}</span>
-                                                  {topic.name}
-                                                </div>
-                                              </Label>
-                                            </div>
-                                          ))}
+
+                        {isSubjectExpanded ? (
+                          <CardContent className="pt-0 overflow-y-auto pr-2">
+                            <div className="space-y-3">
+                              {hasChapters ? (
+                                // Chapter dropdown sections
+                                getChaptersForSubject(subject).map((chapter) => {
+                                  const chapterTopics = getTopicsByChapter(subject, chapter);
+                                  const chapterSelectedCount = chapterTopics.filter((t: Topic) => selectedTopics.includes(t.id.toString())).length;
+                                  const isChapterExpanded = expandedChapters.includes(`${subject}-${chapter}`);
+
+                                  return (
+                                    <div key={chapter} className="border rounded-lg bg-white/50 overflow-hidden">
+                                      <div 
+                                        className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/80 transition-colors"
+                                        onClick={() => handleChapterToggle(`${subject}-${chapter}`)}
+                                      >
+                                        <div className="flex items-center">
+                                          <BookOpen className="h-4 w-4 mr-2 text-gray-600" />
+                                          <span className="font-medium text-gray-800">{chapter}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <Badge variant="outline" className="text-xs">
+                                            {chapterSelectedCount}/{chapterTopics.length}
+                                          </Badge>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleSelectAllInChapter(subject, chapter);
+                                            }}
+                                            className="text-xs px-2 py-1 h-auto"
+                                          >
+                                            {chapterSelectedCount === chapterTopics.length ? "Deselect All" : "Select All"}
+                                          </Button>
+                                          {isChapterExpanded ? (
+                                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                                          ) : (
+                                            <ChevronRight className="h-4 w-4 text-gray-500" />
+                                          )}
                                         </div>
                                       </div>
-                                    )}
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              // Fallback for subjects without chapters
-                              <div className="text-center py-3">
-                                <p className="text-sm text-gray-500">Loading chapters...</p>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  onClick={() => window.location.reload()}
-                                  className="mt-2"
-                                >
-                                  Refresh
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
+                                      
+                                      {isChapterExpanded && (
+                                        <div className="border-t bg-gray-50/50 p-3">
+                                          <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
+                                            {chapterTopics.map((topic: Topic) => (
+                                              <div key={topic.id} className="flex items-center space-x-2 p-2 hover:bg-white rounded-md transition-colors">
+                                                <Checkbox
+                                                  id={`topic-${topic.id}`}
+                                                  checked={selectedTopics.includes(topic.id.toString())}
+                                                  onCheckedChange={() => handleTopicToggle(topic.id.toString())}
+                                                  className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                                                />
+                                                <Label htmlFor={`topic-${topic.id}`} className="text-sm cursor-pointer flex-1">
+                                                  <div className="flex items-center">
+                                                    <span className="mr-2">{topic.icon}</span>
+                                                    {topic.name}
+                                                  </div>
+                                                </Label>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              ) : (
+                                // Fallback for subjects without chapters
+                                <div className="text-center py-3">
+                                  <p className="text-sm text-gray-500">Loading chapters...</p>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => window.location.reload()}
+                                    className="mt-2"
+                                  >
+                                    Refresh
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        ) : (
+                          // Collapsed preview: show a compact tag list of first 2 chapters
+                          <CardContent className="pt-0">
+                            <div className="flex flex-col gap-2">
+                              {getChaptersForSubject(subject).slice(0, 3).map((ch) => (
+                                <div key={ch} className="flex items-center justify-between p-2 bg-white/60 rounded-md">
+                                  <span className="text-sm text-gray-800 truncate max-w-full block">{ch}</span>
+                                  <Badge variant="outline" className="text-xs ml-2">{(getTopicsByChapter(subject, ch) || []).length}</Badge>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        )}
                       </Card>
                     );
                   })}
