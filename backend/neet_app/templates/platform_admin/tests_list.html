@@ -1,0 +1,27 @@
+{% load static %}
+<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Platform Tests</title></head>
+  <body>
+    <h1>Platform Tests</h1>
+    <a href="{% url 'platform-admin-tests-create' %}">Create New Test</a>
+    <table border="1" cellpadding="6">
+      <tr><th>ID</th><th>Name</th><th>Code</th><th>Active</th><th>Actions</th></tr>
+      {% for t in platform_tests %}
+      <tr>
+        <td>{{ t.id }}</td>
+        <td>{{ t.test_name }}</td>
+        <td>{{ t.test_code }}</td>
+        <td>{{ t.is_active }}</td>
+        <td>
+          <a href="{% url 'platform-admin-tests-edit' t.id %}">Edit</a> |
+          <a href="{% url 'platform-admin-tests-delete' t.id %}">Delete</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">No tests found</td></tr>
+      {% endfor %}
+    </table>
+    <a href="{% url 'platform-admin-home' %}">Back to dashboard</a>
+  </body>
+  </html>

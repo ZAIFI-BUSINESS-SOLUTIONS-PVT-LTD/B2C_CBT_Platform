@@ -2,6 +2,8 @@ from django.contrib import admin
 from django import forms
 from django.contrib.admin.widgets import FilteredSelectMultiple
 from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, StudentInsight, PasswordReset, PlatformTest
+from .models import UserActivity, PlatformTestAudit
+from .models import PlatformAdmin
 
 @admin.register(PlatformTest)
 class PlatformTestAdmin(admin.ModelAdmin):
@@ -181,3 +183,23 @@ class PasswordResetAdmin(admin.ModelAdmin):
     list_filter = ['used']
     search_fields = ['user']
     ordering = ['-expires_at']
+
+
+@admin.register(UserActivity)
+class UserActivityAdmin(admin.ModelAdmin):
+    list_display = ['user', 'last_seen', 'ip_address']
+    search_fields = ['user__username', 'user__email']
+    ordering = ['-last_seen']
+
+
+@admin.register(PlatformTestAudit)
+class PlatformTestAuditAdmin(admin.ModelAdmin):
+    list_display = ['platform_test', 'action', 'performed_by', 'created_at']
+    list_filter = ['action']
+    ordering = ['-created_at']
+
+
+@admin.register(PlatformAdmin)
+class PlatformAdminAdmin(admin.ModelAdmin):
+    list_display = ['username', 'is_active', 'created_at']
+    readonly_fields = ['created_at']

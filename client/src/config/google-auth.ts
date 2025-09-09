@@ -9,7 +9,30 @@
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 // API Base URL
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Priority:
+// 1. VITE_API_BASE_URL environment variable (normalize and ensure /api suffix)
+// 2. DEV mode -> localhost:8000/api  
+// 3. Production -> testapi.inzighted.com/api
+const _envApiBase = import.meta.env.VITE_API_BASE_URL;
+
+export const API_BASE_URL = (() => {
+  if (_envApiBase) {
+    // Use provided env var, normalize it
+    const cleanBase = String(_envApiBase).replace(/\/$/, ''); // Remove trailing slash
+    // Ensure it ends with /api
+    return cleanBase.endsWith('/api') ? cleanBase : `${cleanBase}/api`;
+  }
+  
+  // Fallback to environment defaults
+  return import.meta.env.DEV 
+    ? 'http://localhost:8000/api' 
+    : 'https://testapi.inzighted.com/api';
+})();
+
+// Debug logging to verify which URL is being used
+console.log('🌐 Google Auth Config - Environment Mode:', import.meta.env.DEV ? 'Development' : 'Production');
+console.log('🌐 Google Auth Config - VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
+console.log('🌐 Google Auth Config - Final API_BASE_URL:', API_BASE_URL);
 
 // Google OAuth configuration
 export const GOOGLE_CONFIG = {

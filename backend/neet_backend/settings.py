@@ -44,6 +44,10 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    # Platform admin activity middleware
+    'neet_app.middleware.UpdateLastSeenMiddleware',
+    # Global error handling middleware
+    'neet_app.exception_handler.ErrorHandlingMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -113,6 +117,9 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
+# Heartbeat timeout used by platform admin metrics (in seconds)
+HEARTBEAT_TIMEOUT_SECONDS = int(os.environ.get('HEARTBEAT_TIMEOUT_SECONDS', '90'))
+
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
@@ -148,6 +155,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
     ],
+    
+    # Global exception handler for standardized error responses
+    'EXCEPTION_HANDLER': 'neet_app.exception_handler.standard_exception_handler',
 
     # Optional: If you want to control how numbers are underscored (e.g., v2Counter -> v2_counter)
     # The default is to remove underscores before numbers (v2Counter -> v2counter)
@@ -303,4 +313,31 @@ LOGGING = {
             'propagate': False,
         },
     },
+}
+
+# ----------------------
+# Celery / Redis settings
+# ----------------------
+REDIS_HOST = os.environ.get('REDIS_HOST', '127.0.0.1')
+REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
+REDIS_DB = os.environ.get('REDIS_DB', '0')
+REDIS_URL = os.environ.get('REDIS_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}')
+
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', REDIS_URL)
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', REDIS_URL)
+
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+
+# Example beat schedule (can be extended in production)
+from celery.schedules import crontab
+CELERY_BEAT_SCHEDULE = {
+    # 'daily-insights-regenerate': {
+    #     'task': 'neet_app.tasks.generate_insights_task',
+    #     'schedule': crontab(hour=3, minute=0),
+    #     'args': (),
+    # },
 }

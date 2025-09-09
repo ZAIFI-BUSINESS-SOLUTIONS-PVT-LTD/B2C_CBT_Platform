@@ -1,0 +1,62 @@
+{% load static %}
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Platform Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  </head>
+  <body class="bg-gray-100 p-6">
+    <div class="max-w-6xl mx-auto">
+      <h1 class="text-2xl font-semibold mb-4">Platform Admin</h1>
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="p-4 bg-white rounded shadow">
+          <h3 class="text-sm text-gray-600">Active tests</h3>
+          <div id="kpi-active-tests" class="text-2xl font-bold">{{ active_tests }}</div>
+        </div>
+        <div class="p-4 bg-white rounded shadow">
+          <h3 class="text-sm text-gray-600">Students online</h3>
+          <div id="kpi-logged-in" class="text-2xl font-bold">0</div>
+        </div>
+        <div class="p-4 bg-white rounded shadow">
+          <h3 class="text-sm text-gray-600">Students taking test</h3>
+          <div id="kpi-taking" class="text-2xl font-bold">0</div>
+        </div>
+        <div class="p-4 bg-white rounded shadow">
+          <h3 class="text-sm text-gray-600">Concurrent test owners</h3>
+          <div id="kpi-concurrent" class="text-2xl font-bold">0</div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded shadow p-4 mb-6">
+        <h2 class="text-lg font-medium">Quick Metrics</h2>
+        <div class="grid grid-cols-4 gap-4 mt-3">
+          <div class="p-3 border rounded">Attempts (24h): <span id="kpi-attempts">{{ attempts_last_24h }}</span></div>
+          <div class="p-3 border rounded">Avg score: <span id="kpi-avg">{{ avg_score }}%</span></div>
+          <div class="p-3 border rounded">Total tests: <span id="kpi-total">{{ total_tests }}</span></div>
+          <div class="p-3 border rounded">Errors today: <span id="kpi-errors">0</span></div>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+    <a href="{% url 'platform-admin-tests-list' %}" class="px-4 py-2 bg-blue-600 text-white rounded">Manage Tests</a>
+    <a href="{% url 'platform-admin-tests-create' %}" class="ml-3 px-4 py-2 bg-green-600 text-white rounded">Create Test</a>
+      </div>
+    </div>
+
+    <script>
+      (function pollMetrics(){
+        fetch("{% url 'platform-admin-metrics-api' %}", {credentials: 'include'}).then(r=>r.json()).then(data=>{
+          document.getElementById('kpi-active-tests').textContent = data.active_tests ?? '0';
+          document.getElementById('kpi-logged-in').textContent = data.logged_in_count ?? '0';
+          document.getElementById('kpi-taking').textContent = data.taking_count ?? '0';
+          document.getElementById('kpi-concurrent').textContent = data.concurrent_count ?? '0';
+          document.getElementById('kpi-attempts').textContent = data.attempts_last_24h ?? '0';
+          document.getElementById('kpi-avg').textContent = (data.avg_score ?? 0) + '%';
+        }).catch(()=>{});
+        setTimeout(pollMetrics, 10000);
+      })();
+    </script>
+  </body>
+  </html>

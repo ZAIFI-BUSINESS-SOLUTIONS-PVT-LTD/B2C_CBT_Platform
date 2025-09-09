@@ -7,9 +7,9 @@ import {
   getAccessToken, 
   setTokens, 
   clearTokens,
-  type JWTLoginResponse,
-  API_BASE_URL
+  type JWTLoginResponse
 } from "@/lib/auth";
+import { API_BASE_URL } from "@/config/google-auth";
 
 interface AuthContextType {
   student: StudentProfile | null;

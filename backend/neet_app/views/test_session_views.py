@@ -6,6 +6,8 @@ from django.utils.dateparse import parse_datetime
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from ..errors import AppError, ValidationError as AppValidationError
+from ..error_codes import ErrorCodes
 from rest_framework.permissions import IsAuthenticated
 
 from ..models import Question, TestSession, TestAnswer
@@ -103,13 +105,11 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                     
                     # For adaptive selection, we only fail if no questions are available at all
                     if available_count == 0:
-                        return Response({
-                            'error': 'No questions available',
-                            'message': 'No questions available for selected topics.',
-                            'available_questions': 0,
-                            'requested_questions': requested_question_count,
-                            'action_required': 'Please select different topics.'
-                        }, status=status.HTTP_400_BAD_REQUEST)
+                        raise AppValidationError(
+                            code=ErrorCodes.INVALID_INPUT,
+                            message='No questions available for selected topics.',
+                            details={'available_questions': 0, 'requested_questions': requested_question_count}
+                        )
                     
                     # If we have fewer questions than requested, log it but continue (adaptive selection will handle it)
                     if available_count < requested_question_count:
@@ -126,13 +126,11 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                     
                     # Validate if we have enough questions for topic-based tests
                     if available_count < requested_question_count:
-                        return Response({
-                            'error': 'Insufficient questions available',
-                            'message': f'Only {available_count} questions available for selected topics, but {requested_question_count} requested.',
-                            'available_questions': available_count,
-                            'requested_questions': requested_question_count,
-                            'action_required': 'Please reduce the number of questions or select different topics.'
-                        }, status=status.HTTP_400_BAD_REQUEST)
+                        raise AppValidationError(
+                            code=ErrorCodes.INVALID_INPUT,
+                            message=f'Only {available_count} questions available for selected topics, but {requested_question_count} requested.',
+                            details={'available_questions': available_count, 'requested_questions': requested_question_count}
+                        )
             
             # Create the session (serializer generates questions internally with exclusion)
             session = serializer.save()
@@ -208,10 +206,7 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             logger.error(f"Error creating test session: {str(e)}", exc_info=True)
-            return Response(
-                {"error": f"Failed to create test session: {str(e)}"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to create test session', details={'exception': str(e)})
 
     def retrieve(self, request, pk=None):
         """
@@ -233,15 +228,12 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             logger.info(f"Session found: {session.id}, belongs to: {session.student_id}")
         except Exception as e:
             logger.error(f"Session retrieval failed: {e}")
-            raise
+            raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to retrieve test session', details={'exception': str(e)})
 
         try:
             topic_ids = [int(topic_id) for topic_id in session.selected_topics]
         except ValueError:
-            return Response(
-                {"error": "Invalid topic IDs stored in session."}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            raise AppError(code=ErrorCodes.SERVER_ERROR, message='Invalid topic IDs stored in session.')
 
         # Get questions from TestAnswer table (the exact questions assigned to this session)
         test_answers = TestAnswer.objects.filter(session=session).select_related('question')
@@ -293,6 +285,7 @@ class TestSessionViewSet(viewsets.ModelViewSet):
 
             except Exception as e:
                 logger.exception('Failed to generate questions for session %s: %s', session.id, str(e))
+                raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to generate questions for session', details={'exception': str(e)})
 
         session_data = TestSessionSerializer(session).data
         questions_data = QuestionForTestSerializer(selected_questions, many=True).data
@@ -332,10 +325,7 @@ class TestSessionViewSet(viewsets.ModelViewSet):
         try:
             session_topic_ids = [int(tid) for tid in session.selected_topics]
         except ValueError:
-            return Response(
-                {"error": "Invalid topic IDs stored in session."}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            raise AppError(code=ErrorCodes.SERVER_ERROR, message='Invalid topic IDs stored in session.')
 
         # Get questions and ensure they are cleaned
         questions = Question.objects.filter(topic_id__in=session_topic_ids).select_related('topic')
@@ -535,10 +525,7 @@ class TestSessionViewSet(viewsets.ModelViewSet):
 
         # Check if the test is already completed
         if session.is_completed:
-            return Response(
-                {"error": "Cannot quit a completed test session."}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise AppValidationError(code=ErrorCodes.INVALID_ACTION if hasattr(ErrorCodes, 'INVALID_ACTION') else ErrorCodes.INVALID_INPUT, message='Cannot quit a completed test session.')
 
         # Mark the session as incomplete and set end time
         session.is_completed = False  # Explicitly mark as incomplete

@@ -61,6 +61,10 @@ export function ChapterSelection() {
   const [questionCount, setQuestionCount] = useState<number>(20);          // Number of questions
   // Track which slider was changed last so we use either time or questions (this OR that)
   const [lastChanged, setLastChanged] = useState<'time' | 'questions'>('questions');
+  // Slider bounds (keep centralised for easy changes)
+  const SLIDER_MIN = 5;
+  const SLIDER_MAX = 180;
+  const SLIDER_STEP = 5;
   
   // === NEW UI STATE FOR WIREFRAME ===
   const [testType, setTestType] = useState<"random" | "custom" | "search">("random"); // Test type selection
@@ -156,6 +160,26 @@ export function ChapterSelection() {
       setExpandedChapters([]);
     }
   }, [topics]);
+
+  // When the questions slider was changed last, the time slider should be
+  // constrained to questionCount ± 5. If the current timeLimit falls outside
+  // that window, clamp it so the displayed slider value is valid.
+  useEffect(() => {
+    if (lastChanged === 'questions') {
+      const minTime = Math.max(SLIDER_MIN, questionCount - SLIDER_STEP);
+      const maxTime = Math.min(SLIDER_MAX, questionCount + SLIDER_STEP);
+      if (timeLimit < minTime) setTimeLimit(minTime);
+      else if (timeLimit > maxTime) setTimeLimit(maxTime);
+    }
+    // Intentionally only respond to questionCount / lastChanged changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionCount, lastChanged]);
+
+  // Compute dynamic bounds for the time slider depending on which slider was
+  // changed last. If questions was last changed, time is restricted to
+  // questionCount ± SLIDER_STEP (clamped to SLIDER_MIN/SLIDER_MAX).
+  const timeMin = lastChanged === 'questions' ? Math.max(SLIDER_MIN, questionCount - SLIDER_STEP) : SLIDER_MIN;
+  const timeMax = lastChanged === 'questions' ? Math.min(SLIDER_MAX, questionCount + SLIDER_STEP) : SLIDER_MAX;
 
   // === TEST SESSION CREATION ===
   // This mutation handles creating a new test session when user clicks "Start Test"
@@ -936,21 +960,30 @@ export function ChapterSelection() {
                     <Slider
                       value={[timeLimit]}
                       onValueChange={(value) => {
-                        const val = value[0];
-                        // When time is changed, adjust question count to match (capped to question max)
-                        const cappedQuestion = Math.min(val, 180); // question slider max is 180
+                        let val = value[0];
+                        // Clamp to the current allowed bounds (timeMin/timeMax)
+                        if (val < timeMin) val = timeMin;
+                        if (val > timeMax) val = timeMax;
                         setTimeLimit(val);
-                        setQuestionCount(cappedQuestion);
-                        setLastChanged('time');
+
+                        // If the questions slider was last changed, changing time should
+                        // NOT alter questionCount and should NOT flip lastChanged to 'time'.
+                        // This preserves the user's intent when they started with Questions.
+                        if (lastChanged !== 'questions') {
+                          // Keep previous behavior of keeping questionCount in sync (capped).
+                          const cappedQuestion = Math.min(val, SLIDER_MAX);
+                          setQuestionCount(cappedQuestion);
+                          setLastChanged('time');
+                        }
                       }}
-                      max={180}
-                      min={5}
-                      step={5}
+                      max={timeMax}
+                      min={timeMin}
+                      step={SLIDER_STEP}
                       className="w-full"
                     />
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>5 min</span>
-                      <span>180 min</span>
+                      <span>{timeMin} min</span>
+                      <span>{timeMax} min</span>
                     </div>
                   </div>
 
@@ -964,14 +997,14 @@ export function ChapterSelection() {
                       onValueChange={(value) => {
                         const val = value[0];
                         // When question count is changed, adjust time to match (capped to time max)
-                        const cappedTime = Math.min(val, 180); // time slider max is 180
+                        const cappedTime = Math.min(val, SLIDER_MAX);
                         setQuestionCount(val);
                         setTimeLimit(cappedTime);
                         setLastChanged('questions');
                       }}
-                      max={180}
-                      min={5}
-                      step={5}
+                      max={SLIDER_MAX}
+                      min={SLIDER_MIN}
+                      step={SLIDER_STEP}
                       className="w-full"
                     />
                     <div className="flex justify-between text-xs text-gray-500 mt-1">

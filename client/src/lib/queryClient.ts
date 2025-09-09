@@ -2,6 +2,44 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { API_CONFIG } from "@/config/api"; // <--- Crucial: Import your API_CONFIG
 import { getAccessToken, authenticatedFetch } from "@/lib/auth"; // Import JWT utilities
 
+// Enhanced error class to handle standardized backend error format
+export class APIError extends Error {
+  public code: string;
+  public status: number;
+  public timestamp?: string;
+  public details?: any;
+
+  constructor(
+    code: string,
+    message: string,
+    status: number,
+    timestamp?: string,
+    details?: any
+  ) {
+    super(message);
+    this.name = 'APIError';
+    this.code = code;
+    this.status = status;
+    this.timestamp = timestamp;
+    this.details = details;
+  }
+
+  // Helper method to check if error is of a specific type
+  public isType(code: string): boolean {
+    return this.code === code;
+  }
+
+  // Helper method to check if error is authentication related
+  public isAuthError(): boolean {
+    return this.code.startsWith('AUTH_');
+  }
+
+  // Helper method to check if error is validation related
+  public isValidationError(): boolean {
+    return this.code === 'INVALID_INPUT' || this.code === 'MISSING_REQUIRED_FIELD';
+  }
+}
+
 // Helper to read cookie by name (used for CSRF token)
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -9,12 +47,52 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[2]) : null;
 }
 
-// Helper function to throw an error if the response is not OK
+// Enhanced error handler that parses standardized backend error format
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    // Attempt to parse the error body if available, otherwise use statusText
-    const errorBody = await res.text().catch(() => res.statusText);
-    throw new Error(`${res.status}: ${errorBody}`);
+    try {
+      // Try to parse JSON error response
+      const errorData = await res.json();
+      
+      // Check if response follows our standardized error format
+      if (errorData.error && errorData.error.code && errorData.error.message) {
+        throw new APIError(
+          errorData.error.code,
+          errorData.error.message,
+          res.status,
+          errorData.error.timestamp,
+          errorData.error.details
+        );
+      }
+      
+      // Handle legacy error formats
+      if (errorData.detail) {
+        throw new APIError(
+          'UNKNOWN_ERROR',
+          errorData.detail,
+          res.status
+        );
+      }
+      
+      // Generic error for unrecognized format
+      throw new APIError(
+        'UNKNOWN_ERROR',
+        errorData.message || 'An error occurred',
+        res.status
+      );
+    } catch (parseError) {
+      // If JSON parsing fails, fall back to text
+      if (parseError instanceof APIError) {
+        throw parseError;
+      }
+      
+      const errorText = await res.text().catch(() => res.statusText);
+      throw new APIError(
+        'UNKNOWN_ERROR',
+        errorText || `HTTP ${res.status}`,
+        res.status
+      );
+    }
   }
 }
 
@@ -74,10 +152,19 @@ export async function apiRequest(
       await throwIfResNotOk(res);
       return method === "DELETE" ? null : await res.json();
     }
-  } catch (error) {
-    console.error(`API Request failed: ${method} ${fullUrl}`, error);
-    throw error;
-  }
+    } catch (error) {
+      console.error(`API Request failed: ${method} ${fullUrl}`, error);
+      
+      // Log additional context for APIError instances
+      if (error instanceof APIError) {
+        console.error(`Error Code: ${error.code}, Status: ${error.status}`);
+        if (error.details) {
+          console.error('Error Details:', error.details);
+        }
+      }
+      
+      throw error;
+    }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -127,6 +214,15 @@ export const getQueryFn: <T>(options: {
       return await res.json();
     } catch (error) {
       console.error(`Query failed: GET ${fullUrl}`, error);
+      
+      // Log additional context for APIError instances
+      if (error instanceof APIError) {
+        console.error(`Error Code: ${error.code}, Status: ${error.status}`);
+      }
+      
+      if (unauthorizedBehavior === "returnNull" && error instanceof APIError && error.status === 401) {
+        return null;
+      }
       if (unauthorizedBehavior === "returnNull" && error instanceof Error && error.message.includes('401')) {
         return null;
       }

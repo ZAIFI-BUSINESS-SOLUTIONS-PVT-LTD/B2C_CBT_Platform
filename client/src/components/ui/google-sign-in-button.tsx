@@ -1,7 +1,8 @@
 /**
  * Google Sign-In Button Component
  * 
- * This component provides a "Continue with Google" button that initiates
+ * This component provides a "Continue with Goo      // Send ID token to backend using centralized API_BASE_URL
+      const backendResponse = await fetch(`${API_BASE_URL}/auth/google/`, {utton that initiates
  * the Google OAuth flow using Google Identity Services (GIS).
  */
 
@@ -9,6 +10,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { toast } from "@/hooks/use-toast";
+import { API_BASE_URL } from "@/config/google-auth";
 
 declare global {
   interface Window {
@@ -87,8 +89,12 @@ export function GoogleSignInButton({
     try {
       const idToken = response.credential;
       
-      // Send ID token to backend
-      const backendResponse = await fetch('/api/auth/google/', {
+  // Resolve API base URL: prefer VITE_API_BASE_URL, fall back to relative '/api'
+  const envBase = import.meta.env.VITE_API_BASE_URL || '/api';
+  const resolvedBase = envBase.startsWith('/') ? `${window.location.origin}${envBase.replace(/\/$/, '')}` : envBase.replace(/\/$/, '');
+
+  // Send ID token to backend
+  const backendResponse = await fetch(`${resolvedBase}/auth/google/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,0 +1,39 @@
+{% load static %}
+<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>{% if action == 'create' %}Create{% else %}Edit{% endif %} Platform Test</title></head>
+  <body>
+  <h1>{% if action == 'create' %}Create{% else %}Edit{% endif %} Platform Test</h1>
+    <form method="post">{% csrf_token %}
+      <div><label>Name <input name="test_name" value="{{ platform_test.test_name|default:'' }}"></label></div>
+      <div><label>Code <input name="test_code" value="{{ platform_test.test_code|default:'' }}"></label></div>
+      <div><label>Year <input name="test_year" value="{{ platform_test.test_year|default:'' }}"></label></div>
+        <div><label>Time limit (mins)</label>
+          <input name="time_limit" value="{{ platform_test.time_limit|default:0 }}" />
+        </div>
+      <div><label>Total questions <input name="total_questions" value="{{ platform_test.total_questions|default:'' }}"></label></div>
+        <div>
+          <label>Selected topics</label>
+          <select name="selected_topics" multiple size="8">
+            {% for t in topics %}
+              <option value="{{ t.id }}" {% if platform_test and t.id in platform_test.selected_topics %}selected{% endif %}>{{ t.subject }} - {{ t.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Difficulty distribution (optional)</label>
+          <div>
+            <label>Easy</label>
+            <input name="difficulty_easy" value="{{ platform_test.difficulty_distribution.easy|default:'' }}" />
+            <label>Medium</label>
+            <input name="difficulty_medium" value="{{ platform_test.difficulty_distribution.medium|default:'' }}" />
+            <label>Hard</label>
+            <input name="difficulty_hard" value="{{ platform_test.difficulty_distribution.hard|default:'' }}" />
+          </div>
+        </div>
+      <div><label>Active <input type="checkbox" name="is_active" {% if platform_test.is_active %}checked{% endif %}></label></div>
+      <div><button type="submit">Save</button></div>
+    </form>
+    <a href="{% url 'platform-admin-tests-list' %}">Back</a>
+  </body>
+  </html>

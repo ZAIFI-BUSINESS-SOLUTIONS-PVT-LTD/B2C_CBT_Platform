@@ -3,7 +3,7 @@ export const API_CONFIG = {
   // Use environment-based URLs for proper dev/production switching
   BASE_URL: import.meta.env.DEV 
     ? 'http://localhost:8000' 
-    : 'https://cbtapi.inzighted.com',
+    : 'https://testapi.inzighted.com',
   
   // API endpoints
   ENDPOINTS: {

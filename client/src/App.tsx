@@ -27,8 +27,18 @@ import ForgotPassword from "@/pages/forgot-password";
 import ResetPassword from "@/pages/reset-password";
 import GoogleAuthCallback from "@/pages/google-auth-callback";
 import GoogleCallback from "@/pages/GoogleCallback";
+import ErrorPage from "@/pages/error-page";
 import { FloatingChatbot } from "@/components/floating-chatbot";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useLocation } from "wouter";
+
+/**
+ * Error Page Wrapper for Router
+ * Wraps ErrorPage to work with wouter's route props
+ */
+function ErrorPageRoute() {
+  return <ErrorPage />;
+}
 /**
  * Application Router Component
  * Defines all available routes and their corresponding page components
@@ -48,7 +58,8 @@ function Router() {
       <Route path="/auth/google/callback" component={GoogleCallback} /> {/* Google OAuth popup callback */}
       <Route path="/test/:sessionId" component={Test} />           {/* Test taking interface */}
       <Route path="/results/:sessionId" component={Results} />     {/* Test results and analytics */}
-  <Route path="/test-history" component={TestHistory} />
+      <Route path="/test-history" component={TestHistory} />
+      <Route path="/error" component={ErrorPageRoute} />               {/* Error page for critical errors */}
       <Route component={NotFound} />                               {/* 404 page for undefined routes */}
     </Switch>
   );
@@ -66,11 +77,13 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          {!isTestPage && <FloatingChatbot />}
-          <Router />
-        </TooltipProvider>
+        <ErrorBoundary>
+          <TooltipProvider>
+            <Toaster />
+            {!isTestPage && <FloatingChatbot />}
+            <Router />
+          </TooltipProvider>
+        </ErrorBoundary>
       </AuthProvider>
     </QueryClientProvider>
   );

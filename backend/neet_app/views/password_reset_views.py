@@ -15,6 +15,8 @@ from ..utils.emailer import send_password_reset_email
 from ..serializers import (
     ForgotPasswordSerializer, VerifyTokenSerializer, ResetPasswordSerializer
 )
+from ..errors import AppError, ValidationError, NotFoundError
+from ..error_codes import ErrorCodes
 
 
 def _hash_token(raw_token: str) -> str:
@@ -80,7 +82,10 @@ def verify_reset_token(request):
     try:
         user = StudentProfile.objects.get(email=email)
     except StudentProfile.DoesNotExist:
-        return Response({"detail": "Invalid or expired reset link."}, status=status.HTTP_400_BAD_REQUEST)
+        raise AppError(
+            code=ErrorCodes.AUTH_TOKEN_INVALID,
+            message="Invalid or expired reset link"
+        )
 
     # Find candidate reset records that are not used and not expired
     now = timezone.now()
@@ -91,7 +96,10 @@ def verify_reset_token(request):
         if hmac.compare_digest(cand.reset_token_hash, token_hash):
             return Response({"detail": "Token valid."}, status=status.HTTP_200_OK)
 
-    return Response({"detail": "Invalid or expired reset link."}, status=status.HTTP_400_BAD_REQUEST)
+    raise AppError(
+        code=ErrorCodes.AUTH_TOKEN_INVALID,
+        message="Invalid or expired reset link"
+    )
 
 
 @api_view(['POST'])
@@ -109,12 +117,18 @@ def reset_password(request):
     # Basic server-side password strength check
     import re
     if len(new_password) < 8 or not re.search(r'[A-Z]', new_password) or not re.search(r'[a-z]', new_password) or not re.search(r'[0-9]', new_password) or not re.search(r'[^A-Za-z0-9]', new_password):
-        return Response({"detail": "Password does not meet complexity requirements."}, status=status.HTTP_400_BAD_REQUEST)
+        raise ValidationError(
+            message="Password does not meet complexity requirements",
+            field="new_password"
+        )
 
     try:
         user = StudentProfile.objects.get(email=email)
     except StudentProfile.DoesNotExist:
-        return Response({"detail": "Invalid or expired reset link."}, status=status.HTTP_400_BAD_REQUEST)
+        raise AppError(
+            code=ErrorCodes.AUTH_TOKEN_INVALID,
+            message="Invalid or expired reset link"
+        )
 
     now = timezone.now()
     token_hash = _hash_token(token)
@@ -134,7 +148,10 @@ def reset_password(request):
                     break
 
             if not matched:
-                return Response({"detail": "Invalid or expired reset link."}, status=status.HTTP_400_BAD_REQUEST)
+                raise AppError(
+                    code=ErrorCodes.AUTH_TOKEN_INVALID,
+                    message="Invalid or expired reset link"
+                )
 
             # Update user's password and mark token as used within the same transaction
             user.set_password(new_password)
@@ -148,7 +165,13 @@ def reset_password(request):
             # If using server sessions, delete session objects for this user.
             # If using JWTs, enforce a check on token issue timestamp vs user.password_changed_at.
 
+    except AppError:
+        # Re-raise our custom errors
+        raise
     except Exception as e:
-        return Response({"detail": "Failed to reset password."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise AppError(
+            code=ErrorCodes.SERVER_ERROR,
+            message="Failed to reset password"
+        )
 
     return Response({"detail": "Password reset successful, please log in."}, status=status.HTTP_200_OK)

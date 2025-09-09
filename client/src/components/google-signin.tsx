@@ -1,38 +1,7 @@
 /**
  * Google Sign-In Button Component
- * 
- * Provides a "Continue wit    const initializeGoogle = () => {
-      if (!window.google) return;
-      
-      try {
-        window.google.accounts.id.initialize({  const handleAuthSuccess = async (code: string, state: string) => {
-    try {
-      // Send the authorization code to your backend
-      console.log('🔄 Making Google auth request with code:', code);
-      const backendResponse = await fetch('http://localhost:8000/api/auth/google/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          code: code,
-          state: state 
-        }),
-      });
-
-      console.log('Backend response status:', backendResponse.status);
-      console.log('Backend response headers:', backendResponse.headers);nt_id: GOOGLE_CLIENT_ID,
-          callback: handleCredentialResponse,
-          auto_select: false,
-          cancel_on_tap_outside: true,
-          ux_mode: 'popup', // Use popup mode for better UX
-        });
-        setGoogleLoaded(true);
-      } catch (error) {
-        console.error("Error initializing Google:", error);
-        onError?.(GOOGLE_ERRORS.FAILED_TO_LOAD);
-      }
-    }; that triggers Google OAuth flow.
+ *
+ * Provides a "Continue with Google" button and helper that triggers Google OAuth flow.
  * Uses Google Identity Services (GIS) for secure authentication.
  */
 
@@ -228,10 +197,11 @@ export default function GoogleSignIn({
 
   const handleAuthSuccess = async (code: string, state: string) => {
     try {
-  // Send the authorization code to your backend
-  const backendBase = (API_BASE_URL || '/api').replace(/\/$/, '');
-  const backendEndpoint = `${backendBase}/auth/google/`;
-  const backendResponse = await fetch(backendEndpoint, {
+      // Send the authorization code to your backend
+      // Use centralized API_BASE_URL that handles dev/prod switching
+      const backendEndpoint = `${API_BASE_URL}/auth/google/`;
+
+      const backendResponse = await fetch(backendEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

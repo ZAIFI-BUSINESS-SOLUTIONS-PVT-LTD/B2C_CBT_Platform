@@ -1,5 +1,7 @@
 from rest_framework import status, viewsets
 from rest_framework.response import Response
+from ..errors import AppError, ValidationError as AppValidationError
+from ..error_codes import ErrorCodes
 from rest_framework.permissions import IsAuthenticated
 
 from ..models import TestAnswer
@@ -51,7 +53,7 @@ class TestAnswerViewSet(viewsets.ModelViewSet):
                 # We don't update time_taken here to avoid conflicts
             }
         )
-        
+
         # If selected_answer provided, set answered_at (if not already) and compute is_correct immediately
         sel = validated_data.get('selected_answer', None)
         updated_fields = []
@@ -68,7 +70,7 @@ class TestAnswerViewSet(viewsets.ModelViewSet):
             if answer.is_correct != correct_flag:
                 answer.is_correct = correct_flag
                 updated_fields.append('is_correct')
-        
+
         if updated_fields:
             answer.save(update_fields=updated_fields)
 

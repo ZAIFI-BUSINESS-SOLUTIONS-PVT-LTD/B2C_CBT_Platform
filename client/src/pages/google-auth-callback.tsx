@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { API_BASE_URL } from "@/config/google-auth";
 
 export default function GoogleAuthCallback() {
   const [, setLocation] = useLocation();
@@ -62,7 +63,8 @@ export default function GoogleAuthCallback() {
 
     const processGoogleToken = async (idToken: string) => {
       try {
-        const response = await fetch('/api/auth/google/', {
+        // Use centralized API_BASE_URL that handles dev/prod switching
+        const response = await fetch(`${API_BASE_URL}/auth/google/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

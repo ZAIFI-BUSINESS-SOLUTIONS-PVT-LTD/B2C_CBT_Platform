@@ -100,10 +100,16 @@ def dispatch_welcome_email(user):
         except Exception:
             logger.exception('Unhandled exception sending welcome email')
 
-    thread = threading.Thread(target=_worker, daemon=True)
-    thread.start()
-
-    return True
+    try:
+        # Enqueue Celery task to send welcome email
+        from .tasks import send_welcome_email_task
+        send_welcome_email_task.delay(user.id)
+        return True
+    except Exception:
+        # Fallback to threaded send if Celery is unavailable
+        thread = threading.Thread(target=_worker, daemon=True)
+        thread.start()
+        return True
 
 
 def _render_test_result_templates(user, context: Dict) -> Dict[str, str]:
@@ -183,10 +189,14 @@ def dispatch_test_result_email(user, results: Dict) -> bool:
         except Exception:
             logger.exception('Unhandled exception sending test result email')
 
-    thread = threading.Thread(target=_worker, daemon=True)
-    thread.start()
-
-    return True
+    try:
+        from .tasks import send_test_result_email_task
+        send_test_result_email_task.delay(user.id, results)
+        return True
+    except Exception:
+        thread = threading.Thread(target=_worker, daemon=True)
+        thread.start()
+        return True
 
 
 def _render_inactivity_templates(user, context: Dict) -> Dict[str, str]:
@@ -252,7 +262,11 @@ def dispatch_inactivity_reminder(user, last_test_date=None) -> bool:
         except Exception:
             logger.exception('Unhandled exception sending inactivity reminder')
 
-    thread = threading.Thread(target=_worker, daemon=True)
-    thread.start()
-
-    return True
+    try:
+        from .tasks import send_inactivity_reminder_task
+        send_inactivity_reminder_task.delay(user.id, last_test_date)
+        return True
+    except Exception:
+        thread = threading.Thread(target=_worker, daemon=True)
+        thread.start()
+        return True

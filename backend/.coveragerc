@@ -1,0 +1,53 @@
+# Coverage configuration for NEET CBT Platform
+[run]
+source = neet_app
+omit =
+    */migrations/*
+    */venv/*
+    */env/*
+    */tests/*
+    */test_*
+    manage.py
+    */settings/*
+    */wsgi.py
+    */asgi.py
+    */__pycache__/*
+    */node_modules/*
+    */conftest.py
+    */fixtures/*
+    
+[report]
+# Regexes for lines to exclude from consideration
+exclude_lines =
+    # Have to re-enable the standard pragma
+    pragma: no cover
+    
+    # Don't complain about missing debug-only code:
+    def __repr__
+    if self\.debug
+    
+    # Don't complain if tests don't hit defensive assertion code:
+    raise AssertionError
+    raise NotImplementedError
+    
+    # Don't complain if non-runnable code isn't run:
+    if 0:
+    if __name__ == .__main__.:
+    
+    # Don't complain about abstract methods
+    @(abc\.)?abstractmethod
+    
+    # Don't complain about logger statements
+    logger\.
+
+# Set minimum coverage percentage (fail if below this)
+fail_under = 80
+ignore_errors = True
+show_missing = True
+
+[html]
+directory = htmlcov
+title = NEET CBT Platform Coverage Report
+
+[xml]
+output = coverage.xml

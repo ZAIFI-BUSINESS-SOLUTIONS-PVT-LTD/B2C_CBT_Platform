@@ -9,6 +9,8 @@ from rest_framework.response import Response
 from django.contrib.auth.hashers import check_password
 from .models import StudentProfile
 from .serializers import StudentProfileSerializer
+from .errors import AppError, AuthenticationError, ValidationError
+from .error_codes import ErrorCodes
 
 
 class StudentUser:
@@ -52,7 +54,7 @@ class StudentTokenObtainPairSerializer(TokenObtainPairSerializer):
         password = attrs.get('password')
         
         if not username or not password:
-            raise serializers.ValidationError('Both username and password are required.')
+            raise ValidationError('Both username and password are required.')
         
         student = None
         
@@ -71,20 +73,49 @@ class StudentTokenObtainPairSerializer(TokenObtainPairSerializer):
                     pass
         
         if not student:
-            raise serializers.ValidationError('Invalid credentials.')
+            raise AuthenticationError(
+                message='Invalid credentials',
+                code=ErrorCodes.AUTH_INVALID_CREDENTIALS
+            )
             
         # Check if student is active
         if not student.is_active:
-            raise serializers.ValidationError('Student account is deactivated.')
+            raise AuthenticationError(
+                message='Student account is deactivated',
+                code=ErrorCodes.AUTH_FORBIDDEN
+            )
         
         # Verify password
         if not student.check_password(password):
-            raise serializers.ValidationError('Invalid credentials.')
+            raise AuthenticationError(
+                message='Invalid credentials',
+                code=ErrorCodes.AUTH_INVALID_CREDENTIALS
+            )
         
         # Update last login
         from django.utils import timezone
         student.last_login = timezone.now()
         student.save(update_fields=['last_login'])
+            # Create or update StudentActivity so dashboard sees the login immediately
+        # serializer has context with request when used in views
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        try:
+            from .models import StudentActivity
+            now = timezone.now()
+            updated = StudentActivity.objects.filter(student=student).update(
+                last_seen=now,
+                ip_address=request.META.get('REMOTE_ADDR') if request is not None else None,
+                user_agent=request.META.get('HTTP_USER_AGENT') if request is not None else None
+            )
+            if not updated:
+                StudentActivity.objects.create(student=student, last_seen=now,
+                                               ip_address=request.META.get('REMOTE_ADDR') if request is not None else None,
+                                               user_agent=request.META.get('HTTP_USER_AGENT') if request is not None else None)
+                logging.getLogger(__name__).info(f'Created StudentActivity for {student.student_id} on login')
+        except Exception:
+            # Non-fatal; don't block login on activity write failures
+            import logging
+            logging.getLogger(__name__).exception('Failed to write StudentActivity on login')
         
         # Create a dummy user object for JWT token generation
         user = StudentUser(student)
@@ -126,19 +157,16 @@ class StudentTokenObtainPairSerializer(TokenObtainPairSerializer):
 class StudentTokenObtainPairView(TokenObtainPairView):
     """
     Custom JWT token obtain view for students
-    Ensures proper camelCase response formatting
+    Uses standardized error handling
     """
     serializer_class = StudentTokenObtainPairSerializer
     
     def post(self, request, *args, **kwargs):
-        """Override post to ensure camelCase formatting"""
+        """Override post to use standardized error handling"""
         serializer = self.get_serializer(data=request.data)
         
-        try:
-            serializer.is_valid(raise_exception=True)
-        except Exception as e:
-            # Return validation errors in camelCase format
-            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        # Let the serializer validation errors be handled by our global exception handler
+        serializer.is_valid(raise_exception=True)
         
         # Get the validated data (which includes student profile)
         validated_data = serializer.validated_data

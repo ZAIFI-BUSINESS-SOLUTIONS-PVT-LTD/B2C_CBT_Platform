@@ -5,6 +5,8 @@ from django.db import models
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from ..errors import AppError, ValidationError as AppValidationError, NotFoundError
+from ..error_codes import ErrorCodes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
@@ -60,14 +62,14 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         GET /api/students/me/
         """
         if not hasattr(request.user, 'student_id'):
-            return Response({"error": "User not properly authenticated"}, status=401)
+            raise AppValidationError(code=ErrorCodes.AUTH_REQUIRED if hasattr(ErrorCodes, 'AUTH_REQUIRED') else ErrorCodes.INVALID_INPUT, message='User not properly authenticated')
         
         try:
             student = StudentProfile.objects.get(student_id=request.user.student_id)
             serializer = StudentProfileSerializer(student)
             return Response(serializer.data)
         except StudentProfile.DoesNotExist:
-            return Response({"error": "Student profile not found"}, status=404)
+            raise NotFoundError(code=ErrorCodes.NOT_FOUND if hasattr(ErrorCodes, 'NOT_FOUND') else ErrorCodes.SERVER_ERROR, message='Student profile not found')
 
     @action(detail=False, methods=['put', 'patch'], url_path='update/(?P<student_id>[^/.]+)')
     def update_by_student_id(self, request, student_id=None):
@@ -77,16 +79,16 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         PATCH /api/student-profile/update/{student_id}/
         """
         if not hasattr(request.user, 'student_id'):
-            return Response({"error": "User not properly authenticated"}, status=401)
+            raise AppValidationError(code=ErrorCodes.AUTH_REQUIRED if hasattr(ErrorCodes, 'AUTH_REQUIRED') else ErrorCodes.INVALID_INPUT, message='User not properly authenticated')
         
         # Ensure student can only update their own profile
         if student_id != request.user.student_id:
-            return Response({"error": "You can only update your own profile"}, status=403)
+            raise AppError(code=ErrorCodes.FORBIDDEN if hasattr(ErrorCodes, 'FORBIDDEN') else ErrorCodes.INVALID_INPUT, message='You can only update your own profile')
         
         try:
             student = StudentProfile.objects.get(student_id=student_id)
         except StudentProfile.DoesNotExist:
-            return Response({"error": "Student profile not found"}, status=404)
+            raise NotFoundError(code=ErrorCodes.NOT_FOUND if hasattr(ErrorCodes, 'NOT_FOUND') else ErrorCodes.SERVER_ERROR, message='Student profile not found')
         
         # Use partial=True for PATCH requests
         partial = request.method == 'PATCH'
@@ -115,7 +117,7 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
                 'message': 'Student registered successfully. Please save your credentials safely.'
             }
             return Response(response_data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid input for registration', details=serializer.errors)
 
     @action(detail=False, methods=['post'])
     def login(self, request):
@@ -138,7 +140,7 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
                 'message': 'Login successful',
                 'student': profile_serializer.data
             }, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+        raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid credentials provided', details=serializer.errors)
 
     @action(detail=True, methods=['post'])
     def change_password(self, request, pk=None):
@@ -151,14 +153,10 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         new_password = request.data.get('new_password')
         
         if not old_password or not new_password:
-            return Response({
-                'error': 'Both old_password and new_password are required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Both old_password and new_password are required')
         
         if not student.check_password(old_password):
-            return Response({
-                'error': 'Invalid current password'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid current password')
         
         student.set_password(new_password)
         student.save()
@@ -176,9 +174,7 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         full_name = request.query_params.get('full_name')
         
         if not full_name:
-            return Response({
-                'error': 'full_name parameter is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='full_name parameter is required')
         
         from ..utils.password_utils import validate_full_name_uniqueness
         is_available, error_message = validate_full_name_uniqueness(full_name)

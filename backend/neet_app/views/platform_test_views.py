@@ -4,6 +4,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from ..errors import AppError, ValidationError as AppValidationError
+from ..error_codes import ErrorCodes
 
 from ..models import PlatformTest, TestSession, TestAnswer
 from ..serializers import TestSessionSerializer, QuestionForTestSerializer
@@ -84,28 +86,15 @@ def start_platform_test(request, test_id):
     try:
         platform_test = PlatformTest.objects.get(id=test_id, is_active=True)
     except PlatformTest.DoesNotExist:
-        return Response(
-            {'error': 'Platform test not found or inactive.'}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
+        raise AppError(code=ErrorCodes.NOT_FOUND, message='Platform test not found or inactive.')
     
     # Check if test is available now
     if not platform_test.is_available_now():
-        return Response(
-            {
-                'error': 'Test is not available at this time.',
-                'availability_status': platform_test.get_availability_status(),
-                'scheduled_date_time': platform_test.scheduled_date_time.isoformat() if platform_test.scheduled_date_time else None
-            },
-            status=status.HTTP_403_FORBIDDEN
-        )
+        raise AppError(code=ErrorCodes.INVALID_TEST_CONFIGURATION, message='Test is not available at this time.', details={'availability_status': platform_test.get_availability_status(), 'scheduled_date_time': platform_test.scheduled_date_time.isoformat() if platform_test.scheduled_date_time else None})
     
     # Get student ID from authenticated user
     if not hasattr(request.user, 'student_id'):
-        return Response(
-            {"error": "User not properly authenticated"}, 
-            status=status.HTTP_401_UNAUTHORIZED
-        )
+        raise AppError(code=ErrorCodes.AUTH_REQUIRED, message='User not properly authenticated')
     
     student_id = request.user.student_id
     
@@ -117,14 +106,7 @@ def start_platform_test(request, test_id):
     ).first()
     
     if existing_session:
-        return Response(
-            {
-                'error': 'You already have an active session for this test.',
-                'session_id': existing_session.id,
-                'session': TestSessionSerializer(existing_session).data
-            },
-            status=status.HTTP_409_CONFLICT
-        )
+        raise AppError(code=ErrorCodes.TEST_ALREADY_COMPLETED if hasattr(ErrorCodes, 'TEST_ALREADY_COMPLETED') else ErrorCodes.INVALID_INPUT, message='You already have an active session for this test.', details={'session_id': existing_session.id, 'session': TestSessionSerializer(existing_session).data})
 
     # Check if the student has already completed this platform test; if so, disallow retake
     completed_session = TestSession.objects.filter(
@@ -135,14 +117,7 @@ def start_platform_test(request, test_id):
 
     if completed_session:
         # Student has already completed this platform test; do not allow another attempt
-        return Response(
-            {
-                'error': 'You have already completed this test and cannot retake it.',
-                'completed_session_id': completed_session.id,
-                'completed_at': completed_session.end_time.isoformat() if completed_session.end_time else None
-            },
-            status=status.HTTP_403_FORBIDDEN
-        )
+        raise AppError(code=ErrorCodes.TEST_ALREADY_COMPLETED, message='You have already completed this test and cannot retake it.', details={'completed_session_id': completed_session.id, 'completed_at': completed_session.end_time.isoformat() if completed_session.end_time else None})
     
     # Create new test session
     test_session = TestSession.objects.create(
@@ -179,14 +154,7 @@ def start_platform_test(request, test_id):
         if available_count == 0:
             # No questions available for this platform test; mark session and return error
             test_session.delete()
-            return Response(
-                {
-                    'error': 'No questions available for this platform test.',
-                    'available_questions': 0,
-                    'requested_questions': platform_test.total_questions
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise AppValidationError(code=ErrorCodes.INSUFFICIENT_QUESTIONS if hasattr(ErrorCodes, 'INSUFFICIENT_QUESTIONS') else ErrorCodes.INVALID_INPUT, message='No questions available for this platform test.', details={'available_questions': 0, 'requested_questions': platform_test.total_questions})
 
         # If fewer questions are available than configured, adjust counts to available
         if available_count < test_session.question_count:
@@ -217,7 +185,7 @@ def start_platform_test(request, test_id):
     except Exception as e:
         # If any error occurs while assigning questions, delete the session to avoid orphan
         test_session.delete()
-        return Response({'error': f'Failed to assign questions to session: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to assign questions to session', details={'exception': str(e)})
     
     # Serialize session and the assigned questions for immediate consumption by the client
     session_serialized = TestSessionSerializer(test_session).data

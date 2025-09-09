@@ -779,6 +779,19 @@ def get_student_insights(request):
                 # Add cached flag to the response
                 cached_insights['cached'] = True
                 return Response(cached_insights)
+
+        # If client requests async generation, enqueue Celery task and return task id immediately
+        async_flag = False
+        if isinstance(data, dict):
+            async_flag = bool(data.pop('async', False) or data.pop('async_generate', False))
+        if async_flag:
+            try:
+                from .tasks import generate_insights_task
+                task = generate_insights_task.delay(student_id, data, force_regenerate)
+                return Response({'status': 'queued', 'task_id': task.id}, status=202)
+            except Exception as e:
+                logger.exception('Failed to enqueue generate_insights_task')
+                return Response({'status': 'error', 'message': 'Failed to enqueue task'}, status=500)
         
         # Generate new insights if cache not found or force_regenerate is True
         print(f"🔄 Generating new insights for student {student_id}")

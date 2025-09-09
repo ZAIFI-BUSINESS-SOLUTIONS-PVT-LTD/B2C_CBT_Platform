@@ -1,6 +1,7 @@
 # your_app_name/models.py
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
 from django.contrib.auth.hashers import make_password, check_password
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
@@ -211,6 +212,9 @@ class TestSession(models.Model):
     chemistry_score = models.FloatField(null=True, blank=True)  # Chemistry percentage
     botany_score = models.FloatField(null=True, blank=True)  # Botany percentage
     zoology_score = models.FloatField(null=True, blank=True)  # Zoology percentage
+    # Activity tracking for admin metrics
+    last_heartbeat = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'test_sessions'
@@ -881,3 +885,112 @@ def _send_welcome_on_create(sender, instance, created, **kwargs):
         # Avoid raising exceptions during model save flows; log via print to keep dependency-free
         import logging
         logging.exception('Failed to enqueue welcome email')
+
+
+# --- Platform admin helpers: UserActivity + simple audit trail ---
+class UserActivity(models.Model):
+    """Track last seen and basic client info for authenticated users.
+
+    This is intentionally lightweight (stored in DB) and used by the
+    platform admin dashboard to compute "currently online" metrics.
+    """
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='activity')
+    last_seen = models.DateTimeField(null=True, blank=True)
+    ip_address = models.CharField(max_length=45, null=True, blank=True)
+    user_agent = models.TextField(null=True, blank=True)
+
+    def is_online(self, threshold_minutes: int = 5):
+        if not self.last_seen:
+                return False
+        return (timezone.now() - self.last_seen).total_seconds() <= threshold_minutes * 60
+
+    def __str__(self):
+        return f"{self.user} last_seen={self.last_seen}"
+
+
+class StudentActivity(models.Model):
+    """
+    Track last seen and client info specifically for StudentProfile accounts.
+    Used by the platform admin dashboard to compute student-focused metrics.
+    """
+    student = models.OneToOneField('StudentProfile', on_delete=models.CASCADE, related_name='activity')
+    last_seen = models.DateTimeField(null=True, blank=True, db_index=True)
+    ip_address = models.CharField(max_length=45, null=True, blank=True)
+    user_agent = models.TextField(null=True, blank=True)
+
+    def is_online(self, threshold_minutes: int = 5):
+        if not self.last_seen:
+            return False
+        return (timezone.now() - self.last_seen).total_seconds() <= threshold_minutes * 60
+
+    def __str__(self):
+        return f"{self.student.student_id} last_seen={self.last_seen}"
+
+
+class PlatformTestAudit(models.Model):
+    """Audit trail of PlatformTest changes.
+
+    Stores a simple record per create/update/delete so admins can see who
+    performed changes and when. The performed_by field is a string; in a
+    follow-up we can capture request user via middleware/threadlocals.
+    """
+    platform_test = models.ForeignKey(PlatformTest, on_delete=models.CASCADE, related_name='audits')
+    action = models.CharField(max_length=32)
+    performed_by = models.CharField(max_length=150, null=True, blank=True)
+    payload = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Audit {self.action} on {self.platform_test.test_code} by {self.performed_by} at {self.created_at}"
+
+
+# Basic signal to record PlatformTest changes into PlatformTestAudit
+@receiver(post_save, sender=PlatformTest)
+def _platform_test_post_save(sender, instance, created, **kwargs):
+    try:
+        performed_by = getattr(instance, '_last_modified_by', None) or 'system'
+        action = 'created' if created else 'updated'
+        PlatformTestAudit.objects.create(
+            platform_test=instance,
+            action=action,
+            performed_by=str(performed_by),
+            payload={
+                'test_name': instance.test_name,
+                'is_active': instance.is_active,
+                'time_limit': instance.time_limit,
+                'total_questions': instance.total_questions,
+            }
+        )
+    except Exception:
+        # Do not raise during normal save flows
+        pass
+
+
+class PlatformAdmin(models.Model):
+    """Separate platform admin credentials for the custom dashboard.
+
+    These users are stored separately from Django's auth.User and only
+    authenticate to the custom platform-admin UI. They do NOT grant access
+    to Django's /admin/ interface.
+    """
+    username = models.CharField(max_length=150, unique=True)
+    password_hash = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'platform_admins'
+
+    def __str__(self):
+        return self.username
+
+    def set_password(self, raw_password):
+        from django.contrib.auth.hashers import make_password
+        self.password_hash = make_password(raw_password)
+
+    def check_password(self, raw_password):
+        from django.contrib.auth.hashers import check_password
+        return check_password(raw_password, self.password_hash)

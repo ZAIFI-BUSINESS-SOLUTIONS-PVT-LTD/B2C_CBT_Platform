@@ -7,6 +7,8 @@ from rest_framework.response import Response
 
 from ..models import Topic, Question
 from ..serializers import TopicSerializer
+from ..errors import AppError
+from ..error_codes import ErrorCodes
 
 logger = logging.getLogger(__name__)
 
@@ -79,10 +81,7 @@ class TopicViewSet(viewsets.ModelViewSet):
                 logger.info(f"Initialized {topics.count()} topics.")
             except Exception as e:
                 logger.error(f"Error during topic initialization: {e}")
-                return Response(
-                    {"error": "Failed to initialize topics."}, 
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+                raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to initialize topics', details={'exception': str(e)})
 
         serializer = self.get_serializer(topics, many=True)
         return Response({
@@ -123,7 +122,4 @@ class TopicViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error resetting and re-initializing topics: {e}")
-            return Response(
-                {'error': f'Failed to reset topics: {str(e)}'}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to reset topics', details={'exception': str(e)})

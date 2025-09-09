@@ -1,20 +1,9 @@
 // JWT Authentication utilities
 import { StudentProfile } from "@/types/api";
+import { API_BASE_URL } from "@/config/google-auth";
 
-// Environment-based API configuration
-// This automatically switches between development and production URLs
-const getApiBaseUrl = (): string => {
-  if (import.meta.env.DEV) {
-    // Development environment (npm run dev)
-    return 'http://localhost:8000/api';
-  } else {
-    // Production environment (npm run build)
-    return 'https://cbtapi.inzighted.com/api';
-  }
-};
-
-// Export the dynamic base URL for use throughout the application
-export const API_BASE_URL = getApiBaseUrl();
+// Use centralized API_BASE_URL from google-auth config
+// This ensures all components use the same base URL logic
 
 // Debug logging to verify which environment is being used
 console.log('🌐 Environment Mode:', import.meta.env.DEV ? 'Development' : 'Production');

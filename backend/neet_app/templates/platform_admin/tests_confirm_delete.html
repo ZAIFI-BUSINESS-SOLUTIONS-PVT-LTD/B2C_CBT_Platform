@@ -1,0 +1,13 @@
+{% load static %}
+<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Delete Platform Test</title></head>
+  <body>
+    <h1>Delete Platform Test</h1>
+    <p>Are you sure you want to delete {{ platform_test.test_name }}?</p>
+    <form method="post">{% csrf_token %}
+      <button type="submit">Confirm Delete</button>
+      <a href="{% url 'platform-admin-tests-list' %}">Cancel</a>
+    </form>
+  </body>
+  </html>

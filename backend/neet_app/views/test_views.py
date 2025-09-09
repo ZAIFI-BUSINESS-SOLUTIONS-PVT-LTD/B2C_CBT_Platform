@@ -14,6 +14,8 @@ from ..serializers import (
     TestSessionCreateSerializer
 )
 from ..utils.topic_utils import classify_topics_by_subject
+from ..errors import AppError, ValidationError as AppValidationError, NotFoundError
+from ..error_codes import ErrorCodes
 
 
 @api_view(['POST'])
@@ -43,7 +45,8 @@ def create_test_student(request):
             'full_name': student.full_name
         }, status=status.HTTP_201_CREATED)
     
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    # Route validation errors through centralized handler
+    raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid input while creating test student', details=serializer.errors)
 
 
 @api_view(['POST'])
@@ -65,7 +68,7 @@ def test_login(request):
             'student': student_data
         }, status=status.HTTP_200_OK)
     
-    return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+    raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid credentials provided', details=serializer.errors)
 
 
 @api_view(['GET'])
@@ -136,7 +139,7 @@ def create_test_session(request):
             'zoology_topics': len(session.zoology_topics)
         }, status=status.HTTP_201_CREATED)
     
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid input while creating test session', details=serializer.errors)
 
 
 @api_view(['GET'])
@@ -180,7 +183,4 @@ def system_status(request):
         })
     
     except Exception as e:
-        return Response({
-            'message': 'System error',
-            'error': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise AppError(code=ErrorCodes.SERVER_ERROR, message='System error', details={'exception': str(e)})

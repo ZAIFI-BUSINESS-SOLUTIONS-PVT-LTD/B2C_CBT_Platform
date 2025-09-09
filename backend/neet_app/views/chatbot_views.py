@@ -19,6 +19,8 @@ from ..serializers import (
 )
 from ..services.chatbot_service_refactored import NeetChatbotService
 from ..jwt_authentication import StudentJWTAuthentication
+from ..errors import AppError, NotFoundError, ValidationError as AppValidationError
+from ..error_codes import ErrorCodes
 
 
 class ChatSessionViewSet(mixins.ListModelMixin,
@@ -61,17 +63,17 @@ class ChatSessionViewSet(mixins.ListModelMixin,
     
     def create(self, request, *args, **kwargs):
         """Create a new chat session for the authenticated student"""
+        # Validate input
+        serializer = ChatSessionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Get student_id from authenticated user
+        student_id = request.user.student_id
+        
+        # Generate unique chat session ID
+        chat_session_id = str(uuid.uuid4())
+        
         try:
-            # Validate input
-            serializer = ChatSessionCreateSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            
-            # Get student_id from authenticated user
-            student_id = request.user.student_id
-            
-            # Generate unique chat session ID
-            chat_session_id = str(uuid.uuid4())
-            
             # Create chat session directly
             chat_session = ChatSession.objects.create(
                 chat_session_id=chat_session_id,
@@ -84,46 +86,63 @@ class ChatSessionViewSet(mixins.ListModelMixin,
             response_serializer = ChatSessionSerializer(chat_session)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
             
-        except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({'error': 'Failed to create chat session'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            raise AppError(
+                code=ErrorCodes.SERVER_ERROR,
+                message='Failed to create chat session'
+            )
     
     @action(detail=True, methods=['post'], url_path='send-message')
     def send_message(self, request, chat_session_id=None):
         """Send a message in the chat session"""
+        print(f"🔗 Chatbot API called - Session: {chat_session_id}, Student: {request.user.student_id}")
+        
+        # Get the chat session
         try:
-            print(f"🔗 Chatbot API called - Session: {chat_session_id}, Student: {request.user.student_id}")
-            
-            # Get the chat session
-            chat_session = get_object_or_404(
-                ChatSession, 
+            chat_session = ChatSession.objects.get(
                 chat_session_id=chat_session_id,
                 student_id=request.user.student_id,
                 is_active=True
             )
-            
-            # Validate message data
-            message_serializer = ChatMessageCreateSerializer(
-                data={'session_id': chat_session_id, 'message': request.data.get('message', '')},
-                context={'request': request}
+        except ChatSession.DoesNotExist:
+            raise NotFoundError(
+                message='Chat session not found',
+                resource_type='chat_session'
             )
-            message_serializer.is_valid(raise_exception=True)
-            
-            # Process message with chatbot service  
-            user_message = message_serializer.validated_data['message']
-            print(f"📝 Processing message: '{user_message}'")
-            
-            # Update session title if this is the first message (no existing messages)
-            if chat_session.messages.count() == 0:
-                # Generate title from first message like ChatGPT
-                title = self._generate_session_title_from_message(user_message)
-                chat_session.session_title = title
-                chat_session.save()
-                print(f"📋 Updated session title to: '{title}'")
-            
-            chatbot_service = NeetChatbotService()
-            
+        
+        # Validate message data
+        message_serializer = ChatMessageCreateSerializer(
+            data={'session_id': chat_session_id, 'message': request.data.get('message', '')},
+            context={'request': request}
+        )
+        message_serializer.is_valid(raise_exception=True)
+        
+        # Process message with chatbot service  
+        user_message = message_serializer.validated_data['message']
+        print(f"📝 Processing message: '{user_message}'")
+        
+        # Update session title if this is the first message (no existing messages)
+        if chat_session.messages.count() == 0:
+            # Generate title from first message like ChatGPT
+            title = self._generate_session_title_from_message(user_message)
+            chat_session.session_title = title
+            chat_session.save()
+            print(f"📋 Updated session title to: '{title}'")
+        
+        chatbot_service = NeetChatbotService()
+        
+        # Support optional async processing: if client passes async=true, enqueue Celery task and return task_id
+        async_flag = request.data.get('async', False) or request.query_params.get('async') == 'true'
+        if async_flag:
+            try:
+                from ..tasks import chat_generate_task
+                task = chat_generate_task.delay(chat_session_id, user_message, request.user.student_id)
+                return Response({'status': 'queued', 'task_id': task.id}, status=status.HTTP_202_ACCEPTED)
+            except Exception as e:
+                print(f"Failed to enqueue chat task: {e}")
+                # fall through to synchronous processing
+
+        try:
             with transaction.atomic():
                 # Use the refactored generate_response method
                 bot_response_data = chatbot_service.generate_response(
@@ -131,37 +150,38 @@ class ChatSessionViewSet(mixins.ListModelMixin,
                     student_id=request.user.student_id,
                     chat_session_id=chat_session_id
                 )
-                
+
                 print(f"🤖 Chatbot response received:")
                 print(f"   Success: {bot_response_data.get('success', False)}")
                 print(f"   Intent: {bot_response_data.get('intent', 'unknown')}")
                 print(f"   Has personalized data: {bot_response_data.get('has_personalized_data', False)}")
                 print(f"   Processing time: {bot_response_data.get('processing_time', 0)}s")
-                
+
                 # Extract the response text
                 bot_response = bot_response_data.get('response', 'Sorry, I encountered an error.')
                 print(f"   Response length: {len(bot_response)} chars")
-            
-            # Get recent messages for context
-            recent_messages = chat_session.messages.order_by('-created_at')[:2]
-            messages_data = ChatMessageSerializer(recent_messages, many=True).data
-            
-            return Response({
-                'success': bot_response_data.get('success', True),
-                'user_message': user_message,
-                'bot_response': bot_response,
-                'session_id': chat_session_id,
-                'recent_messages': messages_data,
-                'intent': bot_response_data.get('intent', 'unknown'),
-                'has_personalized_data': bot_response_data.get('has_personalized_data', False),
-                'processing_time': bot_response_data.get('processing_time', 0),
-                'message_id': bot_response_data.get('message_id')
-            }, status=status.HTTP_200_OK)
-            
-        except ChatSession.DoesNotExist:
-            return Response({'error': 'Chat session not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return Response({'error': f'Failed to send message: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            raise AppError(
+                code=ErrorCodes.AI_SERVICE_UNAVAILABLE,
+                message='Failed to generate AI response',
+                details={'exception': str(e)}
+            )
+        
+        # Get recent messages for context
+        recent_messages = chat_session.messages.order_by('-created_at')[:2]
+        messages_data = ChatMessageSerializer(recent_messages, many=True).data
+        
+        return Response({
+            'success': bot_response_data.get('success', True),
+            'user_message': user_message,
+            'bot_response': bot_response,
+            'session_id': chat_session_id,
+            'recent_messages': messages_data,
+            'intent': bot_response_data.get('intent', 'unknown'),
+            'has_personalized_data': bot_response_data.get('has_personalized_data', False),
+            'processing_time': bot_response_data.get('processing_time', 0),
+            'message_id': bot_response_data.get('message_id')
+        }, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['get'], url_path='messages')
     def get_messages(self, request, chat_session_id=None):
@@ -197,9 +217,9 @@ class ChatSessionViewSet(mixins.ListModelMixin,
             }, status=status.HTTP_200_OK)
             
         except ChatSession.DoesNotExist:
-            return Response({'error': 'Chat session not found'}, status=status.HTTP_404_NOT_FOUND)
+            raise NotFoundError(code=ErrorCodes.CHAT_SESSION_NOT_FOUND, message='Chat session not found')
         except Exception as e:
-            return Response({'error': f'Failed to retrieve messages: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to retrieve messages', details={'exception': str(e)})
     
     @action(detail=True, methods=['patch'], url_path='deactivate')
     def deactivate_session(self, request, chat_session_id=None):
@@ -221,9 +241,9 @@ class ChatSessionViewSet(mixins.ListModelMixin,
             }, status=status.HTTP_200_OK)
             
         except ChatSession.DoesNotExist:
-            return Response({'error': 'Chat session not found'}, status=status.HTTP_404_NOT_FOUND)
+            raise NotFoundError(code=ErrorCodes.CHAT_SESSION_NOT_FOUND, message='Chat session not found')
         except Exception as e:
-            return Response({'error': f'Failed to deactivate session: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to deactivate session', details={'exception': str(e)})
 
 
 @api_view(['GET'])
@@ -259,4 +279,4 @@ def chat_statistics(request):
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
-        return Response({'error': f'Failed to get statistics: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to get statistics', details={'exception': str(e)})
