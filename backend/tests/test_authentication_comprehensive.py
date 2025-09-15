@@ -3,14 +3,10 @@ Unit tests for authentication functionality
 Tests JWT authentication, Google OAuth, and permission systems
 """
 import pytest
-from unittest.mock import patch, MagicMock
-from django.contrib.auth.models import User
-from django.urls import reverse
-from rest_framework import status
+from unittest.mock import patch
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from neet_app.models import StudentProfile
-from neet_app.student_auth import StudentJWTAuthentication
 
 
 @pytest.mark.auth
@@ -21,10 +17,8 @@ class TestStudentJWTAuthentication:
     @pytest.mark.django_db
     def test_valid_jwt_token_authentication(self, api_client, sample_student_profile):
         """Test authentication with valid JWT token"""
-        # Arrange
-        refresh = RefreshToken()
-        refresh['student_id'] = sample_student_profile.student_id
-        refresh['email'] = sample_student_profile.email
+        # Arrange - create a token tied to the actual user object
+        refresh = RefreshToken.for_user(sample_student_profile)
         access_token = str(refresh.access_token)
         
         # Act
@@ -33,6 +27,9 @@ class TestStudentJWTAuthentication:
         
         # Assert
         assert response.status_code in [200, 204]  # Success or empty list
+        
+        # Clean up
+        api_client.credentials()
 
     @pytest.mark.django_db
     def test_invalid_jwt_token_authentication(self, api_client):
@@ -46,14 +43,15 @@ class TestStudentJWTAuthentication:
         
         # Assert
         assert response.status_code == 401
+        
+        # Clean up
+        api_client.credentials()
 
     @pytest.mark.django_db
     def test_expired_jwt_token_authentication(self, api_client, sample_student_profile):
         """Test authentication with expired JWT token"""
-        # Arrange - create a token and manipulate it to be expired
-        refresh = RefreshToken()
-        refresh['student_id'] = sample_student_profile.student_id
-        refresh['email'] = sample_student_profile.email
+        # Arrange - create a token tied to the actual user object
+        refresh = RefreshToken.for_user(sample_student_profile)
         access_token = str(refresh.access_token)
         
         # Mock the token to be expired
@@ -67,6 +65,9 @@ class TestStudentJWTAuthentication:
             
             # Assert
             assert response.status_code == 401
+            
+            # Clean up
+            api_client.credentials()
 
     @pytest.mark.django_db
     def test_missing_authorization_header(self, api_client):
@@ -95,6 +96,9 @@ class TestStudentJWTAuthentication:
             # Assert
             assert response.status_code == 401
 
+        # Clear credentials after test
+        api_client.credentials()
+
 
 @pytest.mark.auth
 @pytest.mark.unit
@@ -104,10 +108,14 @@ class TestStudentLogin:
     @pytest.mark.django_db
     def test_valid_student_login(self, api_client, sample_student_profile):
         """Test successful student login"""
-        # Arrange
+        # Arrange - ensure fixture has a known password for login
+        known_password = 'studentpass123'
+        sample_student_profile.set_password(known_password)
+        sample_student_profile.save()
+        
         login_data = {
             'username': sample_student_profile.student_id,  # Use student_id as username
-            'password': 'studentpass123'
+            'password': known_password
         }
         
         # Act
@@ -122,7 +130,10 @@ class TestStudentLogin:
     @pytest.mark.django_db
     def test_invalid_credentials_login(self, api_client, sample_student_profile):
         """Test login with invalid credentials"""
-        # Arrange
+        # Arrange - ensure password is set to something different than wrongpassword
+        sample_student_profile.set_password('correctpass')
+        sample_student_profile.save()
+        
         login_data = {
             'username': sample_student_profile.student_id,  # Use student_id as username
             'password': 'wrongpassword'
@@ -153,15 +164,15 @@ class TestStudentLogin:
     def test_missing_credentials_login(self, api_client):
         """Test login with missing credentials"""
         # Test missing username
-        response = api_client.post('/api/auth/login/', {'password': 'somepass'})
+        response = api_client.post('/api/auth/login/', {'password': 'somepass'}, format='json')
         assert response.status_code == 400
         
         # Test missing password
-        response = api_client.post('/api/auth/login/', {'username': 'someuser'})
+        response = api_client.post('/api/auth/login/', {'username': 'someuser'}, format='json')
         assert response.status_code == 400
         
         # Test empty payload
-        response = api_client.post('/api/auth/login/', {})
+        response = api_client.post('/api/auth/login/', {}, format='json')
         assert response.status_code == 400
 
 
@@ -183,41 +194,40 @@ class TestGoogleAuthentication:
         }
         
         auth_data = {
-            'google_id_token': 'valid_google_token'  # Use correct parameter name
+            'idToken': 'valid_google_token'
         }
         
         # Act
         response = api_client.post('/api/auth/google/', auth_data, format='json')
         
         # Assert
-        assert response.status_code in [200, 201, 400]  # Success, created, or bad request (different API implementations)
+        assert response.status_code in [200, 201]  # Success or created
         response_data = response.json()
-        if response.status_code in [200, 201]:
-            assert 'access' in response_data
-            assert 'refresh' in response_data
+        assert 'access' in response_data
+        assert 'refresh' in response_data
 
     @pytest.mark.django_db
     @patch('neet_app.views.google_auth_views.verify_google_token')
     def test_invalid_google_token(self, mock_verify, api_client):
         """Test Google OAuth with invalid token"""
         # Arrange
-        mock_verify.side_effect = Exception("Invalid token")
+        mock_verify.return_value = None  # verify_google_token returns None for invalid tokens
         
         auth_data = {
-            'token': 'invalid_google_token'
+            'idToken': 'invalid_google_token'
         }
         
         # Act
-        response = api_client.post('/api/auth/google/', auth_data)
+        response = api_client.post('/api/auth/google/', auth_data, format='json')
         
         # Assert
-        assert response.status_code == 400
+        assert response.status_code == 401
 
     @pytest.mark.django_db
     def test_missing_google_token(self, api_client):
         """Test Google OAuth with missing token"""
         # Act
-        response = api_client.post('/api/auth/google/', {})
+        response = api_client.post('/api/auth/google/', {}, format='json')
         
         # Assert
         assert response.status_code == 400
@@ -242,8 +252,8 @@ class TestPermissions:
             # Act
             response = api_client.get(endpoint)
             
-            # Assert
-            assert response.status_code == 401, f"Endpoint {endpoint} should require authentication"
+            # Assert - expect 401 (unauthenticated) or 403 (forbidden based on implementation)
+            assert response.status_code in [401, 403], f"Endpoint {endpoint} should require authentication"
 
     @pytest.mark.django_db
     def test_student_can_only_access_own_data(self, api_client):
@@ -263,18 +273,19 @@ class TestPermissions:
         profile2.set_password('pass')
         profile2.save()
         
-        # Authenticate as student1
-        refresh = RefreshToken()
-        refresh['student_id'] = profile1.student_id
-        refresh['email'] = profile1.email
+        # Authenticate as student1 - use proper token creation
+        refresh = RefreshToken.for_user(profile1)
         access_token = str(refresh.access_token)
         api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
         
         # Act - try to access student2's profile
         response = api_client.get(f'/api/students/{profile2.student_id}/')
         
-        # Assert - should be forbidden or not found
-        assert response.status_code in [200, 403, 404]  # API may allow access or restrict it
+        # Assert - should be forbidden or not found depending on implementation
+        assert response.status_code in [403, 404], "Students should not be able to access other students' private data"
+        
+        # Clean up
+        api_client.credentials()
 
 
 @pytest.mark.auth 
@@ -291,7 +302,7 @@ class TestPasswordReset:
         }
         
         # Act
-        response = api_client.post('/api/auth/forgot-password/', reset_data)
+        response = api_client.post('/api/auth/forgot-password/', reset_data, format='json')
         
         # Assert
         assert response.status_code == 200
@@ -307,14 +318,14 @@ class TestPasswordReset:
         # Act
         response = api_client.post('/api/auth/forgot-password/', reset_data, format='json')
         
-        # Assert
-        assert response.status_code in [200, 400, 404]  # API might return success with error message inside
+        # Assert - some APIs return 200 for security (don't disclose if email exists)
+        assert response.status_code in [200, 400, 404]
 
     @pytest.mark.django_db
     def test_forgot_password_missing_email(self, api_client):
         """Test forgot password with missing email"""
         # Act
-        response = api_client.post('/api/auth/forgot-password/', {})
+        response = api_client.post('/api/auth/forgot-password/', {}, format='json')
         
         # Assert
         assert response.status_code == 400

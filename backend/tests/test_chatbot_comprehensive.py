@@ -26,7 +26,9 @@ class TestChatSessionLifecycle:
         }
 
         # Act
-        response = authenticated_client.post('/api/chat-sessions/', session_data, format='json')        # Assert
+        response = authenticated_client.post('/api/chat-sessions/', session_data, format='json')
+        
+        # Assert
         assert response.status_code == 201
         response_data = response.json()
         assert 'chatSessionId' in response_data or 'id' in response_data

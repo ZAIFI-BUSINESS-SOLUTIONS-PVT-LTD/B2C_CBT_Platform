@@ -38,3 +38,4 @@ requests==2.31.0
 #langchain-groq==0.3.7
 spacy==3.7.4
 pydantic==2.7.4
+razorpay

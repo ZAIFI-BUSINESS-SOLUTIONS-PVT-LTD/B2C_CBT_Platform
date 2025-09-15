@@ -1,4 +1,5 @@
 import random
+import sentry_sdk
 from django.db.models import Avg, Count, Max, Min, Sum, Q
 import random
 from rest_framework.decorators import api_view, permission_classes
@@ -11,149 +12,197 @@ from ..serializers import QuestionSerializer, TestAnswerSerializer, TestSessionS
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def get_dashboard_analytics(request):
+    """
+    Simple wrapper around dashboard_analytics for testing compatibility.
+    This function exists to support test mocking patterns.
+    """
+    return dashboard_analytics(request)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def dashboard_analytics(request):
     """
     Generates comprehensive student performance analytics for the dashboard.
     Returns real analytics data based on completed test sessions for the authenticated user only.
     """
-    # Get the authenticated student
-    if not hasattr(request.user, 'student_id'):
-        return Response({"error": "User not properly authenticated"}, status=401)
-    
-    student_id = request.user.student_id
-    
-    # Get all sessions for this student; treat a session as completed if any of:
-    # - is_completed == True
-    # - end_time is not null (submit likely set end_time)
-    # - total_time_taken is not null (summary persisted)
-    # This is defensive: some older flows may have missed setting the boolean.
-    # Consider only sessions explicitly marked completed
-    completed_sessions = TestSession.objects.filter(
-        student_id=student_id,
-        is_completed=True
-    ).order_by('start_time')
+    try:
+        sentry_sdk.add_breadcrumb(
+            message="Generating dashboard analytics",
+            category="dashboard",
+            level="info",
+            data={"student_id": getattr(request.user, 'student_id', None)}
+        )
+        
+        # Get the authenticated student
+        if not hasattr(request.user, 'student_id'):
+            sentry_sdk.capture_message(
+                "User not properly authenticated for dashboard analytics",
+                level="warning",
+                extra={"user": str(request.user)}
+            )
+            return Response({"error": "User not properly authenticated"}, status=401)
+        
+        student_id = request.user.student_id
+        
+        # Get all sessions for this student; treat a session as completed if any of:
+        # - is_completed == True
+        # - end_time is not null (submit likely set end_time)
+        # - total_time_taken is not null (summary persisted)
+        # This is defensive: some older flows may have missed setting the boolean.
+        # Consider only sessions explicitly marked completed
+        completed_sessions = TestSession.objects.filter(
+            student_id=student_id,
+            is_completed=True
+        ).order_by('start_time')
 
-    if not completed_sessions.exists():
-        return Response({
-            "totalTests": 0,
-            "totalQuestions": 0,
-            "overallAccuracy": 0,
-            "averageScore": 0,
-            "completionRate": 100,
-            "subjectPerformance": [],
-            "chapterPerformance": [],
-            "timeAnalysis": {
-                "averageTimePerQuestion": 0,
-                "fastestTime": 0,
-                "slowestTime": 0,
-                "timeEfficiency": 0,
-                "rushingTendency": 0
-            },
-            "progressTrend": [],
-            "weakAreas": [],
-            "strengths": [],
-            "sessions": [],
-            "answers": [],
-            "questions": [],
-            "totalTimeSpent": 0,
-        })
+        sentry_sdk.add_breadcrumb(
+            message="Retrieved completed sessions",
+            category="dashboard",
+            level="info",
+            data={"session_count": completed_sessions.count()}
+        )
 
-    # Basic Metrics
-    total_tests = completed_sessions.count()
-    all_answers = TestAnswer.objects.filter(
-        session__in=completed_sessions
-    ).select_related('question__topic', 'question')
-
-    total_questions_attempted = all_answers.count()
-    correct_answers = all_answers.filter(is_correct=True).count()
-    overall_accuracy = (correct_answers / total_questions_attempted * 100) if total_questions_attempted > 0 else 0
-
-    # Calculate average score across all sessions (based on correct_answers/total_questions)
-    session_scores = []
-    for session in completed_sessions:
-        if session.total_questions > 0:
-            session_score = (session.correct_answers / session.total_questions) * 100
-            session_scores.append(session_score)
-    
-    average_score = sum(session_scores) / len(session_scores) if session_scores else 0
-
-    # Subject Performance Analysis
-    subject_performance = []
-    subjects = ['Physics', 'Chemistry', 'Biology']
-    
-    for subject in subjects:
-        subject_answers = all_answers.filter(question__topic__subject=subject)
-        if subject_answers.exists():
-            subject_correct = subject_answers.filter(is_correct=True).count()
-            subject_total = subject_answers.count()
-            subject_accuracy = (subject_correct / subject_total * 100) if subject_total > 0 else 0
-            
-            subject_performance.append({
-                "subject": subject,
-                "accuracy": round(subject_accuracy, 2),
-                "totalQuestions": subject_total,
-                "correctAnswers": subject_correct
+        if not completed_sessions.exists():
+            return Response({
+                "totalTests": 0,
+                "totalQuestions": 0,
+                "overallAccuracy": 0,
+                "averageScore": 0,
+                "completionRate": 100,
+                "subjectPerformance": [],
+                "chapterPerformance": [],
+                "timeAnalysis": {
+                    "averageTimePerQuestion": 0,
+                    "fastestTime": 0,
+                    "slowestTime": 0,
+                    "timeEfficiency": 0,
+                    "rushingTendency": 0
+                },
+                "progressTrend": [],
+                "weakAreas": [],
+                "strengths": [],
+                "sessions": [],
+                "answers": [],
+                "questions": [],
+                "totalTimeSpent": 0,
             })
 
-    # Progress Trend (last 5 sessions)
-    recent_sessions = completed_sessions.order_by('-start_time')[:5]
-    progress_trend = []
-    for session in reversed(recent_sessions):
-        session_score = (session.correct_answers / session.total_questions * 100) if session.total_questions > 0 else 0
-        session_accuracy = (session.correct_answers / session.total_questions * 100) if session.total_questions > 0 else 0
-        progress_trend.append({
-            "testDate": session.start_time.strftime("%Y-%m-%d"),
-            "score": round(session_score, 2),
-            "accuracy": round(session_accuracy, 2)
+        # Basic Metrics
+        total_tests = completed_sessions.count()
+        all_answers = TestAnswer.objects.filter(
+            session__in=completed_sessions
+        ).select_related('question__topic', 'question')
+
+        total_questions_attempted = all_answers.count()
+        correct_answers = all_answers.filter(is_correct=True).count()
+        overall_accuracy = (correct_answers / total_questions_attempted * 100) if total_questions_attempted > 0 else 0
+
+        # Calculate average score across all sessions (based on correct_answers/total_questions)
+        session_scores = []
+        for session in completed_sessions:
+            if session.total_questions > 0:
+                session_score = (session.correct_answers / session.total_questions) * 100
+                session_scores.append(session_score)
+        
+        average_score = sum(session_scores) / len(session_scores) if session_scores else 0
+
+        # Subject Performance Analysis
+        subject_performance = []
+        subjects = ['Physics', 'Chemistry', 'Biology']
+        
+        for subject in subjects:
+            subject_answers = all_answers.filter(question__topic__subject=subject)
+            if subject_answers.exists():
+                subject_correct = subject_answers.filter(is_correct=True).count()
+                subject_total = subject_answers.count()
+                subject_accuracy = (subject_correct / subject_total * 100) if subject_total > 0 else 0
+                
+                subject_performance.append({
+                    "subject": subject,
+                    "accuracy": round(subject_accuracy, 2),
+                    "totalQuestions": subject_total,
+                    "correctAnswers": subject_correct
+                })
+
+        # Progress Trend (last 5 sessions)
+        recent_sessions = completed_sessions.order_by('-start_time')[:5]
+        progress_trend = []
+        for session in reversed(recent_sessions):
+            session_score = (session.correct_answers / session.total_questions * 100) if session.total_questions > 0 else 0
+            session_accuracy = (session.correct_answers / session.total_questions * 100) if session.total_questions > 0 else 0
+            progress_trend.append({
+                "testDate": session.start_time.strftime("%Y-%m-%d"),
+                "score": round(session_score, 2),
+                "accuracy": round(session_accuracy, 2)
+            })
+
+        # Calculate total time spent (using total_time_taken field)
+        total_time_spent = 0
+        for session in completed_sessions:
+            if session.total_time_taken:
+                total_time_spent += session.total_time_taken / 60  # Convert seconds to minutes
+            elif session.start_time and session.end_time:
+                # Fallback: calculate from start/end time if total_time_taken is not available
+                session_duration = (session.end_time - session.start_time).total_seconds() / 60
+                total_time_spent += session_duration
+
+        # Session data for detailed view
+        sessions_data = []
+        for session in completed_sessions:
+            session_score = (session.correct_answers / session.total_questions * 100) if session.total_questions > 0 else 0
+            sessions_data.append({
+                "id": session.id,
+                "startTime": session.start_time.isoformat() if session.start_time else None,
+                "endTime": session.end_time.isoformat() if session.end_time else None,
+                "score": round(session_score, 2),
+                "correctAnswers": session.correct_answers,
+                "totalQuestions": session.total_questions,
+                "isCompleted": session.is_completed
+            })
+
+        sentry_sdk.add_breadcrumb(
+            message="Dashboard analytics computed successfully",
+            category="dashboard",
+            level="info",
+            data={
+                "total_tests": total_tests,
+                "total_questions": total_questions_attempted,
+                "overall_accuracy": round(overall_accuracy, 2)
+            }
+        )
+
+        return Response({
+            "totalTests": total_tests,
+            "totalQuestions": total_questions_attempted,
+            "overallAccuracy": round(overall_accuracy, 2),
+            "averageScore": round(average_score, 2),
+            "completionRate": 100,  # All fetched sessions are completed
+            "subjectPerformance": subject_performance,
+            "chapterPerformance": [],  # Can be implemented later if needed
+            "timeAnalysis": {
+                "averageTimePerQuestion": round(total_time_spent / total_questions_attempted, 2) if total_questions_attempted > 0 else 0,
+                "fastestTime": 0,  # Can be calculated if needed
+                "slowestTime": 0,  # Can be calculated if needed
+                "timeEfficiency": 100,  # Can be calculated based on expected vs actual time
+                "rushingTendency": 0  # Can be calculated based on time patterns
+            },
+            "progressTrend": progress_trend,
+            "weakAreas": [],  # Can be populated based on low-performing topics
+            "strengths": [],   # Can be populated based on high-performing topics
+            "sessions": sessions_data,
+            "answers": [],     # Can be populated if detailed answer analysis is needed
+            "questions": [],   # Can be populated if question analysis is needed
+            "totalTimeSpent": round(total_time_spent, 2),
         })
 
-    # Calculate total time spent (using total_time_taken field)
-    total_time_spent = 0
-    for session in completed_sessions:
-        if session.total_time_taken:
-            total_time_spent += session.total_time_taken / 60  # Convert seconds to minutes
-        elif session.start_time and session.end_time:
-            # Fallback: calculate from start/end time if total_time_taken is not available
-            session_duration = (session.end_time - session.start_time).total_seconds() / 60
-            total_time_spent += session_duration
-
-    # Session data for detailed view
-    sessions_data = []
-    for session in completed_sessions:
-        session_score = (session.correct_answers / session.total_questions * 100) if session.total_questions > 0 else 0
-        sessions_data.append({
-            "id": session.id,
-            "startTime": session.start_time.isoformat() if session.start_time else None,
-            "endTime": session.end_time.isoformat() if session.end_time else None,
-            "score": round(session_score, 2),
-            "correctAnswers": session.correct_answers,
-            "totalQuestions": session.total_questions,
-            "isCompleted": session.is_completed
+    except Exception as e:
+        sentry_sdk.capture_exception(e, extra={
+            "action": "dashboard_analytics",
+            "student_id": getattr(request.user, 'student_id', None)
         })
-
-    return Response({
-        "totalTests": total_tests,
-        "totalQuestions": total_questions_attempted,
-        "overallAccuracy": round(overall_accuracy, 2),
-        "averageScore": round(average_score, 2),
-        "completionRate": 100,  # All fetched sessions are completed
-        "subjectPerformance": subject_performance,
-        "chapterPerformance": [],  # Can be implemented later if needed
-        "timeAnalysis": {
-            "averageTimePerQuestion": round(total_time_spent / total_questions_attempted, 2) if total_questions_attempted > 0 else 0,
-            "fastestTime": 0,  # Can be calculated if needed
-            "slowestTime": 0,  # Can be calculated if needed
-            "timeEfficiency": 100,  # Can be calculated based on expected vs actual time
-            "rushingTendency": 0  # Can be calculated based on time patterns
-        },
-        "progressTrend": progress_trend,
-        "weakAreas": [],  # Can be populated based on low-performing topics
-        "strengths": [],   # Can be populated based on high-performing topics
-        "sessions": sessions_data,
-        "answers": [],     # Can be populated if detailed answer analysis is needed
-        "questions": [],   # Can be populated if question analysis is needed
-        "totalTimeSpent": round(total_time_spent, 2),
-    })
+        return Response({"error": "Failed to generate dashboard analytics"}, status=500)
 
 
 @api_view(['GET'])

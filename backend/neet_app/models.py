@@ -552,6 +552,10 @@ class StudentProfile(models.Model):
     updated_at = models.DateTimeField(auto_now=True, null=False)
     # Timestamp used to invalidate tokens/sessions after password change
     password_changed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Subscription fields
+    subscription_plan = models.CharField(max_length=50, null=True, blank=True)  # 'basic' or 'pro'
+    subscription_expires_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'student_profiles'
@@ -994,3 +998,29 @@ class PlatformAdmin(models.Model):
     def check_password(self, raw_password):
         from django.contrib.auth.hashers import check_password
         return check_password(raw_password, self.password_hash)
+
+
+class RazorpayOrder(models.Model):
+    """
+    Store Razorpay order & payment metadata for audit and verification
+    """
+    id = models.BigAutoField(primary_key=True)
+    student = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, related_name='razorpay_orders', to_field='student_id', db_column='student_id')
+    plan = models.CharField(max_length=50)  # 'basic' or 'pro'
+    amount = models.IntegerField(help_text='Amount in paise')
+    currency = models.CharField(max_length=10, default='INR')
+    razorpay_order_id = models.CharField(max_length=128, null=True, blank=True)
+    razorpay_payment_id = models.CharField(max_length=128, null=True, blank=True)
+    razorpay_signature = models.CharField(max_length=256, null=True, blank=True)
+    status = models.CharField(max_length=32, default='created', help_text='Order status: initiated | created | paid | failed | remote_failed')  # Track order lifecycle
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'razorpay_orders'
+
+    def mark_paid(self, payment_id, signature):
+        self.razorpay_payment_id = payment_id
+        self.razorpay_signature = signature
+        self.status = 'paid'
+        self.save(update_fields=['razorpay_payment_id', 'razorpay_signature', 'status', 'updated_at'])

@@ -3,7 +3,7 @@ from django import forms
 from django.contrib.admin.widgets import FilteredSelectMultiple
 from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, StudentInsight, PasswordReset, PlatformTest
 from .models import UserActivity, PlatformTestAudit
-from .models import PlatformAdmin
+from .models import PlatformAdmin, RazorpayOrder
 
 @admin.register(PlatformTest)
 class PlatformTestAdmin(admin.ModelAdmin):
@@ -203,3 +203,33 @@ class PlatformTestAuditAdmin(admin.ModelAdmin):
 class PlatformAdminAdmin(admin.ModelAdmin):
     list_display = ['username', 'is_active', 'created_at']
     readonly_fields = ['created_at']
+
+
+@admin.register(RazorpayOrder)
+class RazorpayOrderAdmin(admin.ModelAdmin):
+    list_display = ['id', 'student', 'plan', 'get_amount_rupees', 'status', 'razorpay_order_id', 'razorpay_payment_id', 'created_at']
+    list_filter = ['status', 'plan', 'currency', 'created_at']
+    search_fields = ['student__student_id', 'student__email', 'razorpay_order_id', 'razorpay_payment_id']
+    readonly_fields = ['id', 'razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature', 'created_at', 'updated_at']
+    ordering = ['-created_at']
+    
+    fieldsets = (
+        ('Order Information', {
+            'fields': ('id', 'student', 'plan', 'amount', 'currency', 'status')
+        }),
+        ('Razorpay Details', {
+            'fields': ('razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+    
+    def get_amount_rupees(self, obj):
+        """Display amount in rupees instead of paise"""
+        return f"₹{obj.amount / 100:.2f}"
+    get_amount_rupees.short_description = 'Amount (₹)'
+    get_amount_rupees.admin_order_field = 'amount'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('student')

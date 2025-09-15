@@ -81,10 +81,13 @@ class TestErrorSchema:
         assert 'timestamp' in error
         assert error['code'] == ErrorCodes.AUTH_TOKEN_INVALID
 
-    def test_server_error_schema(self, api_client):
+    def test_server_error_schema(self, api_client, authenticated_student):
         """Test that server errors follow standard schema"""
+        # Authenticate to bypass auth checks
+        api_client.force_authenticate(user=authenticated_student)
+        
         # Mock a server error in a view
-        with patch('neet_app.views.dashboard_views.get_dashboard_analytics') as mock_view:
+        with patch('neet_app.views.dashboard_views.dashboard_analytics') as mock_view:
             mock_view.side_effect = Exception("Database connection failed")
             
             response = api_client.get('/api/dashboard/analytics/')
@@ -238,10 +241,12 @@ class TestErrorHandlerIntegration:
 @pytest.fixture
 def sample_student_profile():
     """Create a sample student profile for testing"""
+    from datetime import date
     student = StudentProfile.objects.create(
         student_id="TEST001",
         email="test@example.com",
-        full_name="Test Student"
+        full_name="Test Student",
+        date_of_birth=date(2000, 1, 1)  # Add required date_of_birth field
     )
     student.set_password("testpass123")
     student.save()

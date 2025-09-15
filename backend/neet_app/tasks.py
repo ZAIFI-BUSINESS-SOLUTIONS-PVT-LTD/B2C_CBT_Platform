@@ -16,14 +16,12 @@ from typing import Dict, Optional
 def generate_insights_task(self, student_id: str, request_data: dict = None, force_regenerate: bool = False):
     """Wrapper task to generate and save student insights.
 
-    This calls the existing synchronous logic in `insights_views.get_student_insights` but
-    uses internal helper functions so we don't duplicate HTTP handling.
+    This calls the existing synchronous logic in `insights_views` helpers so we don't duplicate HTTP handling.
     """
     try:
-        # The heavy function is split into helpers inside insights_views; call the generation flow
-        # Reuse existing helpers: calculate metrics, classify, generate LLM insights and save
         thresholds = insights_views.get_thresholds(request_data)
         all_metrics = insights_views.calculate_topic_metrics(student_id)
+
         if not all_metrics or 'topics' not in all_metrics:
             empty_response = {
                 'status': 'success',
@@ -47,31 +45,31 @@ def generate_insights_task(self, student_id: str, request_data: dict = None, for
             return empty_response
 
         classification = insights_views.classify_topics(
-            all_metrics['topics'], all_metrics['overall_avg_time'], thresholds
+            all_metrics['topics'], all_metrics.get('overall_avg_time', 0), thresholds
         )
 
         last_test_data = insights_views.get_last_test_metrics(student_id, thresholds)
 
         llm_insights = {}
-        if classification['strength_topics']:
+        if classification.get('strength_topics'):
             llm_insights['strengths'] = insights_views.generate_llm_insights('strengths', classification['strength_topics'])
-        if classification['weak_topics']:
+        if classification.get('weak_topics'):
             llm_insights['weaknesses'] = insights_views.generate_llm_insights('weaknesses', classification['weak_topics'])
 
         unattempted_topics = insights_views.get_unattempted_topics(all_metrics['topics'])
         study_plan_data = {
-            'weak_topics': classification['weak_topics'],
-            'improvement_topics': classification['improvement_topics'],
-            'strength_topics': classification['strength_topics'],
+            'weak_topics': classification.get('weak_topics', []),
+            'improvement_topics': classification.get('improvement_topics', []),
+            'strength_topics': classification.get('strength_topics', []),
             'unattempted_topics': unattempted_topics
         }
         llm_insights['study_plan'] = insights_views.generate_llm_insights('study_plan', study_plan_data)
 
-        if last_test_data['last_test_topics']:
+        if last_test_data.get('last_test_topics'):
             llm_insights['last_test_feedback'] = insights_views.generate_llm_insights('last_test_feedback', last_test_data['last_test_topics'])
 
         total_topics = len(all_metrics['topics'])
-        from ..models import TestSession
+        from .models import TestSession
         total_tests = TestSession.objects.filter(student_id=student_id, is_completed=True).count()
         latest_session = TestSession.objects.filter(student_id=student_id, is_completed=True).order_by('-end_time').first()
         latest_session_id = latest_session.id if latest_session else None
@@ -79,11 +77,11 @@ def generate_insights_task(self, student_id: str, request_data: dict = None, for
         summary = {
             'total_topics_analyzed': total_topics,
             'total_tests_taken': total_tests,
-            'strengths_count': len(classification['strength_topics']),
-            'weaknesses_count': len(classification['weak_topics']),
-            'improvements_count': len(classification['improvement_topics']),
+            'strengths_count': len(classification.get('strength_topics', [])),
+            'weaknesses_count': len(classification.get('weak_topics', [])),
+            'improvements_count': len(classification.get('improvement_topics', [])),
             'unattempted_topics_count': len(unattempted_topics),
-            'overall_avg_time': round(all_metrics['overall_avg_time'], 2),
+            'overall_avg_time': round(all_metrics.get('overall_avg_time', 0), 2),
             'last_session_id': latest_session_id
         }
 
@@ -102,14 +100,27 @@ def generate_insights_task(self, student_id: str, request_data: dict = None, for
 
         insights_views.save_insights_to_database(student_id, response_data, latest_session_id)
         return response_data
-    except Exception as exc:
+    except Exception:
         logger.exception('generate_insights_task failed')
         raise
 
 
-@shared_task(bind=True)
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_kwargs={"max_retries": 3},
+    retry_backoff=True,
+    soft_time_limit=60,
+    time_limit=120,
+)
 def gemini_generate_task(self, prompt: str, max_retries: int = 3):
-    """Run Gemini AI generation in background using the project's GeminiClient wrapper."""
+    """Run Gemini AI generation in background using the project's GeminiClient wrapper.
+
+    Notes:
+    - Automatic retries with exponential backoff on exceptions (max 3 retries).
+    - Soft/hard time limits to avoid workers hanging on slow LLM calls.
+    - Keeps logging and re-raises so Celery's autoretry handles retrying.
+    """
     try:
         client = GeminiClient()
         return client.generate_response(prompt, max_retries=max_retries)
@@ -118,8 +129,20 @@ def gemini_generate_task(self, prompt: str, max_retries: int = 3):
         raise
 
 
-@shared_task(bind=True)
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_kwargs={"max_retries": 2},
+    retry_backoff=True,
+    soft_time_limit=30,
+    time_limit=60,
+)
 def sql_agent_generate_task(self, student_id: str, user_message: str):
+    """Generate SQL via the SQLAgent in background.
+
+    - Retries on failure (2 attempts) with backoff.
+    - Shorter time limits than full LLM generation since SQL generation should be quicker.
+    """
     try:
         agent = SQLAgent()
         status, sql = agent.generate_sql_query(student_id, user_message)
@@ -202,11 +225,21 @@ def send_inactivity_reminder_task(self, user_id: int, last_test_date: Optional[s
         raise
 
 
-@shared_task(bind=True)
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_kwargs={"max_retries": 3},
+    retry_backoff=True,
+    soft_time_limit=90,
+    time_limit=180,
+)
 def chat_generate_task(self, chat_session_id: str, user_message: str, student_id: str):
     """Background task to run chatbot message generation and persist messages.
 
     Returns the bot response payload.
+
+    - Retries on transient failures (max 3 retries) with backoff.
+    - Longer soft/hard timeouts to allow for LLM response generation.
     """
     try:
         from .services.chatbot_service_refactored import NeetChatbotService

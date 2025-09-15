@@ -3,6 +3,7 @@ Chatbot Views for NEET AI Tutor
 Handles chat session creation, message processing, and history retrieval
 """
 import uuid
+import sentry_sdk
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -54,26 +55,47 @@ class ChatSessionViewSet(mixins.ListModelMixin,
     
     def get_queryset(self):
         """Return chat sessions for the authenticated student only"""
-        if hasattr(self.request.user, 'student_id'):
-            return ChatSession.objects.filter(
-                student_id=self.request.user.student_id,
-                is_active=True
-            ).order_by('-updated_at')
-        return ChatSession.objects.none()
+        try:
+            sentry_sdk.add_breadcrumb(
+                message="Getting chat sessions for student",
+                category="chat",
+                level="info",
+                data={"student_id": getattr(self.request.user, 'student_id', None)}
+            )
+            
+            if hasattr(self.request.user, 'student_id'):
+                return ChatSession.objects.filter(
+                    student_id=self.request.user.student_id,
+                    is_active=True
+                ).order_by('-updated_at')
+            return ChatSession.objects.none()
+        except Exception as e:
+            sentry_sdk.capture_exception(e, extra={
+                "action": "get_chat_sessions",
+                "user": str(self.request.user)
+            })
+            return ChatSession.objects.none()
     
     def create(self, request, *args, **kwargs):
         """Create a new chat session for the authenticated student"""
-        # Validate input
-        serializer = ChatSessionCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        # Get student_id from authenticated user
-        student_id = request.user.student_id
-        
-        # Generate unique chat session ID
-        chat_session_id = str(uuid.uuid4())
-        
         try:
+            sentry_sdk.add_breadcrumb(
+                message="Creating new chat session",
+                category="chat",
+                level="info",
+                data={"student_id": getattr(request.user, 'student_id', None)}
+            )
+            
+            # Validate input
+            serializer = ChatSessionCreateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            
+            # Get student_id from authenticated user
+            student_id = request.user.student_id
+            
+            # Generate unique chat session ID
+            chat_session_id = str(uuid.uuid4())
+            
             # Create chat session directly
             chat_session = ChatSession.objects.create(
                 chat_session_id=chat_session_id,
@@ -82,11 +104,23 @@ class ChatSessionViewSet(mixins.ListModelMixin,
                 is_active=True
             )
             
+            sentry_sdk.add_breadcrumb(
+                message="Chat session created successfully",
+                category="chat",
+                level="info",
+                data={"chat_session_id": chat_session_id, "student_id": student_id}
+            )
+            
             # Return serialized response
             response_serializer = ChatSessionSerializer(chat_session)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
             
         except Exception as e:
+            sentry_sdk.capture_exception(e, extra={
+                "action": "create_chat_session",
+                "student_id": getattr(request.user, 'student_id', None),
+                "request_data": request.data
+            })
             raise AppError(
                 code=ErrorCodes.SERVER_ERROR,
                 message='Failed to create chat session'
@@ -97,103 +131,242 @@ class ChatSessionViewSet(mixins.ListModelMixin,
         """Send a message in the chat session"""
         print(f"🔗 Chatbot API called - Session: {chat_session_id}, Student: {request.user.student_id}")
         
-        # Get the chat session
         try:
-            chat_session = ChatSession.objects.get(
-                chat_session_id=chat_session_id,
-                student_id=request.user.student_id,
-                is_active=True
+            sentry_sdk.add_breadcrumb(
+                message="Processing chatbot message",
+                category="chat",
+                level="info",
+                data={
+                    "chat_session_id": chat_session_id, 
+                    "student_id": getattr(request.user, 'student_id', None)
+                }
             )
-        except ChatSession.DoesNotExist:
-            raise NotFoundError(
-                message='Chat session not found',
-                resource_type='chat_session'
-            )
-        
-        # Validate message data
-        message_serializer = ChatMessageCreateSerializer(
-            data={'session_id': chat_session_id, 'message': request.data.get('message', '')},
-            context={'request': request}
-        )
-        message_serializer.is_valid(raise_exception=True)
-        
-        # Process message with chatbot service  
-        user_message = message_serializer.validated_data['message']
-        print(f"📝 Processing message: '{user_message}'")
-        
-        # Update session title if this is the first message (no existing messages)
-        if chat_session.messages.count() == 0:
-            # Generate title from first message like ChatGPT
-            title = self._generate_session_title_from_message(user_message)
-            chat_session.session_title = title
-            chat_session.save()
-            print(f"📋 Updated session title to: '{title}'")
-        
-        chatbot_service = NeetChatbotService()
-        
-        # Support optional async processing: if client passes async=true, enqueue Celery task and return task_id
-        async_flag = request.data.get('async', False) or request.query_params.get('async') == 'true'
-        if async_flag:
+            
+            # Get the chat session
             try:
-                from ..tasks import chat_generate_task
-                task = chat_generate_task.delay(chat_session_id, user_message, request.user.student_id)
-                return Response({'status': 'queued', 'task_id': task.id}, status=status.HTTP_202_ACCEPTED)
-            except Exception as e:
-                print(f"Failed to enqueue chat task: {e}")
-                # fall through to synchronous processing
-
-        try:
-            with transaction.atomic():
-                # Use the refactored generate_response method
-                bot_response_data = chatbot_service.generate_response(
-                    query=user_message,
+                chat_session = ChatSession.objects.get(
+                    chat_session_id=chat_session_id,
                     student_id=request.user.student_id,
-                    chat_session_id=chat_session_id
+                    is_active=True
+                )
+            except ChatSession.DoesNotExist:
+                sentry_sdk.capture_message(
+                    "Chat session not found for message",
+                    level="warning",
+                    extra={
+                        "chat_session_id": chat_session_id,
+                        "student_id": getattr(request.user, 'student_id', None)
+                    }
+                )
+                raise AppError(
+                    code=ErrorCodes.CHAT_SESSION_NOT_FOUND,
+                    message='Chat session not found'
+                )
+            
+            # Validate message data
+            message_serializer = ChatMessageCreateSerializer(
+                data={'session_id': chat_session_id, 'message': request.data.get('message', '')},
+                context={'request': request}
+            )
+            message_serializer.is_valid(raise_exception=True)
+            
+            # Process message with chatbot service  
+            user_message = message_serializer.validated_data['message']
+            print(f"📝 Processing message: '{user_message}'")
+            
+            sentry_sdk.add_breadcrumb(
+                message="User message validated",
+                category="chat",
+                level="info",
+                data={"message_length": len(user_message)}
+            )
+            
+            # Update session title if this is the first message (no existing messages)
+            if chat_session.messages.count() == 0:
+                # Generate title from first message like ChatGPT
+                title = self._generate_session_title_from_message(user_message)
+                chat_session.session_title = title
+                chat_session.save()
+                print(f"📋 Updated session title to: '{title}'")
+                
+                sentry_sdk.add_breadcrumb(
+                    message="Updated session title",
+                    category="chat",
+                    level="info",
+                    data={"new_title": title}
+                )
+            
+            try:
+                chatbot_service = NeetChatbotService()
+            except Exception as e:
+                sentry_sdk.capture_exception(e, extra={
+                    "action": "instantiate_chatbot_service",
+                    "chat_session_id": chat_session_id,
+                    "student_id": request.user.student_id
+                })
+                raise AppError(
+                    code=ErrorCodes.SERVER_ERROR,
+                    message='AI service is currently unavailable'
                 )
 
-                print(f"🤖 Chatbot response received:")
-                print(f"   Success: {bot_response_data.get('success', False)}")
-                print(f"   Intent: {bot_response_data.get('intent', 'unknown')}")
-                print(f"   Has personalized data: {bot_response_data.get('has_personalized_data', False)}")
-                print(f"   Processing time: {bot_response_data.get('processing_time', 0)}s")
+            # If service instantiated but AI components aren't available, fail gracefully
+            if not getattr(chatbot_service, 'ai_available', False):
+                sentry_sdk.add_breadcrumb(
+                    message="AI service not available for request",
+                    category="chat",
+                    level="warning",
+                    data={"chat_session_id": chat_session_id, "student_id": request.user.student_id}
+                )
+                raise AppError(
+                    code=ErrorCodes.SERVER_ERROR,
+                    message='AI service is currently unavailable'
+                )
+            
+            # Support optional async processing: if client passes async=true, enqueue Celery task and return task_id
+            async_flag = request.data.get('async', False) or request.query_params.get('async') == 'true'
+            if async_flag:
+                try:
+                    from ..tasks import chat_generate_task
+                    task = chat_generate_task.delay(chat_session_id, user_message, request.user.student_id)
+                    
+                    sentry_sdk.add_breadcrumb(
+                        message="Enqueued async chat task",
+                        category="chat",
+                        level="info",
+                        data={"task_id": task.id}
+                    )
+                    
+                    return Response({'status': 'queued', 'task_id': task.id}, status=status.HTTP_202_ACCEPTED)
+                except Exception as e:
+                    print(f"Failed to enqueue chat task: {e}")
+                    sentry_sdk.capture_exception(e, extra={
+                        "action": "enqueue_chat_task",
+                        "chat_session_id": chat_session_id,
+                        "student_id": request.user.student_id
+                    })
+                    # fall through to synchronous processing
 
-                # Extract the response text
-                bot_response = bot_response_data.get('response', 'Sorry, I encountered an error.')
-                print(f"   Response length: {len(bot_response)} chars")
+            try:
+                with transaction.atomic():
+                    # Use the refactored generate_response method
+                    bot_response_data = chatbot_service.generate_response(
+                        query=user_message,
+                        student_id=request.user.student_id,
+                        chat_session_id=chat_session_id
+                    )
+
+                    print(f"🤖 Chatbot response received:")
+                    print(f"   Success: {bot_response_data.get('success', False)}")
+                    print(f"   Intent: {bot_response_data.get('intent', 'unknown')}")
+                    print(f"   Has personalized data: {bot_response_data.get('has_personalized_data', False)}")
+                    print(f"   Processing time: {bot_response_data.get('processing_time', 0)}s")
+
+                    sentry_sdk.add_breadcrumb(
+                        message="Chatbot response generated",
+                        category="chat",
+                        level="info",
+                        data={
+                            "success": bot_response_data.get('success', False),
+                            "intent": bot_response_data.get('intent', 'unknown'),
+                            "processing_time": bot_response_data.get('processing_time', 0)
+                        }
+                    )
+
+                    # Extract the response text
+                    bot_response = bot_response_data.get('response', 'Sorry, I encountered an error.')
+                    print(f"   Response length: {len(bot_response)} chars")
+                    
+            except Exception as e:
+                sentry_sdk.capture_exception(e, extra={
+                    "action": "generate_chatbot_response",
+                    "chat_session_id": chat_session_id,
+                    "student_id": request.user.student_id,
+                    "user_message": user_message
+                })
+                raise AppError(
+                    code=ErrorCodes.SERVER_ERROR,
+                    message='Failed to generate AI response',
+                    details={'exception': str(e)}
+                )
+            
+            # Get recent messages for context
+            recent_messages = chat_session.messages.order_by('-created_at')[:2]
+            messages_data = ChatMessageSerializer(recent_messages, many=True).data
+            
+            return Response({
+                'success': bot_response_data.get('success', True),
+                'user_message': user_message,
+                'bot_response': bot_response,
+                'session_id': chat_session_id,
+                'recent_messages': messages_data,
+                'intent': bot_response_data.get('intent', 'unknown'),
+                'has_personalized_data': bot_response_data.get('has_personalized_data', False),
+                'processing_time': bot_response_data.get('processing_time', 0),
+                'message_id': bot_response_data.get('message_id')
+            }, status=status.HTTP_200_OK)
+            
+        except AppError:
+            # Re-raise AppError exceptions without additional processing
+            raise
         except Exception as e:
+            sentry_sdk.capture_exception(e, extra={
+                "action": "send_chat_message",
+                "chat_session_id": chat_session_id,
+                "student_id": getattr(request.user, 'student_id', None)
+            })
             raise AppError(
-                code=ErrorCodes.AI_SERVICE_UNAVAILABLE,
-                message='Failed to generate AI response',
-                details={'exception': str(e)}
+                code=ErrorCodes.SERVER_ERROR,
+                message='Failed to send message'
             )
-        
-        # Get recent messages for context
-        recent_messages = chat_session.messages.order_by('-created_at')[:2]
-        messages_data = ChatMessageSerializer(recent_messages, many=True).data
-        
-        return Response({
-            'success': bot_response_data.get('success', True),
-            'user_message': user_message,
-            'bot_response': bot_response,
-            'session_id': chat_session_id,
-            'recent_messages': messages_data,
-            'intent': bot_response_data.get('intent', 'unknown'),
-            'has_personalized_data': bot_response_data.get('has_personalized_data', False),
-            'processing_time': bot_response_data.get('processing_time', 0),
-            'message_id': bot_response_data.get('message_id')
-        }, status=status.HTTP_200_OK)
+            
+        except AppError:
+            # Re-raise known AppError exceptions without additional processing
+            raise
+        except Exception as e:
+            sentry_sdk.capture_exception(e, extra={
+                "action": "send_chat_message",
+                "chat_session_id": chat_session_id,
+                "student_id": getattr(request.user, 'student_id', None)
+            })
+            raise AppError(
+                code=ErrorCodes.SERVER_ERROR,
+                message='Failed to send message'
+            )
     
     @action(detail=True, methods=['get'], url_path='messages')
     def get_messages(self, request, chat_session_id=None):
         """Get all messages for a chat session"""
         try:
-            # Get the chat session
-            chat_session = get_object_or_404(
-                ChatSession,
-                chat_session_id=chat_session_id,
-                student_id=request.user.student_id,
-                is_active=True
+            sentry_sdk.add_breadcrumb(
+                message="Getting messages for chat session",
+                category="chat",
+                level="info",
+                data={
+                    "chat_session_id": chat_session_id,
+                    "student_id": getattr(request.user, 'student_id', None)
+                }
             )
+            
+            # Get the chat session
+            try:
+                chat_session = ChatSession.objects.get(
+                    chat_session_id=chat_session_id,
+                    student_id=request.user.student_id,
+                    is_active=True
+                )
+            except ChatSession.DoesNotExist:
+                sentry_sdk.capture_message(
+                    "Chat session not found when getting messages",
+                    level="warning",
+                    extra={
+                        "chat_session_id": chat_session_id,
+                        "student_id": getattr(request.user, 'student_id', None)
+                    }
+                )
+                raise AppError(
+                    code=ErrorCodes.CHAT_SESSION_NOT_FOUND,
+                    message='Chat session not found'
+                )
             
             # Get messages with pagination
             messages = chat_session.messages.order_by('created_at')
@@ -207,6 +380,17 @@ class ChatSessionViewSet(mixins.ListModelMixin,
             
             messages = messages[:page_size]
             
+            sentry_sdk.add_breadcrumb(
+                message="Retrieved chat messages",
+                category="chat",
+                level="info",
+                data={
+                    "message_count": len(messages),
+                    "page_size": page_size,
+                    "total_messages": chat_session.messages.count()
+                }
+            )
+            
             # Serialize messages
             serializer = ChatMessageSerializer(messages, many=True)
             
@@ -216,33 +400,75 @@ class ChatSessionViewSet(mixins.ListModelMixin,
                 'total_messages': chat_session.messages.count()
             }, status=status.HTTP_200_OK)
             
-        except ChatSession.DoesNotExist:
-            raise NotFoundError(code=ErrorCodes.CHAT_SESSION_NOT_FOUND, message='Chat session not found')
+        except AppError:
+            # Re-raise known AppError exceptions without additional processing
+            raise
         except Exception as e:
+            sentry_sdk.capture_exception(e, extra={
+                "action": "get_chat_messages",
+                "chat_session_id": chat_session_id,
+                "student_id": getattr(request.user, 'student_id', None)
+            })
             raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to retrieve messages', details={'exception': str(e)})
     
     @action(detail=True, methods=['patch'], url_path='deactivate')
     def deactivate_session(self, request, chat_session_id=None):
         """Deactivate a chat session"""
         try:
-            chat_session = get_object_or_404(
-                ChatSession,
-                chat_session_id=chat_session_id,
-                student_id=request.user.student_id,
-                is_active=True
+            sentry_sdk.add_breadcrumb(
+                message="Deactivating chat session",
+                category="chat",
+                level="info",
+                data={
+                    "chat_session_id": chat_session_id,
+                    "student_id": getattr(request.user, 'student_id', None)
+                }
             )
+            
+            try:
+                chat_session = ChatSession.objects.get(
+                    chat_session_id=chat_session_id,
+                    student_id=request.user.student_id,
+                    is_active=True
+                )
+            except ChatSession.DoesNotExist:
+                sentry_sdk.capture_message(
+                    "Chat session not found when deactivating",
+                    level="warning",
+                    extra={
+                        "chat_session_id": chat_session_id,
+                        "student_id": getattr(request.user, 'student_id', None)
+                    }
+                )
+                raise AppError(
+                    code=ErrorCodes.CHAT_SESSION_NOT_FOUND,
+                    message='Chat session not found'
+                )
             
             chat_session.is_active = False
             chat_session.save()
+            
+            sentry_sdk.add_breadcrumb(
+                message="Chat session deactivated successfully",
+                category="chat",
+                level="info",
+                data={"chat_session_id": chat_session_id}
+            )
             
             return Response({
                 'success': True,
                 'message': 'Chat session deactivated successfully'
             }, status=status.HTTP_200_OK)
             
-        except ChatSession.DoesNotExist:
-            raise NotFoundError(code=ErrorCodes.CHAT_SESSION_NOT_FOUND, message='Chat session not found')
+        except AppError:
+            # Re-raise known AppError exceptions without additional processing
+            raise
         except Exception as e:
+            sentry_sdk.capture_exception(e, extra={
+                "action": "deactivate_chat_session",
+                "chat_session_id": chat_session_id,
+                "student_id": getattr(request.user, 'student_id', None)
+            })
             raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to deactivate session', details={'exception': str(e)})
 
 
@@ -251,6 +477,13 @@ class ChatSessionViewSet(mixins.ListModelMixin,
 def chat_statistics(request):
     """Get chat statistics for the authenticated student"""
     try:
+        sentry_sdk.add_breadcrumb(
+            message="Getting chat statistics",
+            category="chat",
+            level="info",
+            data={"student_id": getattr(request.user, 'student_id', None)}
+        )
+        
         student_id = request.user.student_id
         
         # Get statistics
@@ -271,6 +504,17 @@ def chat_statistics(request):
         if recent_session:
             recent_session_data = ChatSessionSerializer(recent_session).data
         
+        sentry_sdk.add_breadcrumb(
+            message="Chat statistics retrieved",
+            category="chat",
+            level="info",
+            data={
+                "total_sessions": total_sessions,
+                "active_sessions": active_sessions,
+                "total_messages": total_messages
+            }
+        )
+        
         return Response({
             'total_sessions': total_sessions,
             'active_sessions': active_sessions,
@@ -279,4 +523,8 @@ def chat_statistics(request):
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
+        sentry_sdk.capture_exception(e, extra={
+            "action": "get_chat_statistics",
+            "student_id": getattr(request.user, 'student_id', None)
+        })
         raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to get statistics', details={'exception': str(e)})

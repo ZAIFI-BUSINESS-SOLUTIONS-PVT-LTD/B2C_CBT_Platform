@@ -1,6 +1,6 @@
 # your_app_name/serializers.py
 from rest_framework import serializers
-from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, PlatformTest
+from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, PlatformTest, RazorpayOrder
 from django.db.models import F
 from django.utils import timezone
 
@@ -545,3 +545,29 @@ class ResetPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
     token = serializers.CharField()
     new_password = serializers.CharField(min_length=8)
+
+
+# --- Payment serializers ---
+class CreateOrderSerializer(serializers.Serializer):
+    plan = serializers.CharField()
+    
+    def validate_plan(self, value):
+        """Validate plan name"""
+        valid_plans = ['basic', 'pro']
+        if value not in valid_plans:
+            raise serializers.ValidationError(f"Plan must be one of: {', '.join(valid_plans)}")
+        return value
+
+
+class VerifyPaymentSerializer(serializers.Serializer):
+    razorpay_order_id = serializers.CharField()
+    razorpay_payment_id = serializers.CharField()
+    razorpay_signature = serializers.CharField()
+    local_order_id = serializers.IntegerField()
+
+
+class RazorpayOrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RazorpayOrder
+        fields = ['id', 'student', 'plan', 'amount', 'currency', 'razorpay_order_id', 'status', 'created_at']
+        read_only_fields = ['id', 'razorpay_order_id', 'status', 'created_at']

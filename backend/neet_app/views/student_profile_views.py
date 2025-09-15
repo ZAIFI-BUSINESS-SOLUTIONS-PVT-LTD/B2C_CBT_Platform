@@ -1,4 +1,5 @@
 import urllib.parse
+import sentry_sdk
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db import models
@@ -55,6 +56,34 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
             return StudentLoginSerializer
         return StudentProfileSerializer
 
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Override retrieve to enforce that a student can only access their own profile.
+        GET /api/students/{student_id}/
+        """
+        # The router uses the StudentProfileViewSet for /students/ as well.
+        lookup_value = kwargs.get('pk')
+
+        # If the request is authenticated as a student, ensure they only access their own data
+        if hasattr(request.user, 'student_id') and lookup_value is not None:
+            if str(request.user.student_id) != str(lookup_value):
+                # Forbidden
+                raise AppError(code=ErrorCodes.AUTH_FORBIDDEN if hasattr(ErrorCodes, 'AUTH_FORBIDDEN') else ErrorCodes.SERVER_ERROR,
+                               message='You are not allowed to access this resource')
+
+        return super().retrieve(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Override retrieve to enforce that students can only access their own profile.
+        """
+        instance = self.get_object()
+        # If an authenticated student is requesting another student's profile, forbid
+        if hasattr(request.user, 'student_id') and request.user.student_id != getattr(instance, 'student_id', None):
+            raise AppError(code=ErrorCodes.FORBIDDEN if hasattr(ErrorCodes, 'FORBIDDEN') else ErrorCodes.AUTH_FORBIDDEN, message='You do not have permission to view this resource')
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def me(self, request):
         """
@@ -104,20 +133,61 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         Register a new student with auto-generated student_id and password.
         POST /api/student-profile/register/
         """
-        serializer = StudentProfileCreateSerializer(data=request.data)
-        if serializer.is_valid():
-            student = serializer.save()
+        try:
+            # Log registration attempt with Sentry
+            sentry_sdk.add_breadcrumb(
+                message="Student registration started",
+                category="student_auth",
+                level="info",
+                data={
+                    "email": request.data.get('email', 'unknown'),
+                    "full_name": request.data.get('full_name', 'unknown')
+                }
+            )
             
-            # Return student info including generated credentials
-            response_data = {
-                'student_id': student.student_id,
-                'generated_password': student.generated_password,
-                'full_name': student.full_name,
-                'email': student.email,
-                'message': 'Student registered successfully. Please save your credentials safely.'
-            }
-            return Response(response_data, status=status.HTTP_201_CREATED)
-        raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid input for registration', details=serializer.errors)
+            serializer = StudentProfileCreateSerializer(data=request.data)
+            if serializer.is_valid():
+                student = serializer.save()
+                
+                # Log successful registration
+                sentry_sdk.add_breadcrumb(
+                    message="Student registration successful",
+                    category="student_auth",
+                    level="info",
+                    data={
+                        "student_id": student.student_id,
+                        "email": student.email
+                    }
+                )
+                
+                # Return student info including generated credentials
+                response_data = {
+                    'student_id': student.student_id,
+                    'generated_password': student.generated_password,
+                    'full_name': student.full_name,
+                    'email': student.email,
+                    'message': 'Student registered successfully. Please save your credentials safely.'
+                }
+                return Response(response_data, status=status.HTTP_201_CREATED)
+            
+            # Log validation errors
+            sentry_sdk.capture_message(
+                "Student registration validation failed",
+                level="warning",
+                extra={
+                    "validation_errors": serializer.errors,
+                    "request_data": request.data
+                }
+            )
+            raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid input for registration', details=serializer.errors)
+            
+        except Exception as e:
+            # Capture any unexpected errors in Sentry
+            sentry_sdk.capture_exception(e, extra={
+                "action": "student_registration",
+                "request_data": request.data
+            })
+            raise
 
     @action(detail=False, methods=['post'])
     def login(self, request):
@@ -125,22 +195,109 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         Authenticate student with student_id and password.
         POST /api/student-profile/login/
         """
-        serializer = StudentLoginSerializer(data=request.data)
-        if serializer.is_valid():
-            student = serializer.validated_data['student']
-            
-            # Update last login time
-            StudentProfile.objects.filter(student_id=student.student_id).update(
-                last_login=timezone.now()
+        try:
+            # Log login attempt with Sentry
+            sentry_sdk.add_breadcrumb(
+                message="Student login attempt",
+                category="student_auth",
+                level="info",
+                data={
+                    "username": request.data.get('username', 'unknown'),
+                    "ip_address": request.META.get('REMOTE_ADDR', 'unknown')
+                }
             )
             
-            # Return student profile data
-            profile_serializer = StudentProfileSerializer(student)
+            serializer = StudentLoginSerializer(data=request.data)
+            if serializer.is_valid():
+                student = serializer.validated_data['student']
+                
+                # Log successful login
+                sentry_sdk.add_breadcrumb(
+                    message="Student login successful",
+                    category="student_auth", 
+                    level="info",
+                    data={
+                        "student_id": student.student_id,
+                        "email": student.email
+                    }
+                )
+                
+                # Update last login time
+                StudentProfile.objects.filter(student_id=student.student_id).update(
+                    last_login=timezone.now()
+                )
+                
+                # Return student profile data
+                profile_serializer = StudentProfileSerializer(student)
+                return Response({
+                    'message': 'Login successful',
+                    'student': profile_serializer.data
+                }, status=status.HTTP_200_OK)
+            
+            # Log validation errors
+            sentry_sdk.capture_message(
+                "Student login validation failed",
+                level="warning",
+                extra={
+                    "validation_errors": serializer.errors,
+                    "username": request.data.get('username', 'unknown')
+                }
+            )
+            raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid credentials provided', details=serializer.errors)
+            
+        except AppValidationError:
+            # Re-raise validation errors without additional Sentry capture
+            raise
+        except Exception as e:
+            # Capture any unexpected errors in Sentry
+            sentry_sdk.capture_exception(e, extra={
+                "action": "student_login",
+                "username": request.data.get('username', 'unknown'),
+                "ip_address": request.META.get('REMOTE_ADDR', 'unknown')
+            })
+            raise
+
+    @action(detail=False, methods=['get'])
+    def test_sentry(self, request):
+        """
+        Test endpoint to verify Sentry integration is working.
+        GET /api/student-profile/test_sentry/
+        """
+        try:
+            # Log info message
+            sentry_sdk.add_breadcrumb(
+                message="Sentry test endpoint called",
+                category="test",
+                level="info"
+            )
+            
+            # Intentionally raise an exception to test Sentry error capture
+            if request.GET.get('trigger_error') == 'true':
+                raise Exception("This is a test exception for Sentry!")
+            
+            # Log a warning message
+            sentry_sdk.capture_message(
+                "Sentry test endpoint - no error triggered",
+                level="info",
+                extra={"test_data": "This is a test message from the backend"}
+            )
+            
             return Response({
-                'message': 'Login successful',
-                'student': profile_serializer.data
+                'message': 'Sentry test endpoint called successfully',
+                'instructions': 'Add ?trigger_error=true to test exception capture'
             }, status=status.HTTP_200_OK)
-        raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid credentials provided', details=serializer.errors)
+            
+        except Exception as e:
+            # Capture the exception in Sentry
+            sentry_sdk.capture_exception(e, extra={
+                "action": "sentry_test",
+                "test_parameter": request.GET.get('trigger_error', 'false')
+            })
+            raise AppError(
+                code=ErrorCodes.SERVER_ERROR,
+                message='Test exception captured successfully',
+                details={'exception': str(e)}
+            )
 
     @action(detail=True, methods=['post'])
     def change_password(self, request, pk=None):

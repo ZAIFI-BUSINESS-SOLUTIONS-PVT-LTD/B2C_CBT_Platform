@@ -29,12 +29,16 @@ def forgot_password(request):
     """POST /auth/forgot-password
     Always return generic response regardless of email existence.
     """
-    serializer = ForgotPasswordSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    email = serializer.validated_data['email'].lower()
-
-    # Generic response
+    # Generic response for security (prevent enumeration)
     generic = {"detail": "If this email exists, we have sent reset instructions."}
+    
+    serializer = ForgotPasswordSerializer(data=request.data)
+    if not serializer.is_valid():
+        # For security, return generic response even for invalid email format
+        # This prevents email enumeration attacks
+        return Response(generic, status=status.HTTP_200_OK)
+    
+    email = serializer.validated_data['email'].lower()
 
     try:
         user = StudentProfile.objects.get(email=email)

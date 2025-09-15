@@ -3,10 +3,31 @@ Django settings for neet_backend project.
 """
 
 import os
+import logging
 from dotenv import load_dotenv
 from pathlib import Path
 from neomodel import config
-import os
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
+
+# Configure logging integration to capture logs at INFO level and above
+logging_integration = LoggingIntegration(
+    level=logging.INFO,        # Capture info and above as breadcrumbs
+    event_level=logging.ERROR  # Send records as events from error level
+)
+
+sentry_sdk.init(
+    dsn=os.environ.get("SENTRY_DSN"),
+    integrations=[
+        DjangoIntegration(),
+        logging_integration,
+    ],
+    # Disable auto-enabling integrations to avoid LangChain issues
+    auto_enabling_integrations=False,
+    traces_sample_rate=1.0,
+    send_default_pii=True
+)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -18,7 +39,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-key-change-in-pro
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver,c954e41aebd0.ngrok-free.app').split(',')
 
 # Application definition
 INSTALLED_APPS = [
@@ -176,6 +197,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://cbt.inzighted.com"
+    
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -274,6 +296,11 @@ CHATBOT_SESSION_TIMEOUT = int(os.environ.get('CHATBOT_SESSION_TIMEOUT', '86400')
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+
+# Razorpay Configuration
+RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', '')
+RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
+RAZORPAY_WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '')
 
 
 CSRF_TRUSTED_ORIGINS = [

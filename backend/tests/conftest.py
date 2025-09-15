@@ -66,13 +66,35 @@ def authenticated_client(api_client, sample_student_profile):
     # Since StudentProfile doesn't inherit from User, we need to create tokens differently
     # We'll manually create JWT token for the student
     refresh = RefreshToken()
+    # Add both student_id and user_id claims to satisfy different auth codepaths
     refresh['student_id'] = sample_student_profile.student_id
+    refresh['user_id'] = sample_student_profile.student_id
     refresh['email'] = sample_student_profile.email
     access_token = str(refresh.access_token)
     
     api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
     api_client.student_profile = sample_student_profile
     return api_client
+
+
+@pytest.fixture(autouse=True)
+def disable_sql_agent_init(monkeypatch):
+    """Prevent SQLAgent from opening real DB connections during unit tests.
+
+    Many tests instantiate NeetChatbotService which constructs SQLAgent()
+    and attempts to create a SQLDatabase from a URI. In tests we stub the
+    SQLAgent class with a lightweight dummy that provides the minimal
+    interface used by the code under test.
+    """
+    class DummyAgent:
+        def __init__(self, *args, **kwargs):
+            self.db = None
+        def run_query(self, *args, **kwargs):
+            return None
+
+    # Patch the SQLAgent class used by the service code
+    monkeypatch.setattr('neet_app.services.ai.sql_agent.SQLAgent', DummyAgent)
+    yield
 
 
 @pytest.fixture

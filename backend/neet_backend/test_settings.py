@@ -87,3 +87,11 @@ NEO4J_BOLT_URL = 'bolt://neo4j:password@localhost:7687/neo4j'
 
 # Test-specific settings
 TESTING = True
+
+# Configure Simple JWT to use the StudentProfile.primary key field name
+# StudentProfile uses `student_id` as the primary key so instruct
+# rest_framework_simplejwt to use that field when producing tokens.
+SIMPLE_JWT = {
+    "USER_ID_FIELD": "student_id",
+    "USER_ID_CLAIM": "student_id",
+}

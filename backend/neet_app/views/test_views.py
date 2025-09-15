@@ -1,6 +1,7 @@
 """
 Simple test views for validating the new authentication system
 """
+import sentry_sdk
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -24,29 +25,60 @@ def create_test_student(request):
     Quick endpoint to create a test student
     POST /api/test/create-student/
     """
-    # Default test student data
-    test_data = {
-        'full_name': request.data.get('full_name', 'Test Student'),
-        'email': request.data.get('email', f'test{timezone.now().timestamp()}@example.com'),
-        'phone_number': request.data.get('phone_number', '+91-9999999999'),
-        'date_of_birth': request.data.get('date_of_birth', '2005-01-15'),
-        'school_name': request.data.get('school_name', 'Test School'),
-        'target_exam_year': request.data.get('target_exam_year', 2025)
-    }
-    
-    serializer = StudentProfileCreateSerializer(data=test_data)
-    if serializer.is_valid():
-        student = serializer.save()
-        return Response({
-            'message': 'Test student created successfully',
-            'student_id': student.student_id,
-            'generated_password': student.generated_password,
-            'email': student.email,
-            'full_name': student.full_name
-        }, status=status.HTTP_201_CREATED)
-    
-    # Route validation errors through centralized handler
-    raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid input while creating test student', details=serializer.errors)
+    try:
+        sentry_sdk.add_breadcrumb(
+            message="Creating test student",
+            category="test",
+            level="info",
+            data={"request_data": request.data}
+        )
+        
+        # Default test student data
+        test_data = {
+            'full_name': request.data.get('full_name', 'Test Student'),
+            'email': request.data.get('email', f'test{timezone.now().timestamp()}@example.com'),
+            'phone_number': request.data.get('phone_number', '+91-9999999999'),
+            'date_of_birth': request.data.get('date_of_birth', '2005-01-15'),
+            'school_name': request.data.get('school_name', 'Test School'),
+            'target_exam_year': request.data.get('target_exam_year', 2025)
+        }
+        
+        serializer = StudentProfileCreateSerializer(data=test_data)
+        if serializer.is_valid():
+            student = serializer.save()
+            
+            sentry_sdk.add_breadcrumb(
+                message="Test student created successfully",
+                category="test",
+                level="info",
+                data={"student_id": student.student_id, "email": student.email}
+            )
+            
+            return Response({
+                'message': 'Test student created successfully',
+                'student_id': student.student_id,
+                'generated_password': student.generated_password,
+                'email': student.email,
+                'full_name': student.full_name
+            }, status=status.HTTP_201_CREATED)
+        
+        # Route validation errors through centralized handler
+        sentry_sdk.capture_message(
+            "Test student creation validation failed",
+            level="warning",
+            extra={"validation_errors": serializer.errors}
+        )
+        raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid input while creating test student', details=serializer.errors)
+        
+    except AppValidationError:
+        # Re-raise known errors
+        raise
+    except Exception as e:
+        sentry_sdk.capture_exception(e, extra={
+            "action": "create_test_student",
+            "request_data": request.data
+        })
+        raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to create test student')
 
 
 @api_view(['POST'])
@@ -149,6 +181,12 @@ def system_status(request):
     GET /api/test/status/
     """
     try:
+        sentry_sdk.add_breadcrumb(
+            message="Checking system status",
+            category="test",
+            level="info"
+        )
+        
         # Count existing data
         students_count = StudentProfile.objects.count()
         sessions_count = TestSession.objects.count()
@@ -157,6 +195,18 @@ def system_status(request):
         
         # Test topic classification
         classification = classify_topics_by_subject()
+        
+        sentry_sdk.add_breadcrumb(
+            message="System status retrieved",
+            category="test",
+            level="info",
+            data={
+                "students": students_count,
+                "sessions": sessions_count,
+                "topics": topics_count,
+                "completed_sessions": completed_sessions
+            }
+        )
         
         return Response({
             'message': 'System is operational',
@@ -183,4 +233,7 @@ def system_status(request):
         })
     
     except Exception as e:
+        sentry_sdk.capture_exception(e, extra={
+            "action": "system_status_check"
+        })
         raise AppError(code=ErrorCodes.SERVER_ERROR, message='System error', details={'exception': str(e)})

@@ -34,16 +34,30 @@ class NeetChatbotService:
     def __init__(self):
         """Initialize the chatbot service with essential components only"""
         # Initialize SQL Agent (uses Grok API internally)
-        self.sql_agent = SQLAgent()
-        
+        try:
+            self.sql_agent = SQLAgent()
+        except Exception as e:
+            print(f"⚠️ SQLAgent init failed: {e}")
+            self.sql_agent = None
+
         # Initialize Gemini client for general responses
-        self.gemini_client = GeminiClient()
-        
+        try:
+            self.gemini_client = GeminiClient()
+        except Exception as e:
+            print(f"⚠️ GeminiClient init failed: {e}")
+            self.gemini_client = None
+
         # Initialize Grok API for SQL-related responses (backup)
-        self.grok_client = self._initialize_grok_client()
-        
-        # Check if AI components are available
-        self.ai_available = self.gemini_client.is_available() and self.sql_agent.is_available()
+        try:
+            self.grok_client = self._initialize_grok_client()
+        except Exception as e:
+            print(f"⚠️ Grok client init failed: {e}")
+            self.grok_client = None
+
+        # Check if AI components are available: require Gemini OR Grok for general responses, SQL agent optional
+        llm_ok = (self.gemini_client and getattr(self.gemini_client, 'is_available', lambda: False)()) or (self.grok_client is not None)
+        sql_ok = (self.sql_agent and getattr(self.sql_agent, 'is_available', lambda: False)())
+        self.ai_available = llm_ok or sql_ok
         
         print(f"NEET Chatbot Service initialized - AI Available: {self.ai_available}")
         

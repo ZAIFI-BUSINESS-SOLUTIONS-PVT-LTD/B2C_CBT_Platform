@@ -21,10 +21,10 @@ class TestTimeTracking:
         """Test that test session tracks start and end times correctly"""
         # Arrange - create test session
         test_response = authenticated_client.post('/api/test-sessions/', {
-            'selectedTopics': [sample_topic.id],
-            'totalQuestions': 3,
-            'timeLimit': 60
-        })
+            'selected_topics': [sample_topic.id],
+            'question_count': 3,
+            'time_limit': 60
+        }, format='json')
         test_id = test_response.json()['id']
         
         # Act - start the test
@@ -43,10 +43,10 @@ class TestTimeTracking:
         """Test that test session records end time on completion"""
         # Arrange - create and start test
         test_response = authenticated_client.post('/api/test-sessions/', {
-            'selectedTopics': [sample_topic.id],
-            'totalQuestions': 2,
-            'timeLimit': 60
-        })
+            'selected_topics': [sample_topic.id],
+            'question_count': 2,
+            'time_limit': 60
+        }, format='json')
         test_id = test_response.json()['id']
         authenticated_client.post(f'/api/test-sessions/{test_id}/start/')
         

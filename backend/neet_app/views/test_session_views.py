@@ -1,12 +1,15 @@
 import logging
 import random
+import sentry_sdk
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from ..errors import AppError, ValidationError as AppValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
+from ..errors import AppError, ValidationError as AppValidationError, NotFoundError
 from ..error_codes import ErrorCodes
 from rest_framework.permissions import IsAuthenticated
 
@@ -59,6 +62,18 @@ class TestSessionViewSet(viewsets.ModelViewSet):
         Backward compatible with existing question_count requests.
         """
         try:
+            # Log test session creation with Sentry
+            logger.info(f"Creating test session for user: {request.user.student_id}")
+            sentry_sdk.add_breadcrumb(
+                message="Test session creation started",
+                category="test_session",
+                level="info",
+                data={
+                    "student_id": request.user.student_id,
+                    "request_data": request.data
+                }
+            )
+            
             # Pass request context to serializer for authenticated user access
             serializer = self.get_serializer(data=request.data, context={'request': request})
             serializer.is_valid(raise_exception=True)
@@ -106,7 +121,6 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                     # For adaptive selection, we only fail if no questions are available at all
                     if available_count == 0:
                         raise AppValidationError(
-                            code=ErrorCodes.INVALID_INPUT,
                             message='No questions available for selected topics.',
                             details={'available_questions': 0, 'requested_questions': requested_question_count}
                         )
@@ -127,7 +141,6 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                     # Validate if we have enough questions for topic-based tests
                     if available_count < requested_question_count:
                         raise AppValidationError(
-                            code=ErrorCodes.INVALID_INPUT,
                             message=f'Only {available_count} questions available for selected topics, but {requested_question_count} requested.',
                             details={'available_questions': available_count, 'requested_questions': requested_question_count}
                         )
@@ -199,13 +212,25 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             questions_data = QuestionForTestSerializer(selected_questions, many=True).data
 
             return Response({
+                'id': session.id,  # Add id field that tests expect
                 'session': session_data,
                 'questions': questions_data,
                 'message': f'Test session created for student {session.student_id}'
             }, status=status.HTTP_201_CREATED)
             
+        except (AppValidationError, DRFValidationError) as e:
+            # Let validation errors pass through to be handled by the exception handler
+            raise e
         except Exception as e:
             logger.error(f"Error creating test session: {str(e)}", exc_info=True)
+            
+            # Capture exception in Sentry with additional context
+            sentry_sdk.capture_exception(e, extra={
+                "student_id": getattr(request.user, 'student_id', 'unknown'),
+                "request_data": request.data,
+                "action": "test_session_create"
+            })
+            
             raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to create test session', details={'exception': str(e)})
 
     def retrieve(self, request, pk=None):
@@ -226,6 +251,9 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 pk=pk
             )
             logger.info(f"Session found: {session.id}, belongs to: {session.student_id}")
+        except Http404:
+            logger.error(f"Session not found: {pk}")
+            raise NotFoundError(message='Test session not found')
         except Exception as e:
             logger.error(f"Session retrieval failed: {e}")
             raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to retrieve test session', details={'exception': str(e)})
@@ -525,7 +553,7 @@ class TestSessionViewSet(viewsets.ModelViewSet):
 
         # Check if the test is already completed
         if session.is_completed:
-            raise AppValidationError(code=ErrorCodes.INVALID_ACTION if hasattr(ErrorCodes, 'INVALID_ACTION') else ErrorCodes.INVALID_INPUT, message='Cannot quit a completed test session.')
+            raise AppValidationError(message='Cannot quit a completed test session.')
 
         # Mark the session as incomplete and set end time
         session.is_completed = False  # Explicitly mark as incomplete

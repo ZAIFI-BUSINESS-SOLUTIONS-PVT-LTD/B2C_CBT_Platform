@@ -19,6 +19,7 @@ from rest_framework.views import exception_handler
 from rest_framework.exceptions import (
     ValidationError as DRFValidationError,
     AuthenticationFailed,
+    NotAuthenticated,
     PermissionDenied,
     NotFound,
     MethodNotAllowed,
@@ -100,7 +101,10 @@ def _handle_drf_exception(exc, drf_response, timestamp: str) -> Dict[str, Any]:
     """Handle DRF built-in exceptions and map to our error format."""
     
     # Map DRF exceptions to our error codes
-    if isinstance(exc, (AuthenticationFailed, InvalidToken, TokenError)):
+    if isinstance(exc, NotAuthenticated):
+        code = ErrorCodes.AUTH_REQUIRED
+        message = "Authentication credentials were not provided"
+    elif isinstance(exc, (AuthenticationFailed, InvalidToken, TokenError)):
         code = ErrorCodes.AUTH_TOKEN_INVALID
         message = "Authentication failed"
     elif isinstance(exc, PermissionDenied):
@@ -112,6 +116,8 @@ def _handle_drf_exception(exc, drf_response, timestamp: str) -> Dict[str, Any]:
     elif isinstance(exc, DRFValidationError):
         code = ErrorCodes.INVALID_INPUT
         message = "Validation failed"
+        # Include validation details for client debugging
+        details = {"validation_errors": exc.detail}
     elif isinstance(exc, ParseError):
         code = ErrorCodes.INVALID_INPUT
         message = "Invalid request format"

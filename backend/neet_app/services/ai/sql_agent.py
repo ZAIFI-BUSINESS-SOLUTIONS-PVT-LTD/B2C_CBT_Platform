@@ -35,22 +35,50 @@ class SQLAgent:
     def _create_database_connection(self):
         """Create database connection once and reuse"""
         if not self.db:
-            db_config = settings.DATABASES['default']
-            db_url = f"postgresql://{db_config['USER']}:{db_config['PASSWORD']}@{db_config['HOST']}:{db_config['PORT']}/{db_config['NAME']}"
-            
-            # Initialize database connection with minimal schema for faster loading
-            self.db = SQLDatabase.from_uri(
-                db_url,
-                include_tables=[
-                    'student_profiles',
-                    'test_sessions', 
-                    'test_answers',
-                    'topics',
-                    'questions'
-                ],
-                sample_rows_in_table_info=1  # Minimal sample data
-            )
-            print("🔗 Database connection established")
+            try:
+                db_config = settings.DATABASES.get('default', {})
+
+                user = db_config.get('USER') or ''
+                password = db_config.get('PASSWORD') or ''
+                host = db_config.get('HOST') or 'localhost'
+                port = db_config.get('PORT')
+                name = db_config.get('NAME') or ''
+
+                # Build auth part only if user is present
+                auth = ''
+                if user and password:
+                    auth = f"{user}:{password}@"
+                elif user:
+                    auth = f"{user}@"
+
+                # Include port only when provided and non-empty
+                host_port = host
+                if port:
+                    host_port = f"{host}:{port}"
+
+                db_url = f"postgresql://{auth}{host_port}/{name}"
+
+                # Initialize database connection with minimal schema for faster loading
+                try:
+                    self.db = SQLDatabase.from_uri(
+                        db_url,
+                        include_tables=[
+                            'student_profiles',
+                            'test_sessions', 
+                            'test_answers',
+                            'topics',
+                            'questions'
+                        ],
+                        sample_rows_in_table_info=1  # Minimal sample data
+                    )
+                    print("🔗 Database connection established")
+                except Exception as e:
+                    # Don't allow URI parsing or SQLDatabase errors to bubble up
+                    print(f"⚠️ Could not initialize SQLDatabase from URI: {e}")
+                    self.db = None
+            except Exception as e:
+                print(f"⚠️ Error building DB URL: {e}")
+                self.db = None
     
     def _create_llm_with_timeouts(self):
         """Create or update LLM with Grok API using Llama 3.3 70B Versatile model"""

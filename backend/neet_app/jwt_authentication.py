@@ -1,6 +1,7 @@
 """
 Custom JWT Authentication for Student Profile
 """
+import sentry_sdk
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.contrib.auth.models import AnonymousUser
@@ -20,18 +21,40 @@ class StudentJWTAuthentication(JWTAuthentication):
             # Extract student_id from token payload
             student_id = validated_token.get('student_id')
             if not student_id:
+                sentry_sdk.capture_message(
+                    "JWT Authentication - No student_id in token payload",
+                    level="warning",
+                    extra={"token_payload": validated_token}
+                )
                 print(f"❌ JWT Authentication - No student_id in token payload")
                 return None
                 
+            sentry_sdk.add_breadcrumb(
+                message="JWT Authentication - Looking for student",
+                category="auth",
+                level="info",
+                data={"student_id": student_id}
+            )
             print(f"🔍 JWT Authentication - Looking for student: {student_id}")
             
             # Get the actual student profile
             student = StudentProfile.objects.get(student_id=student_id)
             
             if not student.is_active:
+                sentry_sdk.capture_message(
+                    "JWT Authentication - Student account not active",
+                    level="warning",
+                    extra={"student_id": student_id}
+                )
                 print(f"❌ JWT Authentication - Student {student_id} is not active")
                 return None
             
+            sentry_sdk.add_breadcrumb(
+                message="JWT Authentication successful",
+                category="auth",
+                level="info",
+                data={"student_id": student_id, "full_name": student.full_name}
+            )
             print(f"✅ JWT Authentication - Found student: {student_id} - {student.full_name}")
             
             # Create a StudentUser object that mimics Django's User model
@@ -67,8 +90,17 @@ class StudentJWTAuthentication(JWTAuthentication):
             return StudentUser(student)
             
         except StudentProfile.DoesNotExist:
+            sentry_sdk.capture_message(
+                "JWT Authentication - Student not found in database",
+                level="warning",
+                extra={"student_id": student_id}
+            )
             print(f"❌ JWT Authentication - Student {student_id} not found in database")
             return None
         except (KeyError, TypeError) as e:
+            sentry_sdk.capture_exception(e, extra={
+                "action": "jwt_token_validation",
+                "token_payload": validated_token
+            })
             print(f"❌ JWT Authentication - Token format error: {e}")
             return None
