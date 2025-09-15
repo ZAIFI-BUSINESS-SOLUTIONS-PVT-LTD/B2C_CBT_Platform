@@ -22,7 +22,7 @@ import { StudentProfile } from "@/components/profile-avatar";
 import Logo from "@/assets/images/logo.svg";
 import MiniChatbot from '@/components/mini-chatbot';
 import MiniDashboard from '@/components/mini-dashboard';
-import { ArrowRight, History, NotebookPen, TestTube, Trophy, AlertTriangle, Sparkles } from "lucide-react";
+import { ArrowRight, History, NotebookPen, TestTube, Trophy, AlertTriangle, Sparkles, Crown } from "lucide-react";
 import MobileDock from "@/components/mobile-dock";
 import { AnalyticsData, InsightsData } from "@/components/insight-card";
 import NeetCountdown from '@/components/coundown';
@@ -322,7 +322,16 @@ export default function Home() {
               <img src={Logo} alt="InzightEd" className="h-6 w-auto" />
             </div>
             {/* Right side with profile */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/payment')}
+                className="aspect-square bg-orange-100 rounded-full h-10 w-10"
+                aria-label="Go to Payment"
+              >
+                <Crown className="h-5 w-5 text-amber-600" />
+              </Button>
               <StudentProfile />
             </div>
           </div>
