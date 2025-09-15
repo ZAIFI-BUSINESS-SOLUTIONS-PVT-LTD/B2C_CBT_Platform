@@ -1,12 +1,13 @@
 /**
  * Error Boundary Component
- * 
+ *
  * Catches JavaScript errors anywhere in the component tree and displays
  * a fallback UI instead of crashing the entire application.
  */
 
 import { Component, ErrorInfo, ReactNode } from "react";
 import { ErrorPageForBoundary } from "@/pages/error-page";
+import reportError from "@/lib/errorReporting";
 
 interface Props {
   children: ReactNode;
@@ -35,13 +36,21 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log error details for debugging
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
-    
-    // Update state with error info
+    // Generate a reportable error code and send to reporting backend/integration
+    const report = reportError(error, errorInfo);
+
+    // Update state with minimal error info and the report metadata
     this.setState({
       error,
       errorInfo,
     });
+
+    // Also attach report metadata to the error object so it can be displayed in the UI
+    try {
+      (error as any).__report = report;
+    } catch (e) {
+      // ignore
+    }
 
     // You can also log the error to an error reporting service here
     // Example: Sentry.captureException(error);
@@ -94,7 +103,7 @@ export function withErrorBoundary<T extends object>(
   );
 
   WrappedComponent.displayName = `withErrorBoundary(${Component.displayName || Component.name})`;
-  
+
   return WrappedComponent;
 }
 
@@ -105,11 +114,12 @@ export function useErrorHandler() {
   return (error: Error, errorInfo?: ErrorInfo) => {
     // Log the error
     console.error('Manual error handling:', error, errorInfo);
-    
+
     // You can also report to error tracking service
     // Example: Sentry.captureException(error);
-    
+
     // Throw the error to trigger error boundary
     throw error;
   };
 }
+

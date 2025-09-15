@@ -1,6 +1,6 @@
 /**
  * Error Page Component
- * 
+ *
  * A dedicated page for displaying critical errors that require user attention.
  * Shows error details including error code for support purposes.
  */
@@ -36,7 +36,7 @@ export default function ErrorPage(props?: ErrorPageProps) {
       const errorCode = urlParams.get('code');
       const errorMessage = urlParams.get('message');
       const errorTimestamp = urlParams.get('timestamp');
-      
+
       if (errorCode || errorMessage) {
         setError({
           code: errorCode || 'UNKNOWN_ERROR',
@@ -90,14 +90,14 @@ export default function ErrorPage(props?: ErrorPageProps) {
             We're sorry for the inconvenience. An error has occurred.
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-6">
           {/* Error Message */}
           <div className="text-center">
             <p className="text-gray-800 font-medium mb-2">
               {displayError.message}
             </p>
-            
+
             {/* Error Code */}
             {displayError.code && (
               <div className="flex items-center justify-center gap-2">
@@ -115,12 +115,19 @@ export default function ErrorPage(props?: ErrorPageProps) {
                 </Button>
               </div>
             )}
-            
+
             {/* Timestamp */}
             {displayError.timestamp && (
               <p className="text-xs text-gray-400 mt-2">
                 {new Date(displayError.timestamp).toLocaleString()}
               </p>
+            )}
+
+            {/* Optional details only in development - avoid exposing stacks in production */}
+            {displayError.details && import.meta.env.DEV && (
+              <pre className="text-xs text-left bg-gray-50 p-2 mt-3 rounded text-gray-700 overflow-auto">
+                {typeof displayError.details === 'string' ? displayError.details : JSON.stringify(displayError.details, null, 2)}
+              </pre>
             )}
           </div>
 
@@ -133,7 +140,7 @@ export default function ErrorPage(props?: ErrorPageProps) {
               <RefreshCw className="w-4 h-4 mr-2" />
               Try Again
             </Button>
-            
+
             <Button
               onClick={handleGoHome}
               variant="outline"
@@ -158,3 +165,4 @@ export default function ErrorPage(props?: ErrorPageProps) {
 export function ErrorPageForBoundary({ error, onRetry }: ErrorPageProps) {
   return <ErrorPage error={error} onRetry={onRetry} />;
 }
+

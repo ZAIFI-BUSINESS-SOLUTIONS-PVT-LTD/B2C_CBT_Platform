@@ -21,6 +21,8 @@ export interface StudentProfile {
   lastLogin: string | null; // models.DateTimeField(null=True, blank=True) -> string or null (camelCase from last_login)
   createdAt: string; // models.DateTimeField(auto_now_add=True) -> string (camelCase from created_at)
   updatedAt: string; // models.DateTimeField(auto_now=True) -> string (camelCase from updated_at)
+  googlePicture: string | null; // models.URLField(null=True, blank=True) -> string or null (camelCase from google_picture)
+  authProvider: string; // models.CharField(max_length=20, default='local') -> string (camelCase from auth_provider)
 }
 
 /**
@@ -219,7 +221,7 @@ export interface ReviewComment {
 // Assuming the response for a test session creation endpoint might look like this
 // based on your previous discussion of `CreateTestResponse`
 export interface CreateTestSessionResponse {
-    session: {
+  session: {
     id: number;
     selectedTopics: string[];
     timeLimit: number;

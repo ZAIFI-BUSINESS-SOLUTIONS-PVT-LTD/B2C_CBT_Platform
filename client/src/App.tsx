@@ -18,9 +18,9 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Test from "@/pages/test";
 import Results from "@/pages/results";
-import TestHistory from "@/pages/test-history";
+import TestHistory from "@/components/test-history";
 import Topics from "@/pages/topics";
-import LandingDashboard from "@/pages/landing-dashboard";
+import LandingDashboard from "@/pages/profile-performance";
 import ScheduledTests from "@/pages/scheduled-tests";
 import Chatbot from "@/pages/chatbot";
 import ForgotPassword from "@/pages/forgot-password";
@@ -28,9 +28,11 @@ import ResetPassword from "@/pages/reset-password";
 import GoogleAuthCallback from "@/pages/google-auth-callback";
 import GoogleCallback from "@/pages/GoogleCallback";
 import ErrorPage from "@/pages/error-page";
-import { FloatingChatbot } from "@/components/floating-chatbot";
+import { StudentProfile } from "@/pages/profile-page";
+// ...floating chatbot removed
 import { ErrorBoundary } from "@/components/error-boundary";
-import { useLocation } from "wouter";
+// useLocation removed (no longer needed)
+import PaymentPage from "@/pages/payment-page";
 
 /**
  * Error Page Wrapper for Router
@@ -47,10 +49,11 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />                           {/* Home page with topic selection */}
-  <Route path="/login" component={Home} />
-  <Route path="/forgot-password" component={ForgotPassword} />
-  <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/login" component={Home} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/topics" component={Topics} />                  {/* Topics overview page */}
+      <Route path="/profile" component={StudentProfile} />        {/* Student profile page */}
       <Route path="/scheduled-tests" component={ScheduledTests} /> {/* Platform tests page */}
       <Route path="/dashboard" component={LandingDashboard} />  {/* Comprehensive landing dashboard */}
       <Route path="/chatbot" component={Chatbot} />               {/* AI Chatbot tutor page */}
@@ -60,6 +63,7 @@ function Router() {
       <Route path="/results/:sessionId" component={Results} />     {/* Test results and analytics */}
       <Route path="/test-history" component={TestHistory} />
       <Route path="/error" component={ErrorPageRoute} />               {/* Error page for critical errors */}
+      <Route path="/payment" component={PaymentPage} />            {/* Payment processing page */}
       <Route component={NotFound} />                               {/* 404 page for undefined routes */}
     </Switch>
   );
@@ -71,16 +75,13 @@ function Router() {
  */
 
 function App() {
-  const [location] = useLocation();
-  // Hide chatbot on any /test route
-  const isTestPage = location.startsWith("/test");
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ErrorBoundary>
           <TooltipProvider>
             <Toaster />
-            {!isTestPage && <FloatingChatbot />}
+            {/* floating chatbot removed */}
             <Router />
           </TooltipProvider>
         </ErrorBoundary>

@@ -9,6 +9,7 @@ from ..models import Topic, Question
 from ..serializers import TopicSerializer
 from ..errors import AppError
 from ..error_codes import ErrorCodes
+from django.db.models import Count
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,70 @@ class TopicViewSet(viewsets.ModelViewSet):
         if subject:
             queryset = queryset.filter(subject__iexact=subject)
         return queryset
+
+    @action(detail=False, methods=['get'], url_path='question-counts')
+    def question_counts(self, request):
+        """
+        GET /api/topics/question-counts/
+        Returns exact question counts per topic.
+
+        Query params:
+        - topic_ids: Can be provided multiple times (?topic_ids=1&topic_ids=2...). If omitted, counts for all topics are returned.
+        - subject (optional): Case-insensitive filter by subject name.
+        - chapters (optional): Comma-separated list of chapter names to filter topics.
+
+        Response:
+        {
+          "counts": { "1": 12, "2": 5, ... }
+        }
+        """
+        try:
+            topic_ids = request.query_params.getlist('topic_ids')
+            subject = request.query_params.get('subject')
+            chapters_param = request.query_params.get('chapters')
+
+            topic_qs = Topic.objects.all()
+            if subject:
+                topic_qs = topic_qs.filter(subject__iexact=subject)
+            if chapters_param:
+                chapters = [c.strip() for c in chapters_param.split(',') if c.strip()]
+                if chapters:
+                    topic_qs = topic_qs.filter(chapter__in=chapters)
+
+            if topic_ids:
+                try:
+                    topic_ids_int = [int(tid) for tid in topic_ids]
+                except ValueError:
+                    return Response({
+                        'error': 'INVALID_INPUT',
+                        'message': 'All topic_ids must be integers.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                topic_qs = topic_qs.filter(id__in=topic_ids_int)
+
+            # If no topics found after filtering, return empty counts
+            if not topic_qs.exists():
+                return Response({'counts': {}}, status=status.HTTP_200_OK)
+
+            # Aggregate counts from Question model
+            counts_qs = (
+                Question.objects
+                .filter(topic_id__in=topic_qs.values_list('id', flat=True))
+                .values('topic_id')
+                .annotate(total=Count('id'))
+            )
+
+            counts_map = {str(row['topic_id']): int(row['total']) for row in counts_qs}
+
+            # Ensure topics with zero questions are included as 0
+            for tid in topic_qs.values_list('id', flat=True):
+                tid_str = str(tid)
+                if tid_str not in counts_map:
+                    counts_map[tid_str] = 0
+
+            return Response({'counts': counts_map}, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception('Failed to fetch question counts per topic: %s', str(e))
+            raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to fetch topic question counts', details={'exception': str(e)})
 
     @action(detail=False, methods=['delete'])
     def delete_all(self, request):

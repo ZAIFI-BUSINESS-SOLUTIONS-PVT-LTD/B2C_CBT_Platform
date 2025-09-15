@@ -1,292 +1,325 @@
 /**
  * Home Page Component
- * 
- * The main landing page of the NEET Practice Platform.
- * This page serves as the dashboard-focused landing page with:
- * - Student profile in the top right corner
- * - Performance dashboard as the main content
- * - Navigation to topic selection for taking tests
- * - Quick access to analytics and study resources
+ *
+ * This file contains the main dashboard page for the B2C CBT Platform.
+ * It displays user insights, analytics, and provides navigation to tes  // Accordion state for collapsible cards
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set(['study-plan']));Features:
+ * - User authentication check
+ * - Dashboard analytics and insights
+ * - Tabbed interface for different insight categories
+ * - Mobile-friendly swipe navigation
+ * - AI-powered study recommendations
  */
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { LoginForm } from "@/components/LoginForm";
-import { Link, useLocation } from "wouter";
-import { HomeChatInput } from "@/components/HomeChatInput";
-import { getAccessToken } from "@/lib/auth";
-import { API_CONFIG } from "@/config/api";
-import { SPEECH_CONFIG } from "@/config/speech";
-import '@/types/speech.d.ts';
-import { StudentProfile } from "@/components/student-profile";
-import { 
-  BarChart3, 
-  BookOpen, 
-  Target, 
-  TrendingUp, 
-  Clock,
-  PlusCircle,
-  Trophy,
-  Users,
-  Star,
-  ArrowRight,
-  Activity,
-  CalendarIcon,
-  Zap,
-  Home as HomeIcon,
-  AlertCircle,
-  MessageCircle
-} from "lucide-react";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
-interface AnalyticsData {
-  totalTests: number;
-  totalQuestions: number;
-  overallAccuracy: number;
-  totalTimeSpent: number;
-  averageTimePerQuestion: number;
-  speedVsAccuracy: {
-    fastButInaccurate: number;
-    slowButAccurate: number;
-    idealPace: number;
-    speedCategory?: string; // Add if backend eventually provides these
-    accuracyCategory?: string; // Add if backend eventually provides these
-    recommendation?: string; // Add if backend eventually provides these
-  };
-  strengthAreas: Array<{
-    subject: string;
-    accuracy: number;
-  }>;
-  challengingAreas: Array<{
-    subject: string;
-    accuracy: number;
-  }>;
-  subjectPerformance: Array<{
-    subject: string;
-    accuracy: number;
-    questions?: number; // These were in chartData, but not explicitly in backend response
-    avgTime?: number; // These were in chartData, but not explicitly in backend response
-  }>;
-  timeBasedTrends: Array<{
-    date: string; // ISO format date string
-    // averageScore removed: field no longer exists
-  }>;
-  studyRecommendations: string[]; // Or Array<{ priority: string; subject: string; reason: string; actionTip: string; }> if detailed
-  message?: string; // For the "Take more tests" message
+import { useLocation } from "wouter";
+import { StudentProfile } from "@/components/profile-avatar";
+import Logo from "@/assets/images/logo.svg";
+import MiniChatbot from '@/components/mini-chatbot';
+import MiniDashboard from '@/components/mini-dashboard';
+import { ArrowRight, History, NotebookPen, TestTube, Trophy, AlertTriangle, Sparkles } from "lucide-react";
+import MobileDock from "@/components/mobile-dock";
+import { AnalyticsData, InsightsData } from "@/components/insight-card";
+import NeetCountdown from '@/components/coundown';
+import Share from '@/components/share';
+
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+/**
+ * Formats a date string into a human-readable relative time string
+ * @param dateString - ISO date string or null
+ * @returns Relative time string (e.g., "2 hours ago", "just now")
+ */
+const formatRelativeTime = (dateString: string | null): string => {
+  if (!dateString) return 'just now';
+
+  try {
+    const date = new Date(dateString);
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) return 'just now';
+
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    // Handle future dates (shouldn't happen but just in case)
+    if (diffInSeconds < 0) return 'just now';
+
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minute${Math.floor(diffInSeconds / 60) === 1 ? '' : 's'} ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hour${Math.floor(diffInSeconds / 3600) === 1 ? '' : 's'} ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} day${Math.floor(diffInSeconds / 86400) === 1 ? '' : 's'} ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)} week${Math.floor(diffInSeconds / 604800) === 1 ? '' : 's'} ago`;
+    if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)} month${Math.floor(diffInSeconds / 2592000) === 1 ? '' : 's'} ago`;
+    return `${Math.floor(diffInSeconds / 31536000)} year${Math.floor(diffInSeconds / 31536000) === 1 ? '' : 's'} ago`;
+  } catch (error) {
+    console.warn('Error parsing date for relative time:', dateString, error);
+    return 'just now';
+  }
+};
+
+/**
+ * Test function to verify the formatRelativeTime function works correctly
+ * Logs various test cases to the console
+ */
+const testRelativeTime = () => {
+  const now = new Date();
+  console.log('Testing formatRelativeTime function:');
+  console.log('Just now:', formatRelativeTime(now.toISOString()));
+  console.log('5 minutes ago:', formatRelativeTime(new Date(now.getTime() - 5 * 60 * 1000).toISOString()));
+  console.log('2 hours ago:', formatRelativeTime(new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString()));
+  console.log('1 day ago:', formatRelativeTime(new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()));
+  console.log('Invalid date:', formatRelativeTime('invalid-date'));
+  console.log('Null:', formatRelativeTime(null));
+};
+
+// =============================================================================
+// STYLING CONFIGURATIONS
+// =============================================================================
+
+// Centralized insight card styling configuration
+// To change all insight cards at once, modify the styles below:
+// - container: Main card container styles (padding, border, etc.)
+// - text: Base text styling
+// - variants: Color schemes for different card types
+const INSIGHT_CARD_STYLES = {
+  // Main card container styles
+  container: "p-3 rounded-xl",
+  text: "text-sm",
+
+  // Color variants for different insight types
+  variants: {
+    blue: {
+      container: "bg-gray-200",
+      text: "text-gray-700",
+      accent: "text-blue-600",
+      accentBg: "bg-blue-50"
+    },
+    indigo: {
+      container: "bg-gray-200",
+      text: "text-gray-700",
+      accent: "text-indigo-600",
+      accentBg: "bg-indigo-50"
+    },
+    green: {
+      container: "bg-gray-200",
+      text: "text-gray-700",
+      accent: "text-green-600",
+      accentBg: "bg-green-50"
+    },
+    red: {
+      container: "bg-gray-200",
+      text: "text-gray-700",
+      accent: "text-red-600",
+      accentBg: "bg-red-50"
+    },
+    gray: {
+      container: "bg-gray-200",
+      text: "text-gray-700",
+      accent: "text-gray-600",
+      accentBg: "bg-gray-50"
+    }
+  }
+};
+
+// =============================================================================
+// REUSABLE COMPONENTS
+// =============================================================================
+
+/**
+ * Reusable InsightCard component for displaying insights with consistent styling
+ */
+interface InsightCardProps {
+  children: React.ReactNode;
+  variant: keyof typeof INSIGHT_CARD_STYLES.variants;
+  className?: string;
 }
+
+const InsightCard: React.FC<InsightCardProps> = ({ children, variant, className = "" }) => {
+  const styles = INSIGHT_CARD_STYLES.variants[variant];
+  return (
+    <div className={`${INSIGHT_CARD_STYLES.container} ${styles.container} ${className}`}>
+      <div className={`${INSIGHT_CARD_STYLES.text} ${styles.text}`}>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+// =============================================================================
+// MAIN COMPONENT
+// =============================================================================
+
 /**
  * Home page component that renders the dashboard-focused landing page
  * @returns JSX element containing the main dashboard interface
  */
 export default function Home() {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const { isAuthenticated } = useAuth();
+  // =============================================================================
+  // HOOKS AND STATE MANAGEMENT
+  // =============================================================================
+
+  // Authentication and navigation hooks
+  const { isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
 
-  // Chat functionality states
-  const [inputMessage, setInputMessage] = useState('');
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [speechSupported, setSpeechSupported] = useState(false);
-  const [recognitionLanguage, setRecognitionLanguage] = useState(SPEECH_CONFIG.DEFAULT_LANGUAGE);
-  const recognitionRef = useRef<any>(null);
+  // Tab state for horizontal swipable tabs
+  const [activeTab, setActiveTab] = useState(0);
 
-  // Debug: Log authentication state
-  console.log("Home component - isAuthenticated:", isAuthenticated);
+  // Touch/swipe navigation state for mobile
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
+  const [isSwiping, setIsSwiping] = useState(false);
 
-  // Dashboard and analytics logic (only when authenticated)
-  const { data: analytics, isLoading, error } = useQuery<AnalyticsData>({
+  // Ref for touch container to attach native event listeners
+  const touchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Ref for the tab navigation container
+  const tabNavRef = useRef<HTMLElement>(null);
+
+  // =============================================================================
+  // UTILITY FUNCTIONS
+  // =============================================================================
+
+  // Tab navigation functions
+  const nextTab = useCallback(() => {
+    setActiveTab(prev => (prev + 1) % 4);
+  }, []);
+
+  const prevTab = useCallback(() => {
+    setActiveTab(prev => (prev - 1 + 4) % 4);
+  }, []);
+
+  // Touch event handlers for swipe navigation
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart({
+      x: e.targetTouches[0].clientX,
+      y: e.targetTouches[0].clientY
+    });
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    setTouchEnd({
+      x: e.targetTouches[0].clientX,
+      y: e.targetTouches[0].clientY
+    });
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!touchStart || !touchEnd) return;
+
+    const distanceX = touchStart.x - touchEnd.x;
+    const distanceY = touchStart.y - touchEnd.y;
+    const isLeftSwipe = distanceX > 50;
+    const isRightSwipe = distanceX < -50;
+    const isVerticalSwipe = Math.abs(distanceY) > Math.abs(distanceX);
+
+    // Only handle horizontal swipes
+    if (!isVerticalSwipe) {
+      if (isLeftSwipe) {
+        nextTab();
+      } else if (isRightSwipe) {
+        prevTab();
+      }
+    }
+  }, [touchStart, touchEnd, nextTab, prevTab]);
+
+  // =============================================================================
+  // DATA FETCHING
+  // =============================================================================
+
+  // Dashboard and analytics queries (only when authenticated)
+  const { data: analytics } = useQuery<AnalyticsData>({
     queryKey: ['/api/dashboard/comprehensive-analytics/'],
-    retry: false,
-    enabled: isAuthenticated, // Only run this query when user is authenticated
+    // match landing-dashboard behavior: refresh periodically and only run when auth state settled
+    refetchInterval: 30000,
+    enabled: isAuthenticated && !loading, // Only run when authenticated and auth finished loading
   });
 
-  // Initialize speech recognition
+  const { data: insights } = useQuery<InsightsData>({
+    queryKey: ['/api/insights/student/'],
+    refetchInterval: 30000,
+    enabled: isAuthenticated && !loading,
+  });
+
+  // =============================================================================
+  // SIDE EFFECTS
+  // =============================================================================
+
+  // Scroll active tab into view when tab changes
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    
-    if (SpeechRecognition) {
-      setSpeechSupported(true);
-      const recognition = new SpeechRecognition();
-      
-      recognition.continuous = SPEECH_CONFIG.RECOGNITION_SETTINGS.continuous;
-      recognition.interimResults = SPEECH_CONFIG.RECOGNITION_SETTINGS.interimResults;
-      recognition.lang = recognitionLanguage;
-      recognition.maxAlternatives = SPEECH_CONFIG.RECOGNITION_SETTINGS.maxAlternatives;
-      
-      recognition.onresult = (event: any) => {
-        let transcript = '';
-        for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-        setInputMessage(transcript);
-        
-        // Manually adjust textarea height after setting transcribed text
-        setTimeout(() => {
-          const textarea = document.querySelector('textarea[placeholder="Ask anything..."]') as HTMLTextAreaElement;
-          if (textarea) {
-            textarea.style.height = 'auto';
-            textarea.style.height = textarea.scrollHeight + 'px';
-          }
-        }, 0);
-      };
-      
-      recognition.onstart = () => setIsRecording(true);
-      recognition.onend = () => setIsRecording(false);
-      recognition.onerror = () => setIsRecording(false);
-      
-      recognitionRef.current = recognition;
-    } else {
-      setSpeechSupported(false);
-    }
-    
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
-    };
-  }, [recognitionLanguage]);
-
-  // Chat functions
-  const getAuthHeaders = () => {
-    const token = getAccessToken();
-    return {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    };
-  };
-
-  const generateSessionTitleFromMessage = (message: string): string => {
-    if (!message) return 'New Chat';
-    let trimmed = message.trim();
-    if (trimmed.length > 40) {
-      trimmed = trimmed.slice(0, 40).trim() + '...';
-    }
-    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
-  };
-
-  const createNewSessionAndRedirect = async (messageToSend: string) => {
-    try {
-      setIsChatLoading(true);
-      const url = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CHAT_SESSIONS}`;
-      
-      const sessionTitle = generateSessionTitleFromMessage(messageToSend);
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ sessionTitle }),
-      });
-
-      if (response.ok) {
-        const newSession = await response.json();
-        // Redirect to chatbot page with the new session and message
-        navigate(`/chatbot?sessionId=${newSession.chatSessionId}&message=${encodeURIComponent(messageToSend)}`);
-      } else {
-        console.error('Failed to create session');
-      }
-    } catch (error) {
-      console.error('Failed to create session:', error);
-    } finally {
-      setIsChatLoading(false);
-    }
-  };
-
-  const handleChatSend = (message: string) => {
-    if (!message.trim()) return;
-    setInputMessage('');
-    
-    // Reset textarea height after clearing input
-    setTimeout(() => {
-      const textarea = document.querySelector('textarea[placeholder="Ask anything..."]') as HTMLTextAreaElement;
-      if (textarea) {
-        textarea.style.height = 'auto';
-        textarea.style.height = textarea.scrollHeight + 'px';
-      }
-    }, 0);
-    
-    createNewSessionAndRedirect(message);
-  };
-
-  const toggleSpeechRecognition = () => {
-    if (!speechSupported) return;
-    
-    if (isRecording) {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      setTimeout(() => {
-        if (inputMessage.trim()) {
-          handleChatSend(inputMessage.trim());
-        }
-      }, 100);
-    } else {
-      if (recognitionRef.current) {
-        try {
-          setInputMessage('');
-          
-          // Reset textarea height after clearing input
-          setTimeout(() => {
-            const textarea = document.querySelector('textarea[placeholder="Ask anything..."]') as HTMLTextAreaElement;
-            if (textarea) {
-              textarea.style.height = 'auto';
-              textarea.style.height = textarea.scrollHeight + 'px';
-            }
-          }, 0);
-          
-          recognitionRef.current.start();
-        } catch (error) {
-          console.error('Failed to start speech recognition:', error);
-          setIsRecording(false);
-        }
+    if (tabNavRef.current) {
+      const activeTabButton = tabNavRef.current.querySelector(`[data-tab-id="${activeTab}"]`) as HTMLElement;
+      if (activeTabButton) {
+        activeTabButton.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center'
+        });
       }
     }
-  };
+  }, [activeTab]);
+
+  // Debug insights data and test relative time function
+  useEffect(() => {
+    // Test the relative time function
+    testRelativeTime();
+
+    if (insights) {
+      console.log('Insights data:', insights);
+      console.log('Cache info:', insights.cacheInfo);
+      if (insights.cacheInfo?.lastModified) {
+        console.log('Last modified:', insights.cacheInfo.lastModified);
+        console.log('Formatted time:', formatRelativeTime(insights.cacheInfo.lastModified));
+      }
+    }
+  }, [insights]);
+
+  // =============================================================================
+  // EARLY RETURNS AND COMPUTED VALUES
+  // =============================================================================
 
   // Show login form if not authenticated
   if (!isAuthenticated) {
-    console.log("Showing login form - user not authenticated");
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-50">
         <LoginForm />
       </div>
     );
   }
 
-  console.log("Showing dashboard - user is authenticated");
-
   // Check if user has previous test data
   const hasData = analytics && analytics.totalTests > 0;
 
+  // =============================================================================
+  // MAIN RENDER
+  // =============================================================================
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50">
-      {/* Header with Navigation and Profile */}
-      <header className="w-full bg-white/95 backdrop-blur-sm border-b border-blue-100 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+    <div className="min-h-screen bg-white">
+      {/* ============================================================================= */}
+      {/* INLINE STYLES - MOVED TO index.css FOR BETTER ORGANIZATION */}
+      {/* Styles for hide-scrollbar, tab-content, insights-container, and tab-content-container */}
+      {/* are now located in client/src/index.css under HOME PAGE COMPONENT STYLES */}
+      {/* ============================================================================= */}
+
+      {/* ============================================================================= */}
+      {/* HEADER SECTION */}
+      {/* ============================================================================= */}
+      <header className="w-full bg-white border-b sticky top-0 z-50">
+        <div className="w-full mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-[#4F83FF] rounded-lg flex items-center justify-center shadow-md">
-                <BookOpen className="h-5 w-5 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold text-[#1F2937]">NEET Practice Platform</h1>
+              <img src={Logo} alt="InzightEd" className="h-6 w-auto" />
             </div>
             {/* Right side with profile */}
             <div className="flex items-center space-x-4">
@@ -296,329 +329,294 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Welcome Section */}
-        <div className="text-center mb-8 mt-14">
-          <h2 className="text-2xl font-bold text-[#1F2937] mb-4">
-            Welcome to NEET Practice Platform! 🎯
-          </h2>
-          <p className="text-l text-[#6B7280]">
-            Start your journey to NEET success with comprehensive practice tests and analytics
-          </p>
-        </div>
+      {/* ============================================================================= */}
+      {/* MAIN CONTENT AREA */}
+      {/* ============================================================================= */}
+      <div className="w-full bg-gray-100">
 
-        {/* Navigation Container */}
-        <div className="mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            {/* Take Test Button - Always Active */}
-            <NavigationBox
-              title="Take Test"
-              description="Start practicing with NEET questions"
-              icon={<BookOpen className="h-8 w-8" />}
-              href="/topics"
-              isLocked={false}
-              color="bg-[#4F83FF]"
-              hoverColor="hover:bg-[#3B82F6]"
-            />
+        {/* ============================================================================= */}
+        {/* INSIGHTS SECTION - Only show if user has test data */}
+        {/* ============================================================================= */}
+        {hasData && (
+          <>
+            {/* Tab Headers - Outside the card, below header */}
+            <div className="border-b border-gray-200 bg-gray-50">
+              <nav ref={tabNavRef} className="flex overflow-x-auto hide-scrollbar px-4" aria-label="Tabs">
+                {[
+                  { id: 0, label: 'Study Plan', icon: NotebookPen, color: 'text-blue-600' },
+                  { id: 1, label: 'Last Test Recommendations', icon: History, color: 'text-indigo-600' },
+                  { id: 2, label: 'Strengths', icon: Trophy, color: 'text-green-600' },
+                  { id: 3, label: 'Weaknesses', icon: AlertTriangle, color: 'text-red-600' }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    data-tab-id={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center justify-center gap-2 py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 active:bg-gray-50 whitespace-nowrap ${activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                  >
+                    <tab.icon className={`h-4 w-4 transition-colors duration-200 ${activeTab === tab.id ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} />
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </nav>
+            </div>
 
-            {/* Platform Tests Button - Always Active */}
-            <NavigationBox
-              title="Challenge Hub"
-              description="Take platform-wide practice tests and real exam simulations"
-              icon={<CalendarIcon className="h-8 w-8" />}
-              href="/scheduled-tests"
-              isLocked={false}
-              color="bg-[#10B981]"
-              hoverColor="hover:bg-[#059669]"
-            />
+            {/* Tab Content Card */}
+            <div className="select-none insights-container relative">
+              <div
+                ref={touchContainerRef}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                className="overflow-hidden"
+              >
+                {/* Tab Content */}
+                <div className="p-4 min-h-[120px]">
+                  {/* Study Plan Tab */}
+                  {activeTab === 0 && (
+                    <div className="space-y-3">
+                      {insights?.data?.llmInsights?.studyPlan?.insights ? (
+                        <div className="space-y-3">
+                          {insights.data.llmInsights.studyPlan.insights.length > 0 && (() => {
+                            const firstInsight = insights.data.llmInsights.studyPlan.insights[0] as any;
+                            return (
+                              <InsightCard key={firstInsight?.id ?? firstInsight} variant="blue">
+                                {firstInsight?.text ?? firstInsight}
+                              </InsightCard>
+                            );
+                          })()}
+                        </div>
+                      ) : insights?.data?.improvementTopics && insights.data.improvementTopics.length > 0 ? (
+                        <div>
+                          <p className="text-xs text-blue-700 mb-2">Recommended focus areas:</p>
+                          <ul className="space-y-1 text-xs">
+                            {insights.data.improvementTopics.slice(0, 3).map((topic: any, idx: number) => (
+                              <li key={idx} className="flex justify-between">
+                                <span>{topic.topic}</span>
+                                <span className="text-blue-600">{topic.accuracy}%</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
+                        <div>
+                          <p className="text-xs text-blue-700 mb-2">Focus on improving these areas:</p>
+                          <ul className="space-y-1 text-xs">
+                            {insights.data.weakTopics.slice(0, 2).map((topic: any, idx: number) => (
+                              <li key={idx} className="flex justify-between">
+                                <span>{topic.topic}</span>
+                                <span className="text-red-600">{topic.accuracy}%</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <InsightCard variant="blue">
+                            Take some tests to get AI-generated study plans!
+                          </InsightCard>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-            {/* Dashboard Button - Locked if no data */}
-            <NavigationBox
-              title="Dashboard"
-              description="View your performance analytics"
-              icon={<BarChart3 className="h-8 w-8" />}
-              href="/dashboard"
-              isLocked={!hasData}
-              color="bg-[#8B5CF6]"
-              hoverColor="hover:bg-[#7C3AED]"
-              lockMessage="Take your first practice test to unlock personalized analytics and insights!"
-            />
-          </div>
+                  {/* Last Test Tab */}
+                  {activeTab === 1 && (
+                    <div className="space-y-2">
+                      {insights?.data?.llmInsights?.lastTestFeedback?.insights ? (
+                        <div className="space-y-2">
+                          {insights.data.llmInsights.lastTestFeedback.insights.length > 0 && (() => {
+                            const firstInsight = insights.data.llmInsights.lastTestFeedback.insights[0] as any;
+                            return (
+                              <InsightCard key={firstInsight?.id ?? firstInsight} variant="indigo">
+                                {firstInsight?.text ?? firstInsight}
+                              </InsightCard>
+                            );
+                          })()}
+                        </div>
+                      ) : insights?.data?.lastTestTopics && insights.data.lastTestTopics.length > 0 ? (
+                        <div>
+                          <p className="text-xs text-indigo-700 mb-2">Recent test performance:</p>
+                          <ul className="space-y-1 text-xs">
+                            {insights.data.lastTestTopics.slice(0, 3).map((topic: any, idx: number) => (
+                              <li key={idx} className="flex justify-between">
+                                <span>{topic.topic}</span>
+                                <span className="text-indigo-600">{topic.accuracy}%</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <InsightCard variant="indigo">
+                            Complete a test to get AI feedback on your performance!
+                          </InsightCard>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-          {/* AI Tutor Chat Input - Centered */}
-          <div className="flex justify-center">
-            <div className="w-full md:w-[500px]">
-              <div className="rounded-2xl bg-blue-50 border border-blue-100 shadow-lg px-6 py-8 flex flex-col items-center">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 bg-[#F59E0B] rounded-lg flex items-center justify-center shadow-md">
-                    <MessageCircle className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-[#1F2937]">AI Tutor</h3>
-                    <p className="text-sm text-[#6B7280]">Ask anything to get instant help</p>
-                  </div>
-                </div>
-                
-                <div className="w-full">
-                  <HomeChatInput
-                    isLoading={isChatLoading}
-                    onSend={handleChatSend}
-                    speechSupported={speechSupported}
-                    isRecording={isRecording}
-                    onMicClick={toggleSpeechRecognition}
-                    inputMessage={inputMessage}
-                    setInputMessage={setInputMessage}
-                  />
-                  {speechSupported && isRecording && (
-                    <div className="mt-4 text-center">
-                      <span className="text-[#10B981] text-sm">
-                        🎤 Listening... Click ✓ to stop and send
-                      </span>
+                  {/* Strengths Tab */}
+                  {activeTab === 2 && (
+                    <div className="space-y-2">
+                      {(!analytics || analytics.totalTests === 0) ? (
+                        <div className="space-y-2">
+                          <InsightCard variant="gray">
+                            Complete practice tests to unlock your strengths!
+                          </InsightCard>
+                        </div>
+                      ) : insights?.data?.llmInsights?.strengths?.insights ? (
+                        <div className="space-y-2">
+                          {insights.data.llmInsights.strengths.insights.length > 0 && (() => {
+                            const firstInsight = insights.data.llmInsights.strengths.insights[0] as any;
+                            return (
+                              <InsightCard key={firstInsight?.id ?? firstInsight} variant="green">
+                                {firstInsight?.text ?? firstInsight}
+                              </InsightCard>
+                            );
+                          })()}
+                        </div>
+                      ) : insights?.data?.strengthTopics && insights.data.strengthTopics.length > 0 ? (
+                        <div>
+                          <p className="text-xs text-green-700 mb-2">Your top performing topics:</p>
+                          <ul className="space-y-1 text-xs">
+                            {insights.data.strengthTopics.slice(0, 3).map((topic: any, idx: number) => (
+                              <li key={idx} className="flex justify-between">
+                                <span>{topic.topic}</span>
+                                <span className="text-green-600">{topic.accuracy}%</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <InsightCard variant="green">
+                            Take some tests to get AI analysis of your strengths!
+                          </InsightCard>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Weaknesses Tab */}
+                  {activeTab === 3 && (
+                    <div className="space-y-2">
+                      {insights?.data?.llmInsights?.weaknesses?.insights ? (
+                        <div className="space-y-2">
+                          {insights.data.llmInsights.weaknesses.insights.length > 0 && (() => {
+                            const firstInsight = insights.data.llmInsights.weaknesses.insights[0] as any;
+                            return (
+                              <InsightCard key={firstInsight?.id ?? firstInsight} variant="red">
+                                {firstInsight?.text ?? firstInsight}
+                              </InsightCard>
+                            );
+                          })()}
+                        </div>
+                      ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
+                        <div>
+                          <p className="text-xs text-red-700 mb-2">Topics needing focus:</p>
+                          <ul className="space-y-1 text-xs">
+                            {insights.data.weakTopics.slice(0, 3).map((topic: any, idx: number) => (
+                              <li key={idx} className="flex justify-between">
+                                <span>{topic.topic}</span>
+                                <span className="text-red-600">{topic.accuracy}%</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <InsightCard variant="red">
+                            Take some tests to get AI analysis of your weaknesses!
+                          </InsightCard>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
             </div>
+          </>
+        )}
+
+
+        {/* ============================================================================= */}
+        {/* BODY CONTAINER - Main content area below insights */}
+        {/* ============================================================================= */}
+        <div className="pb-20 bg-white rounded-t-3xl w-full shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1),0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)]">
+
+          {/* ============================================================================= */}
+          {/* AI TUTOR CHAT SECTION */}
+          {/* ============================================================================= */}
+          <div className="px-4 py-4">
+            <MiniChatbot className="max-w-full" />
           </div>
+          {/* ============================================================================= */}
+          {/* MINI DASHBOARD SECTION */}
+          {/* ============================================================================= */}
+          <div className="px-4 pb-4 pt-4">
+            <MiniDashboard analytics={analytics} />
+          </div>
+          {/* ============================================================================= */}
+          {/* TEST SECTION */}
+          {/* ============================================================================= */}
+          <div className="px-4">
+            <div>
+              <Button
+                variant="default"
+                size="lg"
+                onClick={() => navigate('/topics')}
+                aria-label="View Test ArrowRight"
+                className="w-full rounded-xl font-bold"
+              >
+                Take a Test
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+          <div className="px-4 mt-3 mb-4 ">
+            <div>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => navigate('/topics')}
+                aria-label="View Test History"
+                className="w-full rounded-xl border border-blue-500 bg-blue-50 text-blue-600"
+              >
+                View Test History
+                <History className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+
+
+
+          <div className="px-4 pb-4 pt-8">
+            <h1 className="text-xl font-bold mb-4">More from InzightEd</h1>
+            <NeetCountdown />
+          </div>
+
+          {/* ============================================================================= */}
+          {/* SHARE SECTION */}
+          {/* ============================================================================= */}
+          <Share type="app" />
+
         </div>
       </div>
+
+      {/* ============================================================================= */}
+      {/* MOBILE DOCK */}
+      {/* ============================================================================= */}
+      <MobileDock />
     </div>
   );
 }
 
 
 
-/**
- * Metric Card Component
- */
-interface MetricCardProps {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: string;
-}
 
-function MetricCard({ title, value, icon, color }: MetricCardProps) {
-  return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-2xl font-bold text-gray-900">{value}</p>
-          </div>
-          <div className={`p-3 rounded-full ${color} text-white`}>
-            {icon}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
-/**
- * Navigation Box Component
- */
-interface NavigationBoxProps {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  href: string;
-  isLocked: boolean;
-  color: string;
-  hoverColor: string;
-  lockMessage?: string;
-}
 
-function NavigationBox({ title, description, icon, href, isLocked, color, hoverColor, lockMessage }: NavigationBoxProps) {
-  const [, navigate] = useLocation();
-  const [showLockModal, setShowLockModal] = useState(false);
-
-  const handleClick = () => {
-    if (isLocked) {
-      setShowLockModal(true);
-    } else {
-      navigate(href);
-    }
-  };
-
-  return (
-    <>
-      <div className="relative">
-        <button
-          onClick={handleClick}
-          className={`w-full p-3 rounded-2xl shadow-lg border-2 transition-all duration-300 text-left ${
-            isLocked 
-              ? 'bg-[#E8F0FF] border-[#4F83FF]/20 cursor-pointer' 
-              : 'bg-[#E8F0FF] border-[#4F83FF]/20 hover:bg-[#DBEAFE] transform hover:scale-105 hover:shadow-xl'
-          }`}
-        >
-          <div className="flex items-center space-x-4">
-            <div className={`p-2 rounded-full ${color} text-white shadow-md`}>
-              {icon}
-            </div>
-            <div>
-              <h3 className="text-l font-bold text-[#1F2937]">
-                {title}
-              </h3>
-              <p className="text-sm text-[#6B7280]">
-                {description}
-              </p>
-            </div>
-          </div>
-        </button>
-        
-        {isLocked && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl z-10 border-2 border-[#4F83FF]/20">
-            <div className="text-center px-4">
-              <AlertCircle className="h-6 w-6 text-[#4F83FF] mx-auto mb-2" />
-              <p className="text-[#1F2937] font-medium text-sm">
-                Complete your First Test to unlock Dashboard
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Lock Modal */}
-      {showLockModal && (
-        <div className="fixed inset-0 bg-[#0F172A]/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md mx-4 border-2 border-[#4F83FF]/20">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#E8F0FF] rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="h-8 w-8 text-[#4F83FF]" />
-              </div>
-              <h3 className="text-xl font-bold text-[#1F2937] mb-2">
-                Feature Locked
-              </h3>
-              <p className="text-[#6B7280] mb-6">
-                {lockMessage || "Take your first practice test to unlock this feature!"}
-              </p>
-              <div className="flex space-x-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowLockModal(false)}
-                  className="flex-1 border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]"
-                >
-                  Close
-                </Button>
-                <Button
-                  onClick={() => {
-                    setShowLockModal(false);
-                    navigate('/topics');
-                  }}
-                  className="flex-1 bg-[#4F83FF] hover:bg-[#3B82F6] text-white"
-                >
-                  Take Test
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-/**
- * Insight Card Component
- */
-interface InsightCardProps {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  isLocked: boolean;
-  lockMessage?: string;
-}
-
-function InsightCard({ title, description, icon, isLocked, lockMessage }: InsightCardProps) {
-  const [showLockModal, setShowLockModal] = useState(false);
-
-  const handleClick = () => {
-    if (isLocked) {
-      setShowLockModal(true);
-    }
-  };
-
-  return (
-    <>
-      <div className="relative">
-        <div
-          onClick={handleClick}
-          className="p-6 rounded-2xl shadow-lg border-2 border-blue-200 transition-all duration-300 bg-blue-50 hover:bg-blue-100 hover:shadow-xl cursor-pointer"
-        >
-          <div className="flex items-center space-x-4">
-            <div className="p-3 rounded-full bg-blue-600 text-white">
-              {icon}
-            </div>
-            <div className="flex-1">
-              <h3 className="text-xl font-bold text-blue-800">
-                {title}
-              </h3>
-              <p className="text-sm text-blue-600">
-                {description}
-              </p>
-            </div>
-          </div>
-          
-          {/* Content container - only this part gets blurred */}
-          <div className="mt-4 relative">
-            <div className="h-32 bg-white rounded-lg flex items-center justify-center border">
-              <p className="text-gray-400 text-sm">
-                {isLocked ? "Complete tests to unlock insights" : "Coming soon..."}
-              </p>
-            </div>
-            
-            {isLocked && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-sm rounded-lg z-10">
-                <div className="text-center px-4">
-                  <AlertCircle className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                  <p className="text-blue-800 font-medium">
-                    Take tests to unlock
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Lock Modal */}
-      {showLockModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md mx-4 border-2 border-blue-200">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Target className="h-8 w-8 text-blue-600" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                Insights Locked
-              </h3>
-              <p className="text-gray-600 mb-6">
-                {lockMessage || "Complete practice tests to unlock detailed insights and analytics!"}
-              </p>
-              <div className="flex space-x-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowLockModal(false)}
-                  className="flex-1"
-                >
-                  Close
-                </Button>
-                <Button
-                  onClick={() => {
-                    setShowLockModal(false);
-                    window.location.href = '/topics';
-                  }}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  Take Test
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}

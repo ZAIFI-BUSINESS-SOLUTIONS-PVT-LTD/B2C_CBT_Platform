@@ -53,7 +53,7 @@ async function throwIfResNotOk(res: Response) {
     try {
       // Try to parse JSON error response
       const errorData = await res.json();
-      
+
       // Check if response follows our standardized error format
       if (errorData.error && errorData.error.code && errorData.error.message) {
         throw new APIError(
@@ -64,7 +64,7 @@ async function throwIfResNotOk(res: Response) {
           errorData.error.details
         );
       }
-      
+
       // Handle legacy error formats
       if (errorData.detail) {
         throw new APIError(
@@ -73,7 +73,7 @@ async function throwIfResNotOk(res: Response) {
           res.status
         );
       }
-      
+
       // Generic error for unrecognized format
       throw new APIError(
         'UNKNOWN_ERROR',
@@ -85,7 +85,7 @@ async function throwIfResNotOk(res: Response) {
       if (parseError instanceof APIError) {
         throw parseError;
       }
-      
+
       const errorText = await res.text().catch(() => res.statusText);
       throw new APIError(
         'UNKNOWN_ERROR',
@@ -97,15 +97,15 @@ async function throwIfResNotOk(res: Response) {
 }
 
 /**
- * A general-purpose API request helper.
- * This function is used by mutations (POST, PUT, DELETE) where you explicitly
- * call `apiRequest` with the endpoint and data.
- *
- * @param endpoint The API endpoint (e.g., "/api/test-answers", "/api/test-sessions/123/submit")
- * @param method The HTTP method (e.g., "POST", "PUT", "DELETE")
- * @param data Optional: The request body data
- * @returns The JSON response from the API, or null for DELETE requests
- */
+* A general-purpose API request helper.
+* This function is used by mutations (POST, PUT, DELETE) where you explicitly
+* call `apiRequest` with the endpoint and data.
+*
+* @param endpoint The API endpoint (e.g., "/api/test-answers", "/api/test-sessions/123/submit")
+* @param method The HTTP method (e.g., "POST", "PUT", "DELETE")
+* @param data Optional: The request body data
+* @returns The JSON response from the API, or null for DELETE requests
+*/
 export async function apiRequest(
   endpoint: string, // This is the relative endpoint, not the full URL
   method: string,
@@ -116,7 +116,7 @@ export async function apiRequest(
 
   // Check if we have an access token for authenticated requests
   const accessToken = getAccessToken();
-  
+
   const headers: Record<string, string> = {};
   if (data) {
     headers["Content-Type"] = "application/json";
@@ -152,83 +152,83 @@ export async function apiRequest(
       await throwIfResNotOk(res);
       return method === "DELETE" ? null : await res.json();
     }
-    } catch (error) {
-      console.error(`API Request failed: ${method} ${fullUrl}`, error);
-      
-      // Log additional context for APIError instances
-      if (error instanceof APIError) {
-        console.error(`Error Code: ${error.code}, Status: ${error.status}`);
-        if (error.details) {
-          console.error('Error Details:', error.details);
-        }
+  } catch (error) {
+    console.error(`API Request failed: ${method} ${fullUrl}`, error);
+
+    // Log additional context for APIError instances
+    if (error instanceof APIError) {
+      console.error(`Error Code: ${error.code}, Status: ${error.status}`);
+      if (error.details) {
+        console.error('Error Details:', error.details);
       }
-      
-      throw error;
     }
+
+    throw error;
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
 
 /**
- * React Query's default queryFn.
- * This function is used by `useQuery` hooks where a custom `queryFn` is not provided.
- * It takes the `queryKey[0]` (which is expected to be the API endpoint string)
- * and constructs the full URL using BASE_URL.
- *
- * @param options.on401 Behavior when a 401 Unauthorized status is received.
- * @returns A QueryFunction that fetches data.
- */
+* React Query's default queryFn.
+* This function is used by `useQuery` hooks where a custom `queryFn` is not provided.
+* It takes the `queryKey[0]` (which is expected to be the API endpoint string)
+* and constructs the full URL using BASE_URL.
+*
+* @param options.on401 Behavior when a 401 Unauthorized status is received.
+* @returns A QueryFunction that fetches data.
+*/
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
-    // queryKey[0] is expected to be the endpoint string (e.g., "/api/topics")
-    const endpoint = queryKey[0] as string;
-    // Construct the full URL for use by the default query function
-    const fullUrl = `${API_CONFIG.BASE_URL}${endpoint}`;
+    async ({ queryKey }) => {
+      // queryKey[0] is expected to be the endpoint string (e.g., "/api/topics")
+      const endpoint = queryKey[0] as string;
+      // Construct the full URL for use by the default query function
+      const fullUrl = `${API_CONFIG.BASE_URL}${endpoint}`;
 
-    // Check if we have an access token for authenticated requests
-    const accessToken = getAccessToken();
+      // Check if we have an access token for authenticated requests
+      const accessToken = getAccessToken();
 
-    try {
-      let res: Response;
-      
-      if (accessToken) {
-        // Use authenticated fetch for requests with JWT token
-        res = await authenticatedFetch(fullUrl, {
-          method: 'GET',
-        });
-      } else {
-        // Use regular fetch for non-authenticated requests
-        res = await fetch(fullUrl, {
-          credentials: "include",
-        });
-      }
+      try {
+        let res: Response;
 
-      if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-        return null;
-      }
+        if (accessToken) {
+          // Use authenticated fetch for requests with JWT token
+          res = await authenticatedFetch(fullUrl, {
+            method: 'GET',
+          });
+        } else {
+          // Use regular fetch for non-authenticated requests
+          res = await fetch(fullUrl, {
+            credentials: "include",
+          });
+        }
 
-      await throwIfResNotOk(res);
-      return await res.json();
-    } catch (error) {
-      console.error(`Query failed: GET ${fullUrl}`, error);
-      
-      // Log additional context for APIError instances
-      if (error instanceof APIError) {
-        console.error(`Error Code: ${error.code}, Status: ${error.status}`);
+        if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+          return null;
+        }
+
+        await throwIfResNotOk(res);
+        return await res.json();
+      } catch (error) {
+        console.error(`Query failed: GET ${fullUrl}`, error);
+
+        // Log additional context for APIError instances
+        if (error instanceof APIError) {
+          console.error(`Error Code: ${error.code}, Status: ${error.status}`);
+        }
+
+        if (unauthorizedBehavior === "returnNull" && error instanceof APIError && error.status === 401) {
+          return null;
+        }
+        if (unauthorizedBehavior === "returnNull" && error instanceof Error && error.message.includes('401')) {
+          return null;
+        }
+        throw error;
       }
-      
-      if (unauthorizedBehavior === "returnNull" && error instanceof APIError && error.status === 401) {
-        return null;
-      }
-      if (unauthorizedBehavior === "returnNull" && error instanceof Error && error.message.includes('401')) {
-        return null;
-      }
-      throw error;
-    }
-  };
+    };
 
 // Initialize the React Query client with default options
 export const queryClient = new QueryClient({

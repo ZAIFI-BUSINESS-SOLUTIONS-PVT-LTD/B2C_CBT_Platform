@@ -2,170 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: hsl(0, 0%, 99%);
-  --foreground: hsl(240, 9%, 14%);
-  --muted: hsl(240, 4%, 95%);
-  --muted-foreground: hsl(240, 4%, 46%);
-  --popover: hsl(0, 0%, 100%);
-  --popover-foreground: hsl(240, 9%, 14%);
-  --card: hsl(0, 0%, 100%);
-  --card-foreground: hsl(240, 9%, 14%);
-  --border: hsl(240, 6%, 90%);
-  --input: hsl(240, 6%, 90%);
-  --primary: hsl(220, 90%, 56%);
-  --primary-foreground: hsl(0, 0%, 100%);
-  --secondary: hsl(240, 4%, 95%);
-  --secondary-foreground: hsl(240, 6%, 10%);
-  --accent: hsl(240, 4%, 95%);
-  --accent-foreground: hsl(240, 6%, 10%);
-  --destructive: hsl(0, 84%, 60%);
-  --destructive-foreground: hsl(0, 0%, 98%);
-  --ring: hsl(220, 90%, 56%);
-  --radius: 0.75rem;
-  
-  /* Modern Dashboard Colors */
-  --neet-blue: hsl(220, 90%, 56%);
-  --neet-green: hsl(142, 76%, 36%);
-  --neet-red: hsl(0, 84%, 60%);
-  --neet-amber: hsl(45, 93%, 47%);
-  --neet-purple: hsl(262, 83%, 58%);
-  --neet-gray-50: hsl(240, 9%, 98%);
-  --neet-gray-100: hsl(240, 4%, 95%);
-  --neet-gray-200: hsl(240, 6%, 90%);
-  --neet-gray-300: hsl(240, 5%, 84%);
-  --neet-gray-400: hsl(240, 4%, 64%);
-  --neet-gray-500: hsl(240, 4%, 46%);
-  --neet-gray-600: hsl(240, 5%, 34%);
-  --neet-gray-700: hsl(240, 5%, 26%);
-  --neet-gray-800: hsl(240, 6%, 16%);
-  --neet-gray-900: hsl(240, 9%, 14%);
+/* ============================================================================= */
+/* HOME PAGE COMPONENT STYLES */
+/* ============================================================================= */
+
+/* Hide scrollbar utility */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
-.dark {
-  --background: hsl(240, 10%, 3.9%);
-  --foreground: hsl(0, 0%, 98%);
-  --muted: hsl(240, 3.7%, 15.9%);
-  --muted-foreground: hsl(240, 5%, 64.9%);
-  --popover: hsl(240, 10%, 3.9%);
-  --popover-foreground: hsl(0, 0%, 98%);
-  --card: hsl(240, 10%, 3.9%);
-  --card-foreground: hsl(0, 0%, 98%);
-  --border: hsl(240, 3.7%, 15.9%);
-  --input: hsl(240, 3.7%, 15.9%);
-  --primary: hsl(207, 90%, 54%);
-  --primary-foreground: hsl(211, 100%, 99%);
-  --secondary: hsl(240, 3.7%, 15.9%);
-  --secondary-foreground: hsl(0, 0%, 98%);
-  --accent: hsl(240, 3.7%, 15.9%);
-  --accent-foreground: hsl(0, 0%, 98%);
-  --destructive: hsl(0, 62.8%, 30.6%);
-  --destructive-foreground: hsl(0, 0%, 98%);
-  --ring: hsl(240, 4.9%, 83.9%);
-  --radius: 0.5rem;
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply antialiased bg-background text-foreground;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-    font-variation-settings: normal;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', sans-serif;
-    font-weight: 600;
-    letter-spacing: -0.025em;
-  }
+/* Tab content transitions */
+.tab-content {
+  transition: opacity 0.3s ease-in-out;
 }
 
-@layer utilities {
-  /* Colors */
-  .neet-blue { color: var(--neet-blue); }
-  .bg-neet-blue { background-color: var(--neet-blue); }
-  .neet-green { color: var(--neet-green); }
-  .bg-neet-green { background-color: var(--neet-green); }
-  .neet-red { color: var(--neet-red); }
-  .bg-neet-red { background-color: var(--neet-red); }
-  .neet-amber { color: var(--neet-amber); }
-  .bg-neet-amber { background-color: var(--neet-amber); }
-  .neet-purple { color: var(--neet-purple); }
-  .bg-neet-purple { background-color: var(--neet-purple); }
+/* Insights container styles */
+.insights-container {
+  position: relative;
+}
 
-  /* Gray Scale */
-  .bg-neet-gray-50 { background-color: var(--neet-gray-50); }
-  .bg-neet-gray-100 { background-color: var(--neet-gray-100); }
-  .bg-neet-gray-200 { background-color: var(--neet-gray-200); }
-  .text-neet-gray-400 { color: var(--neet-gray-400); }
-  .text-neet-gray-500 { color: var(--neet-gray-500); }
-  .text-neet-gray-600 { color: var(--neet-gray-600); }
-  .text-neet-gray-700 { color: var(--neet-gray-700); }
-  .text-neet-gray-800 { color: var(--neet-gray-800); }
-  .text-neet-gray-900 { color: var(--neet-gray-900); }
-  .border-neet-gray-200 { border-color: var(--neet-gray-200); }
+.insights-container.swiping {
+  cursor: grabbing;
+  background: rgba(59, 130, 246, 0.05);
+  transition: background 0.2s ease;
+}
 
-  /* Dashboard Card Styles */
-  .dashboard-card {
-    @apply bg-white rounded-2xl shadow-sm p-6;
-    border: 1px solid var(--neet-gray-200);
-  }
+/* Tab content container for touch interactions */
+.tab-content-container {
+  position: relative;
+  min-height: 150px;
+  touch-action: pan-y;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
 
-  .dashboard-metric {
-    @apply text-3xl font-bold text-neet-gray-900 leading-none;
-  }
+.tab-content-container:active {
+  cursor: grabbing;
+}
 
-  .dashboard-label {
-    @apply text-sm font-medium text-neet-gray-500;
-  }
-
-  /* Modern Button Styles */
-  .btn-modern {
-    @apply inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200;
-    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
-  }
-
-  .btn-primary {
-    @apply btn-modern bg-neet-blue text-white hover:bg-blue-600;
-    box-shadow: 0 0 0 2px transparent;
-    transition: all 0.2s;
-  }
-
-  .btn-primary:focus {
-    box-shadow: 0 0 0 3px hsl(220, 90%, 56%, 0.3);
-  }
-
-  .btn-secondary {
-    @apply btn-modern text-neet-gray-700 hover:bg-neet-gray-200;
-    background-color: var(--neet-gray-100);
-    box-shadow: 0 0 0 2px transparent;
-    transition: all 0.2s;
-  }
-
-  .btn-secondary:focus {
-    box-shadow: 0 0 0 3px hsl(240, 4%, 46%, 0.3);
-  }
-
-  /* Modern Input Styles */
-  .input-modern {
-    @apply block w-full rounded-xl bg-white px-4 py-3 text-sm;
-    border: 1px solid var(--neet-gray-200);
-    transition: all 0.2s;
-  }
-
-  .input-modern:focus {
-    border-color: var(--neet-blue);
-    box-shadow: 0 0 0 3px hsl(220, 90%, 56%, 0.1);
-    outline: none;
-  }
-
-  /* Status Indicators */
-  .status-correct { @apply bg-green-50 text-green-700 border-green-200; }
-  .status-incorrect { @apply bg-red-50 text-red-700 border-red-200; }
-  .status-unanswered { @apply bg-amber-50 text-amber-700 border-amber-200; }
-  .status-review { @apply bg-purple-50 text-purple-700 border-purple-200; }
+.tab-content-container.swiping {
+  cursor: grabbing;
+  background: rgba(59, 130, 246, 0.05);
+  transition: background 0.2s ease;
 }

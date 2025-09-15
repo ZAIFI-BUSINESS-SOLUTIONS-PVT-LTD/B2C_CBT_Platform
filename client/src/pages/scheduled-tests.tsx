@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { Clock, Calendar, BookOpen, Users, PlayCircle, AlertCircle } from 'lucide-react';
+import { Clock, Calendar, BookOpen, Users, PlayCircle, AlertCircle, ArrowLeft, ChevronLeft } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getAvailablePlatformTests, startPlatformTest } from '@/config/api';
 import { PlatformTest, AvailablePlatformTestsResponse } from '@/types/api';
@@ -17,6 +16,7 @@ export default function ScheduledTestsPage() {
   const [startingTest, setStartingTest] = useState<number | null>(null);
   const [showCompletedModal, setShowCompletedModal] = useState(false);
   const [completedSessionInfo, setCompletedSessionInfo] = useState<{ sessionId?: number | null; completedAt?: string | null; message?: string | null }>({ sessionId: null, completedAt: null, message: null });
+  const [activeTab, setActiveTab] = useState<'open' | 'upcoming'>('open');
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
 
@@ -25,7 +25,7 @@ export default function ScheduledTestsPage() {
       setLocation('/login');
       return;
     }
-    
+
     fetchPlatformTests();
   }, [isAuthenticated, setLocation]);
 
@@ -103,11 +103,11 @@ export default function ScheduledTestsPage() {
 
   const getTestStatus = (test: PlatformTest) => {
     if (!test.scheduledDateTime) return 'open';
-    
+
     const now = new Date();
     const scheduledTime = new Date(test.scheduledDateTime);
     const testEndTime = new Date(scheduledTime.getTime() + (test.timeLimit * 60 * 1000));
-    
+
     if (now < scheduledTime) return 'upcoming';
     if (now >= scheduledTime && now <= testEndTime) return 'active';
     return 'expired';
@@ -115,7 +115,7 @@ export default function ScheduledTestsPage() {
 
   const getStatusBadge = (test: PlatformTest) => {
     const status = getTestStatus(test);
-    
+
     switch (status) {
       case 'active':
         return <Badge variant="default" className="bg-green-500">Live Now</Badge>;
@@ -136,46 +136,49 @@ export default function ScheduledTestsPage() {
   };
 
   const TestCard = ({ test }: { test: PlatformTest }) => (
-    <Card className="h-full">
-      <CardHeader>
+    <Card className="h-full shadow-md">
+      <CardHeader className="pb-3">
         <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-lg">{test.testName}</CardTitle>
-            <CardDescription className="mt-1">{test.description}</CardDescription>
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-base leading-tight">{test.testName}</CardTitle>
+            <CardDescription className="mt-1 text-sm">{test.description}</CardDescription>
           </div>
-          {getStatusBadge(test)}
+          <div className="ml-2 flex-shrink-0">
+            {getStatusBadge(test)}
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
+      <CardContent className="pt-0">
+        <div className="space-y-2">
           <div className="flex items-center text-sm text-gray-600">
-            <Clock className="w-4 h-4 mr-2" />
-            <span>{test.timeLimit} minutes</span>
+            <Clock className="w-4 h-4 mr-2 flex-shrink-0" />
+            <span className="truncate">{test.timeLimit} minutes</span>
           </div>
-          
+
           <div className="flex items-center text-sm text-gray-600">
-            <BookOpen className="w-4 h-4 mr-2" />
-            <span>{test.totalQuestions} questions</span>
+            <BookOpen className="w-4 h-4 mr-2 flex-shrink-0" />
+            <span className="truncate">{test.totalQuestions} questions</span>
           </div>
-          
+
           {test.scheduledDateTime && (
             <div className="flex items-center text-sm text-gray-600">
-              <Calendar className="w-4 h-4 mr-2" />
-              <span>{formatDateTime(test.scheduledDateTime)}</span>
+              <Calendar className="w-4 h-4 mr-2 flex-shrink-0" />
+              <span className="truncate">{formatDateTime(test.scheduledDateTime)}</span>
             </div>
           )}
-          
+
           {test.testType && (
             <div className="flex items-center text-sm text-gray-600">
-              <Users className="w-4 h-4 mr-2" />
-              <span>{test.testType}</span>
+              <Users className="w-4 h-4 mr-2 flex-shrink-0" />
+              <span className="truncate">{test.testType}</span>
             </div>
           )}
-          
+
           <Button
             onClick={() => handleStartTest(test.id)}
             disabled={!isTestAvailable(test) || startingTest === test.id}
-            className="w-full mt-4"
+            className="w-full mt-3 text-sm py-2"
+            size="sm"
           >
             {startingTest === test.id ? (
               'Starting...'
@@ -203,12 +206,16 @@ export default function ScheduledTestsPage() {
   const completedOpen = openTests.filter((t) => t.hasCompleted);
   const completedTests = [...completedScheduled, ...completedOpen];
 
+  // Filter tests by status for the new tabs
+  const upcomingTests = allScheduled.filter((test) => getTestStatus(test) === 'upcoming');
+  const openAvailableTests = allOpen.filter((test) => getTestStatus(test) === 'open');
+
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading platform tests...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600 text-sm">Loading platform tests...</p>
         </div>
       </div>
     );
@@ -216,190 +223,144 @@ export default function ScheduledTestsPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-        <Button onClick={fetchPlatformTests} className="mt-4">
-          Try Again
-        </Button>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="max-w-md mx-auto text-center">
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-sm">{error}</AlertDescription>
+          </Alert>
+          <Button onClick={fetchPlatformTests} className="w-full">
+            Try Again
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Platform Tests</h1>
-        <p className="text-gray-600 mt-2">
-          Take official practice tests and scheduled examinations
-        </p>
-      </div>
-
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="all">All Tests</TabsTrigger>
-          <TabsTrigger value="scheduled">Scheduled Tests</TabsTrigger>
-          <TabsTrigger value="open">Open Tests</TabsTrigger>
-          <TabsTrigger value="completed">Completed</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="all" className="mt-6">
-          <div className="space-y-6">
-            {allScheduled.length > 0 && (
-              <div>
-                <h2 className="text-xl font-semibold mb-4">Scheduled Tests</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {allScheduled.map((test) => (
-                    <TestCard key={test.id} test={test} />
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {allOpen.length > 0 && (
-              <div>
-                <h2 className="text-xl font-semibold mb-4">Open Tests</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {allOpen.map((test) => (
-                    <TestCard key={test.id} test={test} />
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {(allScheduled.length === 0 && allOpen.length === 0) && (
-              <div className="text-center py-12">
-                <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Platform Tests Available</h3>
-                <p className="text-gray-600">Check back later for new tests.</p>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="scheduled" className="mt-6">
-          {allScheduled.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {allScheduled.map((test) => (
-                <TestCard key={test.id} test={test} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Scheduled Tests</h3>
-              <p className="text-gray-600">There are no scheduled tests at this time.</p>
-            </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="open" className="mt-6">
-          {allOpen.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {allOpen.map((test) => (
-                <TestCard key={test.id} test={test} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Open Tests</h3>
-              <p className="text-gray-600">There are no open tests available at this time.</p>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="completed" className="mt-6">
-          {completedTests.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {completedTests.map((test) => (
-                <Card key={test.id} className="h-full">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-lg">{test.testName}</CardTitle>
-                        <CardDescription className="mt-1">{test.description}</CardDescription>
-                      </div>
-                      <Badge variant="outline">Completed</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Clock className="w-4 h-4 mr-2" />
-                        <span>{test.timeLimit} minutes</span>
-                      </div>
-
-                      <div className="flex items-center text-sm text-gray-600">
-                        <BookOpen className="w-4 h-4 mr-2" />
-                        <span>{test.totalQuestions} questions</span>
-                      </div>
-
-                      {test.scheduledDateTime && (
-                        <div className="flex items-center text-sm text-gray-600">
-                          <Calendar className="w-4 h-4 mr-2" />
-                          <span>{formatDateTime(test.scheduledDateTime)}</span>
-                        </div>
-                      )}
-
-                      <Button onClick={() => setLocation('/test-history')} className="w-full mt-4">
-                        View Details
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Completed Tests</h3>
-              <p className="text-gray-600">You haven't completed any platform tests yet.</p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* Completed Test Modal: shown when attempting to start a test already completed by this student */}
-      {showCompletedModal && (
-        <div className="fixed inset-0 bg-[#0F172A]/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md mx-4 border-2 border-[#4F83FF]/20">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-[#FFEDEE] rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="h-8 w-8 text-red-600" />
-              </div>
-              <h3 className="text-xl font-bold text-[#1F2937] mb-2">You already completed this test</h3>
-              <p className="text-[#6B7280] mb-4">{completedSessionInfo.message || 'You have already completed this test and cannot retake it.'}</p>
-
-              {completedSessionInfo.sessionId && (
-                <p className="text-sm text-gray-600 mb-4">Completed on: {completedSessionInfo.completedAt ? new Date(completedSessionInfo.completedAt).toLocaleString() : 'N/A'}</p>
-              )}
-
-              <div className="flex space-x-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowCompletedModal(false)}
-                  className="flex-1 border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]"
-                >
-                  Close
-                </Button>
-                <Button
-                  onClick={() => {
-                    setShowCompletedModal(false);
-                    // Navigate back to platform tests listing
-                    setLocation('/scheduled-tests');
-                  }}
-                  className="flex-1 bg-[#4F83FF] hover:bg-[#3B82F6] text-white"
-                >
-                  Back to Tests
-                </Button>
-              </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Fixed Header */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 p-3 shadow-sm">
+        <div className="container mx-auto px-2">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.history.back()}
+                className="mr-2 p-2 bg-gray-100"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <h1 className="text-lg font-bold text-gray-900">Platform Tests</h1>
             </div>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="sticky top-16 border-b border-gray-200">
+        <nav className="flex" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('open')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 px-2 border-b-2 font-medium text-sm transition-colors duration-200 active:bg-gray-50 ${activeTab === 'open'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+          >
+            <BookOpen className="h-4 w-4" />
+            <span>Open Tests</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('upcoming')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 px-2 border-b-2 font-medium text-sm transition-colors duration-200 active:bg-gray-50 ${activeTab === 'upcoming'
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+          >
+            <Calendar className="h-4 w-4" />
+            <span>Upcoming Tests</span>
+          </button>
+        </nav>
+      </div>
+
+      <div className="container mx-auto px-4 py-4 pt-16">
+        {/* Tab Content */}
+        {activeTab === 'open' && (
+          <div className="mt-4">
+            {openAvailableTests.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4">
+                {openAvailableTests.map((test) => (
+                  <TestCard key={test.id} test={test} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-base font-semibold text-gray-900 mb-2">No Open Tests</h3>
+                <p className="text-gray-600 text-sm">There are no open tests available at this time.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'upcoming' && (
+          <div className="mt-4">
+            {upcomingTests.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4">
+                {upcomingTests.map((test) => (
+                  <TestCard key={test.id} test={test} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-base font-semibold text-gray-900 mb-2">No Upcoming Tests</h3>
+                <p className="text-gray-600 text-sm">There are no upcoming tests scheduled at this time.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Completed Test Modal: shown when attempting to start a test already completed by this student */}
+        {showCompletedModal && (
+          <div className="fixed inset-0 bg-[#0F172A]/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl p-4 max-w-md mx-auto w-full border-2 border-[#4F83FF]/20">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-[#FFEDEE] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertCircle className="h-6 w-6 text-red-600" />
+                </div>
+                <h3 className="text-lg font-bold text-[#1F2937] mb-2">You already completed this test</h3>
+                <p className="text-[#6B7280] mb-4 text-sm">{completedSessionInfo.message || 'You have already completed this test and cannot retake it.'}</p>
+
+                {completedSessionInfo.sessionId && (
+                  <p className="text-sm text-gray-600 mb-4">Completed on: {completedSessionInfo.completedAt ? new Date(completedSessionInfo.completedAt).toLocaleString() : 'N/A'}</p>
+                )}
+
+                <div className="flex flex-col space-y-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowCompletedModal(false)}
+                    className="w-full border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]"
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowCompletedModal(false);
+                      // Navigate back to platform tests listing
+                      setLocation('/scheduled-tests');
+                    }}
+                    className="w-full bg-[#4F83FF] hover:bg-[#3B82F6] text-white"
+                  >
+                    Back to Tests
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

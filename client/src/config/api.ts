@@ -1,14 +1,15 @@
 // API Configuration for NEET Practice Platform
 export const API_CONFIG = {
   // Use environment-based URLs for proper dev/production switching
-  BASE_URL: import.meta.env.DEV 
-    ? 'http://localhost:8000' 
+  BASE_URL: import.meta.env.DEV
+    ? 'http://localhost:8000'
     : 'https://testapi.inzighted.com',
-  
+
   // API endpoints
   ENDPOINTS: {
     // Standard DRF endpoints with trailing slashes (Django default)
     TOPICS: '/api/topics/',
+    TOPIC_QUESTION_COUNTS: '/api/topics/question-counts/',
     QUESTIONS: '/api/questions/',
     TEST_ANSWERS: '/api/test-answers/', // For individual answer submission (POST)
 
@@ -30,10 +31,10 @@ export const API_CONFIG = {
     DASHBOARD_ANALYTICS: '/api/dashboard/analytics/',
     DASHBOARD_COMPREHENSIVE_ANALYTICS: '/api/dashboard/comprehensive-analytics/',
     DASHBOARD_PLATFORM_TEST_ANALYTICS: '/api/dashboard/platform-test-analytics/',
-    
+
     // Time tracking endpoint
     TEST_SESSION_LOG_TIME: '/api/time-tracking/log_time/',
-    
+
     // Chatbot endpoints
     CHAT_SESSIONS: '/api/chat-sessions/',
     CHAT_SESSION_DETAIL: (sessionId: string) => `/api/chat-sessions/${sessionId}/`,
@@ -41,16 +42,21 @@ export const API_CONFIG = {
     CHAT_SESSION_SEND_MESSAGE: (sessionId: string) => `/api/chat-sessions/${sessionId}/send-message/`,
     CHAT_QUICK: '/api/chatbot/quick-chat/',
     CHAT_STATISTICS: '/api/chatbot/statistics/',
-    
+
     // Platform Tests endpoints
     PLATFORM_TESTS_AVAILABLE: '/api/platform-tests/available/',
     PLATFORM_TEST_DETAIL: (testId: number) => `/api/platform-tests/${testId}/`,
     PLATFORM_TEST_START: (testId: number) => `/api/platform-tests/${testId}/start/`,
-    
+
     // Password reset endpoints
     AUTH_FORGOT_PASSWORD: '/api/auth/forgot-password/',
     AUTH_VERIFY_RESET: '/api/auth/verify-reset-token/',
     AUTH_RESET_PASSWORD: '/api/auth/reset-password/',
+
+    // Payment endpoints
+    PAYMENTS_CREATE_ORDER: '/api/payments/create-order/',
+    PAYMENTS_VERIFY_PAYMENT: '/api/payments/verify-payment/',
+    PAYMENTS_SUBSCRIPTION_STATUS: '/api/payments/subscription-status/',
   },
 };
 
@@ -108,4 +114,37 @@ export async function getPlatformTestDetails(testId: number): Promise<PlatformTe
  */
 export async function startPlatformTest(data: StartPlatformTestRequest): Promise<StartPlatformTestResponse> {
   return await apiRequest(API_CONFIG.ENDPOINTS.PLATFORM_TEST_START(data.testId), "POST", data);
+}
+
+// --- Payment API Functions ---
+
+/**
+ * Create a Razorpay order for the specified plan
+ * @param plan 'basic' | 'pro'
+ * @returns Order creation response with order_id, amount, currency, key_id, local_order_id
+ */
+export async function createOrder(plan: 'basic' | 'pro') {
+  return await apiRequest(API_CONFIG.ENDPOINTS.PAYMENTS_CREATE_ORDER, "POST", { plan });
+}
+
+/**
+ * Verify payment after Razorpay checkout completion
+ * @param payload Payment verification data from Razorpay
+ * @returns Payment verification response
+ */
+export async function verifyPayment(payload: {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+  local_order_id: number;
+}) {
+  return await apiRequest(API_CONFIG.ENDPOINTS.PAYMENTS_VERIFY_PAYMENT, "POST", payload);
+}
+
+/**
+ * Get current subscription status for the authenticated student
+ * @returns Subscription status with plan, expiry, and availability
+ */
+export async function getSubscriptionStatus() {
+  return await apiRequest(API_CONFIG.ENDPOINTS.PAYMENTS_SUBSCRIPTION_STATUS, "GET");
 }

@@ -21,7 +21,7 @@ import { TestInterface } from "@/components/test-interface";
 export default function Test() {
   // Extract session ID from URL parameters
   const { sessionId } = useParams<{ sessionId: string }>();
-  
+
   // Validate sessionId - if invalid, show error
   if (!sessionId || isNaN(Number(sessionId))) {
     return (
@@ -48,6 +48,7 @@ export default function Test() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50">
       <TestInterface sessionId={parseInt(sessionId)} />
+
     </div>
   );
 }

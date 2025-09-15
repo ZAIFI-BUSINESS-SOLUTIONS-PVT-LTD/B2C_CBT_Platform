@@ -26,14 +26,17 @@ import { Progress } from "@/components/ui/progress";
 import { Timer } from "@/components/timer";
 import { useToast } from "@/hooks/use-toast";
 import useFullscreenEnforcement from "@/hooks/useFullscreenEnforcement";
+import TestHeader from "./test-interface/TestHeader";
+import SecureModeStrip from "./test-interface/SecureModeStrip";
+import SecurityBanner from "./test-interface/SecurityBanner";
 import { API_CONFIG } from "@/config/api";
 import { apiRequest } from "@/lib/queryClient";
 import { authenticatedFetch } from "@/lib/auth";
 import { debugAuthentication, testAuthenticatedRequest } from "@/lib/debug-auth";
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Bookmark, 
+import {
+  ChevronLeft,
+  ChevronRight,
+  Bookmark,
   Check,
   AlertTriangle,
   Clock,
@@ -49,6 +52,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import SubmitDialog from "./test-interface/dialogs/SubmitDialog";
+import TimeOverDialog from "./test-interface/dialogs/TimeOverDialog";
+import QuitDialog from "./test-interface/dialogs/QuitDialog";
 
 /**
  * Props for the TestInterface component
@@ -93,14 +99,14 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const [, navigate] = useLocation();                  // Navigation function
   const { toast } = useToast();                        // Toast notifications
   const queryClient = useQueryClient();                // React Query client for cache management
-  
+
   // === TEST STATE MANAGEMENT ===
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);        // Current question index
   const [answers, setAnswers] = useState<Record<number, string>>({});         // User's answers by question ID
   const [markedForReview, setMarkedForReview] = useState<Set<number>>(new Set()); // Questions marked for review
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);            // Submit confirmation dialog visibility
   const [showTimeOverDialog, setShowTimeOverDialog] = useState(false);        // Time over dialog visibility
-  const [timeOverAutoSubmit, setTimeOverAutoSubmit] = useState<NodeJS.Timeout | null>(null); // Auto-submit timeout
+  const [timeOverAutoSubmit, setTimeOverAutoSubmit] = useState<ReturnType<typeof setTimeout> | null>(null); // Auto-submit timeout
   const [timeOverHandled, setTimeOverHandled] = useState(false); // Track if time over has been handled
   const [showQuitDialog, setShowQuitDialog] = useState(false);                // Quit exam confirmation dialog visibility
   const [isNavigationBlocked, setIsNavigationBlocked] = useState(true);       // Block navigation during test
@@ -111,12 +117,12 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const [paused, setPaused] = useState(false); // Is the test paused by user
   const [pauseStartTime, setPauseStartTime] = useState<number | null>(null); // When the current pause started
   const [accumulatedPauseMs, setAccumulatedPauseMs] = useState<number>(0); // Total paused ms to subtract from timers
-  
+
   // Prevent state updates / handlers from running while a submit is in progress
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Client-side test start timestamp (set when user first lands on first question)
   const [clientTestStartTime, setClientTestStartTime] = useState<number | null>(null);
-  
+
   // === TIME TRACKING ===
   const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now()); // When current question started
   const [questionTimes, setQuestionTimes] = useState<Record<number, number>>({});  // Time spent on each question
@@ -158,18 +164,18 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     queryFn: async () => {
       // Debug authentication before making request
       debugAuthentication();
-      
+
       // CORRECTED: Use authenticatedFetch for authenticated requests
-      const url = `/api/test-sessions/${sessionId}/`; 
+      const url = `/api/test-sessions/${sessionId}/`;
       console.log('🔄 Fetching test session:', url);
-      
+
       const response = await authenticatedFetch(`${API_CONFIG.BASE_URL}${url}`);
 
       if (!response.ok) {
         console.error('❌ Test session fetch failed:', response.status, response.statusText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       console.log('✅ Test session fetch successful, data:', data);
       console.log('📊 Questions in response:', data?.questions?.length || 'No questions');
@@ -199,7 +205,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   // === ANSWER SUBMISSION MUTATION ===
   // This mutation handles real-time answer submission as students answer questions
   const submitAnswerMutation = useMutation({
-    mutationFn: async (data: { 
+    mutationFn: async (data: {
       sessionId: number;       // Which test session this answer belongs to
       questionId: number;      // Which question is being answered
       selectedAnswer: string | null;  // The student's choice (A, B, C, D) or null
@@ -250,21 +256,21 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
       // Disable navigation blocking before navigating away
       setIsNavigationBlocked(false);
-      
+
       // Invalidate all relevant queries to refresh dashboard data
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/analytics/'] }); // Main dashboard
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/comprehensive-analytics/'] }); // Landing dashboard
       queryClient.invalidateQueries({ queryKey: [`testSession-${sessionId}`] }); // Current test session
       queryClient.invalidateQueries({ queryKey: [`/api/test-sessions/${sessionId}/results/`] }); // Results page
-      
+
       // Invalidate any test sessions lists or test-related data
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey[0];
           return (
             typeof key === "string" &&
             (
-              key.includes('test-session') || 
+              key.includes('test-session') ||
               key.includes('/api/test-sessions') ||
               key.includes('dashboard') ||
               key.includes('analytics')
@@ -272,12 +278,12 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           );
         }
       });
-      
+
       // Navigate to results
-  navigate(`/results/${sessionId}`);
-  // Clean up state after navigation
-  setIsSubmitting(false);
-  setSuppressFullscreenExitDialog(false);
+      navigate(`/results/${sessionId}`);
+      // Clean up state after navigation
+      setIsSubmitting(false);
+      setSuppressFullscreenExitDialog(false);
     },
     onError: () => {
       toast({
@@ -285,10 +291,10 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         description: "Failed to submit test. Please try again.",
         variant: "destructive",
       });
-  // Clear suppression if submission failed
-  setSuppressFullscreenExitDialog(false);
-  setIsSubmitting(false);
-  setTimeOverHandled(false); // Reset time over handled flag on error
+      // Clear suppression if submission failed
+      setSuppressFullscreenExitDialog(false);
+      setIsSubmitting(false);
+      setTimeOverHandled(false); // Reset time over handled flag on error
     },
   });
 
@@ -300,23 +306,23 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       return response;
     },
     onSuccess: () => {
-  setSuppressFullscreenExitDialog(true);
-  // Exit fullscreen (best-effort) before navigating away
-  try { exitFullscreen(); } catch (e) { /* ignore */ }
+      setSuppressFullscreenExitDialog(true);
+      // Exit fullscreen (best-effort) before navigating away
+      try { exitFullscreen(); } catch (e) { /* ignore */ }
 
-  // Invalidate all relevant queries to refresh dashboard data
+      // Invalidate all relevant queries to refresh dashboard data
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/analytics/'] }); // Main dashboard
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/comprehensive-analytics/'] }); // Landing dashboard
       queryClient.invalidateQueries({ queryKey: [`testSession-${sessionId}`] }); // Current test session
-      
+
       // Invalidate any test sessions lists or test-related data
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey[0];
           return (
             typeof key === "string" &&
             (
-              key.includes('test-session') || 
+              key.includes('test-session') ||
               key.includes('/api/test-sessions') ||
               key.includes('dashboard') ||
               key.includes('analytics')
@@ -324,13 +330,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           );
         }
       });
-      
+
       // Disable navigation blocking and navigate away
       setIsNavigationBlocked(false);
       navigate("/dashboard");
-  // Clean up state after navigation
-  setIsSubmitting(false);
-  setSuppressFullscreenExitDialog(false);
+      // Clean up state after navigation
+      setIsSubmitting(false);
+      setSuppressFullscreenExitDialog(false);
     },
     onError: () => {
       toast({
@@ -338,15 +344,15 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         description: "Failed to quit test. Please try again.",
         variant: "destructive",
       });
-  setSuppressFullscreenExitDialog(false);
-  setIsSubmitting(false);
-  setTimeOverHandled(false); // Reset time over handled flag on error
+      setSuppressFullscreenExitDialog(false);
+      setIsSubmitting(false);
+      setTimeOverHandled(false); // Reset time over handled flag on error
     },
   });
 
-    // Current question derived from fetched data and current index
+  // Current question derived from fetched data and current index
   const currentQuestion = testData?.questions[currentQuestionIndex];
-  
+
   // Debug logging for troubleshooting
   console.log('🐛 Debug TestInterface:');
   console.log('  - sessionId:', sessionId);
@@ -393,7 +399,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     const effectiveEnd = endTime - accumulatedPauseMs;
     const effectiveStart = currentVisitStartTimeRef.current;
     const duration = Math.round((effectiveEnd - effectiveStart) / 1000);
-    
+
     // Only log if user spent at least 1 second on question
     if (duration >= 1) {
       const payload = {
@@ -403,9 +409,9 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         visitStartTime: new Date(currentVisitStartTimeRef.current).toISOString(),
         visitEndTime: new Date(endTime).toISOString()
       };
-      
+
       console.log(`⏱️ Enhanced: Sending time log payload:`, payload);
-      
+
       // Mark as logged for this visit start before mutating to avoid races
       lastLoggedVisitStartRef.current[questionId] = currentVisitStartTimeRef.current;
       logTimeMutation.mutate(payload);
@@ -450,7 +456,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     // Reset pause accounting for the new visit
     setAccumulatedPauseMs(0);
     setPauseStartTime(null);
-    
+
     console.log(`⏱️ Enhanced: Started timer for question ${questionId} at ${new Date(now).toISOString()}`);
   };
 
@@ -458,7 +464,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
   const handleAnswerChange = (questionId: number, answer: string) => {
     // Prevent answering if time is over or fullscreen is not active
-  if (showTimeOverDialog || !isFullscreenActive || !started || paused) {
+    if (showTimeOverDialog || !isFullscreenActive || !started || paused) {
       if ((!isFullscreenActive || !started) && !showQuitDialog) setShowQuitDialog(true);
       return;
     }
@@ -516,28 +522,28 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   };
 
   const handleNextQuestion = () => {
-  if (currentQuestionIndex < totalQuestions - 1 && !showTimeOverDialog && isFullscreenActive && started && !paused) { // Prevent navigation when time is over or not fullscreen
-  // Only change the current index and reset local start time.
-  // Actual logging and visit-start for the previous/new question
-  // is handled centrally in the effect that watches `currentQuestionIndex`.
-  const nextIndex = currentQuestionIndex + 1;
-  setCurrentQuestionIndex(nextIndex);
-  setQuestionStartTime(Date.now()); // Reset local timer for next question
+    if (currentQuestionIndex < totalQuestions - 1 && !showTimeOverDialog && isFullscreenActive && started && !paused) { // Prevent navigation when time is over or not fullscreen
+      // Only change the current index and reset local start time.
+      // Actual logging and visit-start for the previous/new question
+      // is handled centrally in the effect that watches `currentQuestionIndex`.
+      const nextIndex = currentQuestionIndex + 1;
+      setCurrentQuestionIndex(nextIndex);
+      setQuestionStartTime(Date.now()); // Reset local timer for next question
     }
   };
 
   const handlePreviousQuestion = () => {
-  if (currentQuestionIndex > 0 && !showTimeOverDialog && isFullscreenActive && started && !paused) { // Prevent navigation when time is over or not fullscreen
-  // Only change the current index and reset local start time.
-  // Centralized effect will log the previous visit and start tracking the new one.
-  const prevIndex = currentQuestionIndex - 1;
-  setCurrentQuestionIndex(prevIndex);
-  setQuestionStartTime(Date.now()); // Reset local timer for previous question
+    if (currentQuestionIndex > 0 && !showTimeOverDialog && isFullscreenActive && started && !paused) { // Prevent navigation when time is over or not fullscreen
+      // Only change the current index and reset local start time.
+      // Centralized effect will log the previous visit and start tracking the new one.
+      const prevIndex = currentQuestionIndex - 1;
+      setCurrentQuestionIndex(prevIndex);
+      setQuestionStartTime(Date.now()); // Reset local timer for previous question
     }
   };
 
   const navigateToQuestion = (index: number) => {
-  if (!showTimeOverDialog && isFullscreenActive && started && !paused) { // Prevent navigation when time is over or not fullscreen
+    if (!showTimeOverDialog && isFullscreenActive && started && !paused) { // Prevent navigation when time is over or not fullscreen
       // Only change index and reset start time. The index-change effect
       // will handle logging the previous visit and starting the new visit.
       if (index !== currentQuestionIndex) {
@@ -589,10 +595,10 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     if (currentQuestion) {
       logCurrentQuestionTime(currentQuestion.id);
     }
-    
+
     // Show time over dialog to inform the user
     setShowTimeOverDialog(true);
-    
+
     // Set auto-submit after 10 seconds if user doesn't manually submit
     // Suppress fullscreen-exit dialogs while auto-submitting to avoid
     // fullscreen change handlers from opening modals or toggling state
@@ -608,7 +614,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         setTimeOverHandled(true); // Mark that time over has been handled
       }
     }, 10000); // 10 seconds delay
-    
+
     setTimeOverAutoSubmit(autoSubmitTimeout);
   };
 
@@ -698,7 +704,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
     // Block common navigation keyboard shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
-  if (isNavigationBlocked) {
+      if (isNavigationBlocked) {
         // Block critical navigation shortcuts including tab switching
         const shouldBlock = (
           (e.ctrlKey && ['w', 'W', 't', 'T', 'n', 'N'].includes(e.key)) ||
@@ -711,16 +717,16 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           (e.ctrlKey && e.key === 'Tab') || // Ctrl+Tab
           (e.altKey && e.key === 'Tab')    // Alt+Tab
         );
-        
+
         if (shouldBlock) {
           e.preventDefault();
           e.stopPropagation();
-          
+
           // Show quit dialog immediately for keyboard shortcuts
           if (!showQuitDialog && !showSubmitDialog && !showTimeOverDialog && !isSubmitting) {
             setShowQuitDialog(true);
           }
-          
+
           // Show warning toast
           toast({
             title: "🚫 Navigation Blocked",
@@ -745,21 +751,21 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       // Setup history blocking
       window.history.pushState(null, "", window.location.href);
       window.addEventListener("popstate", handlePopState);
-      
+
       // Setup unload blocking
       window.addEventListener("beforeunload", handleBeforeUnload);
-      
+
       // Setup focus management (less aggressive)
       window.addEventListener("blur", handleWindowBlur);
       window.addEventListener("focus", handleWindowFocus);
       document.addEventListener("visibilitychange", handleVisibilityChange);
-      
+
       // Setup keyboard blocking (only critical shortcuts)
       document.addEventListener("keydown", handleKeyDown);
-      
+
       // Block context menu
       document.addEventListener("contextmenu", handleContextMenu);
-      
+
       // Set initial page title
       document.title = "NEET Test - NEET Ninja";
     }
@@ -783,8 +789,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     setShowQuitDialog(false);
     suppressFullscreenExitDialogRef.current = true;
     setSuppressFullscreenExitDialog(true);
-  try { exitFullscreen(); } catch (e) { /* ignore */ }
-  quitTestMutation.mutate();
+    try { exitFullscreen(); } catch (e) { /* ignore */ }
+    quitTestMutation.mutate();
   };
 
   // === FULLSCREEN ENFORCEMENT ===
@@ -865,9 +871,9 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   // === ENHANCED TIME TRACKING INITIALIZATION ===
   // Enhanced time tracking: Start timer when test data loads and current question is available
   useEffect(() => {
-  // This effect used to start the visit timer when data first loads.
-  // Timer start is now managed in the `currentQuestionIndex` effect to avoid
-  // duplicate starts. Keep this effect for any future initialization needs.
+    // This effect used to start the visit timer when data first loads.
+    // Timer start is now managed in the `currentQuestionIndex` effect to avoid
+    // duplicate starts. Keep this effect for any future initialization needs.
   }, [testData, currentQuestion, isSubmitting]); // Run when test data or current question changes
   // NOTE: isSubmitting intentionally excluded previously; add it so handlers see the latest value
 
@@ -946,23 +952,23 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     // User chose to continue the exam
     setShowQuitDialog(false);
     setIsAwaitingFocusReturn(false);
-    
+
     // Re-push the state to prevent navigation
     window.history.pushState(null, "", window.location.href);
-    
+
     // Refocus the window and bring user back to test
     window.focus();
-    
+
     // Reset page title
     document.title = "NEET Test - NEET Ninja";
-    
+
     // Show encouraging message
     toast({
       title: "Welcome Back!",
       description: "Continue with your test. Stay focused to achieve your best score!",
       variant: "default",
     });
-    
+
     // Re-request fullscreen and re-enable navigation blocking
     (async () => {
       try {
@@ -995,15 +1001,15 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const getQuestionButtonClasses = (status: string) => {
     switch (status) {
       case "current":
-        return "bg-[#4F83FF] text-white ring-2 ring-[#4F83FF] ring-offset-2";
+        return "bg-blue-500 text-white ring-2 ring-blue-500 ring-offset-2";
       case "answered":
-        return "bg-[#10B981] text-white";
+        return "bg-green-500 text-white";
       case "answered-marked":
-        return "bg-[#8B5CF6] text-white";
+        return "bg-purple-500 text-white";
       case "marked":
-        return "bg-[#FCD34D] text-[#1F2937]";
+        return "bg-yellow-400 text-gray-900";
       default:
-        return "bg-[#E2E8F0] text-[#6B7280]";
+        return "bg-gray-200 text-gray-600";
     }
   };
 
@@ -1011,78 +1017,78 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const getPaletteButtonClasses = (status: string) => {
     switch (status) {
       case "current":
-        return "bg-[#4F83FF] text-white";
+        return "bg-blue-500 text-white";
       case "answered":
-        return "bg-[#10B981] text-white";
+        return "bg-green-500 text-white";
       case "answered-marked":
-        return "bg-[#8B5CF6] text-white";
+        return "bg-purple-500 text-white";
       case "marked":
-        return "bg-[#FCD34D] text-[#1F2937]";
+        return "bg-yellow-400 text-gray-900";
       default:
-        return "bg-[#E2E8F0] text-[#6B7280]";
+        return "bg-gray-200 text-gray-600";
     }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 flex items-center justify-center">
-        <div className="text-center bg-white rounded-2xl shadow-lg border border-[#E2E8F0] p-8 max-w-md mx-4">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[#4F83FF] mx-auto"></div>
-          <p className="mt-4 text-[#6B7280] font-medium">Loading test...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 flex items-center justify-center px-4">
+        <div className="text-center bg-white rounded-xl shadow-lg border border-gray-200 p-6 max-w-sm mx-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-500 font-medium text-sm">Loading test...</p>
         </div>
       </div>
     );
   }
 
   if (!testData || !currentQuestion) {
-      // If testData exists but has no questions, or not enough questions, show a themed popup
-      if (
-        testData &&
-        testData.questions &&
-        (
-          testData.questions.length === 0 ||
-          (testData.session && testData.questions.length < testData.session.totalQuestions)
-        )
-      ) {
-        return (
-          <AlertDialog open={true}>
-            <AlertDialogContent className="bg-white border border-[#E2E8F0] rounded-2xl shadow-lg max-w-md mx-auto">
-              <AlertDialogHeader>
-                <div className="flex flex-col items-center justify-center">
-                  <Info className="h-14 w-14 text-blue-500 mb-2" />
-                  <AlertDialogTitle className="text-[#1F2937] font-bold text-lg text-center mb-1">Insufficient Questions</AlertDialogTitle>
-                  <AlertDialogDescription className="text-[#6B7280] text-center">
-                    Not enough questions are available for your selected topics.<br />
-                    Please choose different topics or broaden your selection.
-                  </AlertDialogDescription>
-                </div>
-              </AlertDialogHeader>
-              <AlertDialogFooter className="flex justify-center mt-4">
-                <AlertDialogAction 
-                  className="bg-[#4F83FF] text-white rounded-xl hover:bg-[#3B82F6] px-6 py-2 font-medium"
-                  onClick={() => window.location.href = '/topics'}
-                >
-                  Return to Topic Selection
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        );
-      }
+    // If testData exists but has no questions, or not enough questions, show a themed popup
+    if (
+      testData &&
+      testData.questions &&
+      (
+        testData.questions.length === 0 ||
+        (testData.session && testData.questions.length < testData.session.totalQuestions)
+      )
+    ) {
+      return (
+        <AlertDialog open={true}>
+          <AlertDialogContent className="bg-white border border-gray-200 rounded-xl shadow-lg max-w-sm mx-4">
+            <AlertDialogHeader>
+              <div className="flex flex-col items-center justify-center">
+                <Info className="h-12 w-12 text-blue-500 mb-2" />
+                <AlertDialogTitle className="text-gray-900 font-bold text-lg text-center mb-1">Insufficient Questions</AlertDialogTitle>
+                <AlertDialogDescription className="text-gray-500 text-center text-sm">
+                  Not enough questions are available for your selected topics.<br />
+                  Please choose different topics or broaden your selection.
+                </AlertDialogDescription>
+              </div>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex justify-center mt-4">
+              <AlertDialogAction
+                className="bg-blue-500 text-white rounded-xl hover:bg-blue-600 px-4 py-2 font-medium text-sm"
+                onClick={() => window.location.href = '/topics'}
+              >
+                Return to Topic Selection
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      );
+    }
     // Fallback for other errors
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 flex items-center justify-center">
-        <div className="text-center bg-white rounded-2xl shadow-lg border border-[#E2E8F0] p-8 max-w-md mx-4">
-          <AlertTriangle className="h-16 w-16 text-[#DC2626] mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-[#1F2937] mb-2">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 flex items-center justify-center px-4">
+        <div className="text-center bg-white rounded-xl shadow-lg border border-gray-200 p-6 max-w-sm mx-4">
+          <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+          <h2 className="text-lg font-bold text-gray-900 mb-2">
             Test Not Found
           </h2>
-          <p className="text-[#6B7280]">
+          <p className="text-gray-500 text-sm">
             Unable to load the test. Please try again.
           </p>
           <button
             onClick={() => window.location.href = '/topics'}
-            className="mt-6 px-6 py-3 bg-[#4F83FF] text-white rounded-xl hover:bg-[#3B82F6] transition-colors shadow-md font-medium"
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors shadow-md font-medium text-sm"
           >
             Return to Topics
           </button>
@@ -1092,125 +1098,68 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50">
       {/* Preparing results overlay: shown while submit is in progress to improve UX */}
       {isSubmitting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90">
-          <div className="text-center px-6 py-8 max-w-sm rounded-lg">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-            <h2 className="text-xl font-semibold text-[#1F2937]">Preparing your results...</h2>
-            <p className="text-sm text-gray-600 mt-2">We are finalizing your test results. This may take a few seconds.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 px-4">
+          <div className="text-center px-4 py-6 max-w-sm rounded-lg">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
+            <h2 className="text-lg font-semibold text-gray-900">Preparing your results...</h2>
+            <p className="text-xs text-gray-600 mt-2">We are finalizing your test results. This may take a few seconds.</p>
           </div>
         </div>
       )}
       {/* START OVERLAY: require user gesture to enter fullscreen */}
       {!started && testData?.questions && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-white rounded-2xl p-8 max-w-lg text-center">
-            <h2 className="text-2xl font-bold mb-4">Start NEET Practice Test</h2>
-            <p className="text-sm text-[#6B7280] mb-6">This test requires fullscreen mode. Click below to start and enter secure test mode.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm text-center mx-4">
+            <h2 className="text-xl font-bold mb-4">Start NEET Practice Test</h2>
+            <p className="text-xs text-gray-500 mb-6">This test requires fullscreen mode. Click below to start and enter secure test mode.</p>
             <div className="flex justify-center">
-              <Button onClick={startTest} className="bg-[#4F83FF] text-white px-6 py-3">Start Test (Enter Fullscreen)</Button>
+              <Button onClick={startTest} className="bg-blue-500 text-white px-4 py-2 text-sm">Start Test (Enter Fullscreen)</Button>
             </div>
           </div>
         </div>
       )}
+      {/* Header with Navigation and Profile */}
+      <TestHeader
+        started={started}
+        paused={paused}
+        timeLimit={testData.session.timeLimit}
+        onTimeUp={handleTimeUp}
+        onTogglePause={() => {
+          if (!paused) {
+            setPaused(true);
+            setPauseStartTime(Date.now());
+            cancelAutoSubmit();
+          } else {
+            const now = Date.now();
+            if (pauseStartTime) setAccumulatedPauseMs(prev => prev + (now - pauseStartTime));
+            setPauseStartTime(null);
+            setPaused(false);
+          }
+        }}
+        onSubmitTest={showTimeOverDialog ? handleTimeOverSubmit : handleSubmitTest}
+        showTimeOverDialog={showTimeOverDialog}
+        isSubmitting={isSubmitting}
+      />
+
       {/* Secure Test Mode Banner */}
-      {isNavigationBlocked && (
-        <div className="w-full bg-blue-600 text-white px-4 py-2 text-center text-sm font-medium mb-2 rounded-xl shadow-lg">
-          🔒 SECURE TEST MODE - Navigation shortcuts are restricted during the exam
-        </div>
-      )}
-      
-      {/* Header with Navigation and Profile - matching home page */}
-      <header className="w-full bg-white/95 backdrop-blur-sm border-b border-blue-100 sticky top-0 z-50 shadow-sm mb-6 rounded-2xl">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-[#4F83FF] rounded-lg flex items-center justify-center shadow-md">
-                <Clock className="h-5 w-5 text-white" />
-              </div>
-              <h1 className="text-xl font-bold text-[#1F2937] tracking-tight">NEET Practice Test</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              {testData.session.timeLimit ? (
-                <>
-                  <span className="text-sm font-medium text-[#1F2937]">Time Remaining:</span>
-                  <div className="flex items-center space-x-3">
-                    {started ? (
-                      <Timer
-                        initialMinutes={testData.session.timeLimit}
-                        onTimeUp={handleTimeUp}
-                        className="bg-[#FCD34D] text-[#1F2937] px-4 py-2 rounded-xl font-mono text-lg font-bold shadow-md"
-                        paused={paused}
-                      />
-                    ) : (
-                      <div className="text-sm font-medium bg-[#F3F4F6] text-[#6B7280] px-4 py-2 rounded-xl font-mono text-lg font-bold shadow-md">
-                        Start test to begin timer
-                      </div>
-                    )}
-                    {/* Pause / Resume button */}
-                    {started && (
-                      <Button
-                        onClick={() => {
-                          if (!paused) {
-                            setPaused(true);
-                            setPauseStartTime(Date.now());
-                            // While paused, we should cancel any pending auto-submit scheduled by fullscreen hook
-                            cancelAutoSubmit();
-                          } else {
-                            // resuming
-                            const now = Date.now();
-                            if (pauseStartTime) {
-                              setAccumulatedPauseMs(prev => prev + (now - pauseStartTime));
-                            }
-                            setPauseStartTime(null);
-                            setPaused(false);
-                          }
-                        }}
-                        className="px-3 py-2 bg-[#10B981] text-white rounded-lg"
-                      >
-                        {paused ? 'Resume' : 'Pause'}
-                      </Button>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="text-sm font-medium bg-[#F3F4F6] text-[#1F2937] px-4 py-2 rounded-xl font-mono text-lg font-bold shadow-md">
-                  <Clock className="h-4 w-4 inline mr-1" />
-                  No Time Limit
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <SecurityBanner enabled={isNavigationBlocked} />
 
-      {/* Security Warning Banner */}
-      {isNavigationBlocked && (
-        <div className="max-w-7xl mx-auto mb-4">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 flex items-center space-x-3">
-            <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
-            <div className="text-sm text-yellow-800">
-              <span className="font-medium">Secure Test Mode:</span> Tab switching and window navigation are blocked during the test. Use "Quit Exam" to leave.
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="max-w-6xl mx-auto">
-        <Card className="bg-white border border-[#E2E8F0] shadow-lg rounded-2xl overflow-hidden">
+      <div className="max-w-6xl mx-auto px-2">
+        <Card className="bg-white border border-gray-200 shadow-lg rounded-xl overflow-hidden">
           {/* Test Progress Header */}
-          <div className="bg-white text-[#1F2937] p-6 border-b border-[#E2E8F0]">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center space-x-6 min-w-[350px]">
-                <span className="font-semibold text-lg text-[#1F2937] whitespace-nowrap">
-                  Question <span className="text-[#4F83FF]">{currentQuestionIndex + 1}</span> of {totalQuestions}
-                </span>     
-                <div className="mt-2">
-                  <Progress 
-                    value={progressPercentage} 
-                    className="h-3 bg-[#E8F0FF] flex-1 min-w-[200px] w-[250px] md:w-[350px] rounded-full overflow-hidden"
+          <div className="bg-white text-gray-900 p-4 border-b border-gray-200">
+            <div className="flex flex-col justify-between items-center space-y-3">
+              <div className="flex items-center space-x-4 min-w-0">
+                <span className="font-semibold text-base text-gray-900 whitespace-nowrap">
+                  Question <span className="text-blue-500">{currentQuestionIndex + 1}</span> of {totalQuestions}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <Progress
+                    value={progressPercentage}
+                    className="h-2 bg-blue-50 w-full rounded-full overflow-hidden"
                   />
                 </div>
               </div>
@@ -1218,12 +1167,12 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           </div>
 
           {/* Question Content */}
-          <CardContent className="p-8">
-            <div className="mb-8">
-              <span className="inline-block bg-[#E8F0FF] text-[#4F83FF] text-sm px-3 py-1 rounded-full mb-4 font-medium">
+          <CardContent className="p-4">
+            <div className="mb-6">
+              <span className="inline-block bg-blue-50 text-blue-500 text-xs px-2 py-1 rounded-full mb-3 font-medium">
                 Question {currentQuestionIndex + 1}
               </span>
-              <h3 className="text-xl font-semibold text-[#1F2937] leading-relaxed">
+              <h3 className="text-lg font-semibold text-gray-900 leading-relaxed">
                 {currentQuestion.question}
               </h3>
             </div>
@@ -1234,18 +1183,18 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
               onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
               disabled={showTimeOverDialog} // Disable when time is over
             >
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {["A", "B", "C", "D"].map((option) => (
                   <Label
                     key={option}
-                    className="flex items-center p-4 bg-[#F8FAFC] rounded-xl hover:bg-[#E8F0FF] cursor-pointer transition-colors border-2 border-[#E2E8F0] hover:border-[#4F83FF]/30"
+                    className="flex items-start p-3 bg-gray-50 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors border-2 border-gray-200 hover:border-blue-300 min-h-[3rem]"
                   >
-                    <RadioGroupItem value={option} className="mr-4" />
-                    <div className="flex items-center">
-                      <span className="bg-[#E2E8F0] text-[#1F2937] w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold mr-4">
+                    <RadioGroupItem value={option} className="mr-3 mt-1" />
+                    <div className="flex items-start flex-1">
+                      <span className="bg-gray-200 text-gray-900 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold mr-3 flex-shrink-0 mt-0.5">
                         {option}
                       </span>
-                      <span className="text-[#1F2937] font-medium">
+                      <span className="text-gray-900 font-medium text-sm leading-relaxed">
                         {currentQuestion[`option${option}` as keyof Question]}
                       </span>
                     </div>
@@ -1253,46 +1202,14 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                 ))}
               </div>
             </RadioGroup>
-
-            {/* Navigation Buttons */}
-            <div className="flex justify-between mt-8">
-              <Button
-                onClick={handlePreviousQuestion}
-                disabled={currentQuestionIndex === 0 || showTimeOverDialog}
-                variant="outline"
-                className="px-6 py-3 border-[#E2E8F0] text-[#6B7280] hover:bg-[#F8FAFC] hover:border-[#4F83FF]/30"
-              >
-                <ChevronLeft className="h-4 w-4 mr-2" />
-                Previous
-              </Button>
-              <div className="flex space-x-4">
-                <Button
-                  onClick={handleMarkForReview}
-                  variant="outline"
-                  className="px-6 py-3 border-[#F59E0B] text-[#F59E0B] hover:bg-[#FEF3C7]"
-                  disabled={showTimeOverDialog}
-                >
-                  <Bookmark className="h-4 w-4 mr-2" />
-                  {markedForReview.has(currentQuestion.id) ? "Unmark" : "Mark for Review"}
-                </Button>
-                <Button
-                  onClick={handleNextQuestion}
-                  disabled={currentQuestionIndex === totalQuestions - 1 || showTimeOverDialog}
-                  className="bg-[#4F83FF] text-white px-6 py-3 hover:bg-[#3B82F6] shadow-md"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
-            </div>
           </CardContent>
 
           {/* Question Navigation Panel */}
-          <div className="bg-[#F8FAFC] border-t border-[#E2E8F0] p-6">
-            <h4 className="text-sm font-semibold text-[#1F2937] mb-4">
+          <div className="bg-gray-50 border-t border-gray-200 p-4">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">
               Question Navigation
             </h4>
-            <div className="grid grid-cols-10 gap-2 mb-6">
+            <div className="grid grid-cols-8 gap-2 mb-4">
               {testData.questions.map((question, index) => {
                 const status = getQuestionStatus(index, question.id);
                 const isCurrentQuestion = index === currentQuestionIndex;
@@ -1302,135 +1219,102 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                     onClick={() => navigateToQuestion(index)}
                     size="sm"
                     disabled={showTimeOverDialog} // Disable question navigation when time is over
-                    className={`w-8 h-8 rounded-lg text-xs font-semibold transition-colors ${
-                      isCurrentQuestion 
-                        ? "ring-2 ring-[#4F83FF] ring-offset-2" 
-                        : ""
-                    } ${getPaletteButtonClasses(status)} ${showTimeOverDialog ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`w-8 h-8 rounded-lg text-xs font-semibold transition-colors ${isCurrentQuestion
+                      ? "ring-2 ring-blue-500 ring-offset-2"
+                      : ""
+                      } ${getPaletteButtonClasses(status)} ${showTimeOverDialog ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {index + 1}
                   </Button>
                 );
               })}
             </div>
-            <div className="flex justify-between items-center">
-              <div className="flex items-center space-x-6 text-xs text-[#6B7280]">
+            <div className="flex flex-col justify-between items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
                 <div className="flex items-center">
-                  <div className="w-4 h-4 bg-[#10B981] rounded mr-2"></div>
+                  <div className="w-3 h-3 bg-green-500 rounded mr-2"></div>
                   <span>Answered</span>
                 </div>
                 <div className="flex items-center">
-                  <div className="w-4 h-4 bg-[#F59E0B] rounded mr-2"></div>
-                  <span>Marked for Review</span>
+                  <div className="w-3 h-3 bg-amber-500 rounded mr-2"></div>
+                  <span>Marked</span>
                 </div>
                 <div className="flex items-center">
-                  <div className="w-4 h-4 bg-[#E2E8F0] rounded mr-2"></div>
+                  <div className="w-3 h-3 bg-gray-200 rounded mr-2"></div>
                   <span>Not Visited</span>
                 </div>
               </div>
-              <Button
-                onClick={showTimeOverDialog ? handleTimeOverSubmit : handleSubmitTest}
-                className={`px-6 py-2 font-semibold shadow-md ${
-                  showTimeOverDialog 
-                    ? 'bg-[#DC2626] hover:bg-[#B91C1C] text-white animate-pulse' 
-                    : 'bg-[#DC2626] text-white hover:bg-[#B91C1C]'
-                }`}
-                disabled={submitTestMutation.isPending}
-              >
-                <Check className="h-4 w-4 mr-2" />
-                {showTimeOverDialog ? 'Submit Test (Time Over)' : 'Submit Test'}
-              </Button>
             </div>
           </div>
         </Card>
       </div>
 
       {/* Submit Confirmation Dialog */}
-      <AlertDialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
-        <AlertDialogContent className="bg-white border border-[#E2E8F0] rounded-2xl shadow-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#1F2937] font-bold">Submit Test?</AlertDialogTitle>
-            <AlertDialogDescription className="text-[#6B7280]">
-              Are you sure you want to submit your test? This action cannot be undone.
-              You have answered {Object.keys(answers).length} out of {totalQuestions} questions.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="border-[#E2E8F0] text-[#6B7280] hover:bg-[#F8FAFC]">Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={confirmSubmit}
-              className="bg-[#DC2626] hover:bg-[#B91C1C] text-white"
-            >
-              Submit Test
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <SubmitDialog
+        isOpen={showSubmitDialog}
+        answersCount={Object.keys(answers).length}
+        totalQuestions={totalQuestions}
+        onConfirm={confirmSubmit}
+        onCancel={() => setShowSubmitDialog(false)}
+      />
 
       {/* Time Over Dialog */}
-      <AlertDialog open={showTimeOverDialog && !timeOverHandled} onOpenChange={() => {}}>
-        <AlertDialogContent className="border-[#FCA5A5] bg-[#FEF2F2] rounded-2xl shadow-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#DC2626] flex items-center font-bold">
-              <Clock className="h-5 w-5 mr-2" />
-              Time Over!
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-[#DC2626]">
-              Your test time has expired. Your test will be automatically submitted in 10 seconds, 
-              or you can submit it now manually. You have answered{" "}
-              {Object.keys(answers).length} out of {totalQuestions} questions.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction 
-              onClick={handleTimeOverSubmit}
-              className="bg-[#DC2626] hover:bg-[#B91C1C] text-white w-full"
-            >
-              <Check className="h-4 w-4 mr-2" />
-              Submit Test Now
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <TimeOverDialog
+        isOpen={showTimeOverDialog && !timeOverHandled}
+        answersCount={Object.keys(answers).length}
+        totalQuestions={totalQuestions}
+        onSubmit={handleTimeOverSubmit}
+      />
 
       {/* Quit Exam Confirmation Dialog */}
-      <AlertDialog open={showQuitDialog} onOpenChange={() => {}}>
-        <AlertDialogContent className="border-[#4F83FF] bg-[#E8F0FF] rounded-2xl shadow-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#2563EB] flex items-center font-bold">
-              <AlertTriangle className="h-5 w-5 mr-2 text-[#4F83FF]" />
-              Quit Exam?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-[#2563EB]">
-              Are you sure you want to quit the exam? Your test will be marked as incomplete and 
-              you won't be able to resume it later. You have answered{" "}
-              {Object.keys(answers).length} out of {totalQuestions} questions.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel 
-              onClick={handleQuitCancel}
-              className="bg-[#10B981] hover:bg-[#059669] text-white border-none"
+      <QuitDialog
+        isOpen={showQuitDialog}
+        answersCount={Object.keys(answers).length}
+        totalQuestions={totalQuestions}
+        isPending={quitTestMutation.isPending}
+        onConfirm={handleQuitConfirm}
+        onCancel={handleQuitCancel}
+      />
+
+      {/* Sticky Navigation Footer */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 py-2">
+        <div className="w-full px-2">
+          <div className="flex justify-between items-center gap-1">
+            <Button
+              onClick={handlePreviousQuestion}
+              disabled={currentQuestionIndex === 0 || showTimeOverDialog}
+              variant="outline"
+              className="px-2 py-2 border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-blue-300 text-sm flex-1 min-w-0"
             >
-              Continue Exam
-            </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleQuitConfirm}
-              className="bg-[#4F83FF] hover:bg-[#2563EB] text-white"
-              disabled={quitTestMutation.isPending}
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Previous</span>
+              <span className="sm:hidden">Prev</span>
+            </Button>
+            <Button
+              onClick={handleMarkForReview}
+              variant="outline"
+              className="px-2 py-2 border-amber-500 text-amber-500 hover:bg-yellow-50 text-sm flex-1 min-w-0"
+              disabled={showTimeOverDialog}
             >
-              {quitTestMutation.isPending ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                  Quitting...
-                </>
-              ) : (
-                "Quit Exam"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <Bookmark className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Mark for Review</span>
+              <span className="sm:hidden">Mark</span>
+            </Button>
+            <Button
+              onClick={handleNextQuestion}
+              disabled={currentQuestionIndex === totalQuestions - 1 || showTimeOverDialog}
+              className="bg-blue-500 text-white px-2 py-2 hover:bg-blue-600 shadow-md text-sm flex-1 min-w-0"
+            >
+              <span className="hidden sm:inline">Next</span>
+              <span className="sm:hidden">Next</span>
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Add bottom padding to prevent content from being hidden behind footer */}
+      <div className="h-20"></div>
     </div>
   );
 }

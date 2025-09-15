@@ -159,24 +159,27 @@ export default function GoogleSignIn({
       return;
     }
 
-    // Listen for popup messages
-    const checkClosed = setInterval(() => {
-      if (popup.closed) {
-        setLoading(false);
-        clearInterval(checkClosed);
+    // Set up timeout for popup (5 minutes)
+    const timeoutId = setTimeout(() => {
+      try {
+        popup.close();
+      } catch (e) {
+        // Ignore errors if popup is already closed
       }
-    }, 1000);
+      setLoading(false);
+      onError?.('Authentication timeout. Please try again.');
+    }, 300000); // 5 minutes
 
     // Listen for messages from popup
     const messageHandler = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       
+      clearTimeout(timeoutId);
+      
       if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-        clearInterval(checkClosed);
         popup.close();
         handleAuthSuccess(event.data.code, state);
       } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
-        clearInterval(checkClosed);
         popup.close();
         setLoading(false);
         onError?.(event.data.error || GOOGLE_ERRORS.SIGN_IN_FAILED);
@@ -185,14 +188,10 @@ export default function GoogleSignIn({
 
     window.addEventListener('message', messageHandler);
     
-    // Cleanup
+    // Cleanup after timeout
     setTimeout(() => {
       window.removeEventListener('message', messageHandler);
-      if (!popup.closed) {
-        popup.close();
-        setLoading(false);
-      }
-    }, 300000); // 5 minutes timeout
+    }, 300000);
   };
 
   const handleAuthSuccess = async (code: string, state: string) => {
