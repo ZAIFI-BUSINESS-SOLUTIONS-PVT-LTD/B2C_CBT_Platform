@@ -1,4 +1,4 @@
-import { Clock, Pause, Play, Check } from "lucide-react";
+import { Clock, Pause, Play, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Timer } from "@/components/timer";
 
@@ -11,6 +11,7 @@ interface TestHeaderProps {
   onSubmitTest: () => void;
   showTimeOverDialog: boolean;
   isSubmitting: boolean;
+  onQuit: () => void;
 }
 
 export default function TestHeader({
@@ -21,7 +22,8 @@ export default function TestHeader({
   onTogglePause,
   onSubmitTest,
   showTimeOverDialog,
-  isSubmitting
+  isSubmitting,
+  onQuit
 }: TestHeaderProps) {
   return (
     <header className="w-full bg-white backdrop-blur-sm border-b border-blue-100 sticky top-0 z-40 shadow-sm mb-2">
@@ -29,14 +31,25 @@ export default function TestHeader({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             {started && (
-              <Button
-                onClick={onTogglePause}
-                size="icon"
-                className="bg-green-500 hover:bg-green-600 aspect-square"
-                title={paused ? 'Resume Test' : 'Pause Test'}
-              >
-                {paused ? <Play /> : <Pause />}
-              </Button>
+              <>
+                <Button
+                  onClick={onQuit}
+                  size="icon"
+                  className="bg-red-500 hover:bg-red-600 aspect-square"
+                  title="Quit Exam"
+                >
+                  {/* You can use an icon here, e.g., AlertTriangle from lucide-react */}
+                  <X className="h-5 w-5 text-white" />
+                </Button>
+                <Button
+                  onClick={onTogglePause}
+                  size="icon"
+                  className="bg-green-500 hover:bg-green-600 aspect-square"
+                  title={paused ? 'Resume Test' : 'Pause Test'}
+                >
+                  {paused ? <Play /> : <Pause />}
+                </Button>
+              </>
             )}
             {timeLimit ? (
               <>

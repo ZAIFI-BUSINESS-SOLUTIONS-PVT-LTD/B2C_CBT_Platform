@@ -22,7 +22,7 @@ import { StudentProfile } from "@/components/profile-avatar";
 import Logo from "@/assets/images/logo.svg";
 import MiniChatbot from '@/components/mini-chatbot';
 import MiniDashboard from '@/components/mini-dashboard';
-import { ArrowRight, History, NotebookPen, TestTube, Trophy, AlertTriangle, Sparkles, Crown } from "lucide-react";
+import { ArrowRight, History, NotebookPen, TestTube, Trophy, AlertTriangle, Sparkles, Crown, Lock } from "lucide-react";
 import MobileDock from "@/components/mobile-dock";
 import { AnalyticsData, InsightsData } from "@/components/insight-card";
 import NeetCountdown from '@/components/coundown';
@@ -344,212 +344,243 @@ export default function Home() {
       <div className="w-full bg-gray-100">
 
         {/* ============================================================================= */}
-        {/* INSIGHTS SECTION - Only show if user has test data */}
+        {/* INSIGHTS SECTION - Show tabs always; if no tests, show friendly fallback cards */}
         {/* ============================================================================= */}
-        {hasData && (
-          <>
-            {/* Tab Headers - Outside the card, below header */}
-            <div className="border-b border-gray-200 bg-gray-50">
-              <nav ref={tabNavRef} className="flex overflow-x-auto hide-scrollbar px-4" aria-label="Tabs">
-                {[
-                  { id: 0, label: 'Study Plan', icon: NotebookPen, color: 'text-blue-600' },
-                  { id: 1, label: 'Last Test Recommendations', icon: History, color: 'text-indigo-600' },
-                  { id: 2, label: 'Strengths', icon: Trophy, color: 'text-green-600' },
-                  { id: 3, label: 'Weaknesses', icon: AlertTriangle, color: 'text-red-600' }
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    data-tab-id={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 active:bg-gray-50 whitespace-nowrap ${activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                  >
-                    <tab.icon className={`h-4 w-4 transition-colors duration-200 ${activeTab === tab.id ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} />
-                    <span>{tab.label}</span>
-                  </button>
-                ))}
-              </nav>
-            </div>
+        <>
+          {/* Tab Headers - Outside the card, below header */}
+          <div className="border-b border-gray-200 bg-gray-50">
+            <nav ref={tabNavRef} className="flex overflow-x-auto hide-scrollbar px-4" aria-label="Tabs">
+              {[
+                { id: 0, label: 'Study Plan', icon: NotebookPen, color: 'text-blue-600' },
+                { id: 1, label: 'Last Test Recommendations', icon: History, color: 'text-indigo-600' },
+                { id: 2, label: 'Strengths', icon: Trophy, color: 'text-green-600' },
+                { id: 3, label: 'Weaknesses', icon: AlertTriangle, color: 'text-red-600' }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  data-tab-id={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center justify-center gap-2 py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 active:bg-gray-50 whitespace-nowrap ${activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                >
+                  <tab.icon className={`h-4 w-4 transition-colors duration-200 ${activeTab === tab.id ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} />
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
 
-            {/* Tab Content Card */}
-            <div className="select-none insights-container relative">
-              <div
-                ref={touchContainerRef}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                className="overflow-hidden"
-              >
-                {/* Tab Content */}
-                <div className="p-4 min-h-[120px]">
-                  {/* Study Plan Tab */}
-                  {activeTab === 0 && (
-                    <div className="space-y-3">
-                      {insights?.data?.llmInsights?.studyPlan?.insights ? (
-                        <div className="space-y-3">
-                          {insights.data.llmInsights.studyPlan.insights.length > 0 && (() => {
-                            const firstInsight = insights.data.llmInsights.studyPlan.insights[0] as any;
-                            return (
-                              <InsightCard key={firstInsight?.id ?? firstInsight} variant="blue">
-                                {firstInsight?.text ?? firstInsight}
-                              </InsightCard>
-                            );
-                          })()}
-                        </div>
-                      ) : insights?.data?.improvementTopics && insights.data.improvementTopics.length > 0 ? (
+          {/* Tab Content Card */}
+          <div className="select-none insights-container relative">
+            <div
+              ref={touchContainerRef}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              className="overflow-hidden"
+            >
+              {/* Tab Content */}
+              <div className="p-4 min-h-[120px]">
+                {/* If user has no tests, show a clear fallback CTA card for all tabs */}
+                {!hasData ? (
+                  <div className="space-y-3">
+                    <InsightCard variant={activeTab === 0 ? 'blue' : activeTab === 1 ? 'indigo' : activeTab === 2 ? 'green' : 'red'}>
+                      <div className="flex flex-col  justify-center items-center gap-3">
                         <div>
-                          <p className="text-xs text-blue-700 mb-2">Recommended focus areas:</p>
-                          <ul className="space-y-1 text-xs">
-                            {insights.data.improvementTopics.slice(0, 3).map((topic: any, idx: number) => (
-                              <li key={idx} className="flex justify-between">
-                                <span>{topic.topic}</span>
-                                <span className="text-blue-600">{topic.accuracy}%</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
-                        <div>
-                          <p className="text-xs text-blue-700 mb-2">Focus on improving these areas:</p>
-                          <ul className="space-y-1 text-xs">
-                            {insights.data.weakTopics.slice(0, 2).map((topic: any, idx: number) => (
-                              <li key={idx} className="flex justify-between">
-                                <span>{topic.topic}</span>
-                                <span className="text-red-600">{topic.accuracy}%</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <InsightCard variant="blue">
-                            Take some tests to get AI-generated study plans!
-                          </InsightCard>
-                        </div>
-                      )}
-                    </div>
-                  )}
 
-                  {/* Last Test Tab */}
-                  {activeTab === 1 && (
-                    <div className="space-y-2">
-                      {insights?.data?.llmInsights?.lastTestFeedback?.insights ? (
-                        <div className="space-y-2">
-                          {insights.data.llmInsights.lastTestFeedback.insights.length > 0 && (() => {
-                            const firstInsight = insights.data.llmInsights.lastTestFeedback.insights[0] as any;
-                            return (
-                              <InsightCard key={firstInsight?.id ?? firstInsight} variant="indigo">
-                                {firstInsight?.text ?? firstInsight}
-                              </InsightCard>
-                            );
-                          })()}
-                        </div>
-                      ) : insights?.data?.lastTestTopics && insights.data.lastTestTopics.length > 0 ? (
-                        <div>
-                          <p className="text-xs text-indigo-700 mb-2">Recent test performance:</p>
-                          <ul className="space-y-1 text-xs">
-                            {insights.data.lastTestTopics.slice(0, 3).map((topic: any, idx: number) => (
-                              <li key={idx} className="flex justify-between">
-                                <span>{topic.topic}</span>
-                                <span className="text-indigo-600">{topic.accuracy}%</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <InsightCard variant="indigo">
-                            Complete a test to get AI feedback on your performance!
-                          </InsightCard>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                          <Lock className="h-16 w-16 text-gray-400" />
 
-                  {/* Strengths Tab */}
-                  {activeTab === 2 && (
-                    <div className="space-y-2">
-                      {(!analytics || analytics.totalTests === 0) ? (
-                        <div className="space-y-2">
-                          <InsightCard variant="gray">
-                            Complete practice tests to unlock your strengths!
-                          </InsightCard>
                         </div>
-                      ) : insights?.data?.llmInsights?.strengths?.insights ? (
-                        <div className="space-y-2">
-                          {insights.data.llmInsights.strengths.insights.length > 0 && (() => {
-                            const firstInsight = insights.data.llmInsights.strengths.insights[0] as any;
-                            return (
-                              <InsightCard key={firstInsight?.id ?? firstInsight} variant="green">
-                                {firstInsight?.text ?? firstInsight}
-                              </InsightCard>
-                            );
-                          })()}
+                        <div className="text-center">
+                          <p className="font-semibold">Get personalized insights</p>
+                          <p className="text-xs text-gray-600">Take your first practice test to unlock AI study plans, strengths and weaknesses analysis.</p>
                         </div>
-                      ) : insights?.data?.strengthTopics && insights.data.strengthTopics.length > 0 ? (
-                        <div>
-                          <p className="text-xs text-green-700 mb-2">Your top performing topics:</p>
-                          <ul className="space-y-1 text-xs">
-                            {insights.data.strengthTopics.slice(0, 3).map((topic: any, idx: number) => (
-                              <li key={idx} className="flex justify-between">
-                                <span>{topic.topic}</span>
-                                <span className="text-green-600">{topic.accuracy}%</span>
-                              </li>
-                            ))}
-                          </ul>
+                        <div className="flex">
+                          <Button
+                            variant="default"
+                            size="lg"
+                            onClick={() => navigate('/topics')}
+                            className="w-full rounded-lg font-bold"
+                            aria-label="Take a Test"
+                          >
+                            Take Unlimited Mock Tests
+                          </Button>
                         </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <InsightCard variant="green">
-                            Take some tests to get AI analysis of your strengths!
-                          </InsightCard>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    </InsightCard>
+                  </div>
+                ) : (
+                  // Existing content when user has data
+                  <>
+                    {/* Study Plan Tab */}
+                    {activeTab === 0 && (
+                      <div className="space-y-3">
+                        {insights?.data?.llmInsights?.studyPlan?.insights ? (
+                          <div className="space-y-3">
+                            {insights.data.llmInsights.studyPlan.insights.length > 0 && (() => {
+                              const firstInsight = insights.data.llmInsights.studyPlan.insights[0] as any;
+                              return (
+                                <InsightCard key={firstInsight?.id ?? firstInsight} variant="blue">
+                                  {firstInsight?.text ?? firstInsight}
+                                </InsightCard>
+                              );
+                            })()}
+                          </div>
+                        ) : insights?.data?.improvementTopics && insights.data.improvementTopics.length > 0 ? (
+                          <div>
+                            <p className="text-xs text-blue-700 mb-2">Recommended focus areas:</p>
+                            <ul className="space-y-1 text-xs">
+                              {insights.data.improvementTopics.slice(0, 3).map((topic: any, idx: number) => (
+                                <li key={idx} className="flex justify-between">
+                                  <span>{topic.topic}</span>
+                                  <span className="text-blue-600">{topic.accuracy}%</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
+                          <div>
+                            <p className="text-xs text-blue-700 mb-2">Focus on improving these areas:</p>
+                            <ul className="space-y-1 text-xs">
+                              {insights.data.weakTopics.slice(0, 2).map((topic: any, idx: number) => (
+                                <li key={idx} className="flex justify-between">
+                                  <span>{topic.topic}</span>
+                                  <span className="text-red-600">{topic.accuracy}%</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <InsightCard variant="blue">
+                              Take some tests to get AI-generated study plans!
+                            </InsightCard>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                  {/* Weaknesses Tab */}
-                  {activeTab === 3 && (
-                    <div className="space-y-2">
-                      {insights?.data?.llmInsights?.weaknesses?.insights ? (
-                        <div className="space-y-2">
-                          {insights.data.llmInsights.weaknesses.insights.length > 0 && (() => {
-                            const firstInsight = insights.data.llmInsights.weaknesses.insights[0] as any;
-                            return (
-                              <InsightCard key={firstInsight?.id ?? firstInsight} variant="red">
-                                {firstInsight?.text ?? firstInsight}
-                              </InsightCard>
-                            );
-                          })()}
-                        </div>
-                      ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
-                        <div>
-                          <p className="text-xs text-red-700 mb-2">Topics needing focus:</p>
-                          <ul className="space-y-1 text-xs">
-                            {insights.data.weakTopics.slice(0, 3).map((topic: any, idx: number) => (
-                              <li key={idx} className="flex justify-between">
-                                <span>{topic.topic}</span>
-                                <span className="text-red-600">{topic.accuracy}%</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <InsightCard variant="red">
-                            Take some tests to get AI analysis of your weaknesses!
-                          </InsightCard>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                    {/* Last Test Tab */}
+                    {activeTab === 1 && (
+                      <div className="space-y-2">
+                        {insights?.data?.llmInsights?.lastTestFeedback?.insights ? (
+                          <div className="space-y-2">
+                            {insights.data.llmInsights.lastTestFeedback.insights.length > 0 && (() => {
+                              const firstInsight = insights.data.llmInsights.lastTestFeedback.insights[0] as any;
+                              return (
+                                <InsightCard key={firstInsight?.id ?? firstInsight} variant="indigo">
+                                  {firstInsight?.text ?? firstInsight}
+                                </InsightCard>
+                              );
+                            })()}
+                          </div>
+                        ) : insights?.data?.lastTestTopics && insights.data.lastTestTopics.length > 0 ? (
+                          <div>
+                            <p className="text-xs text-indigo-700 mb-2">Recent test performance:</p>
+                            <ul className="space-y-1 text-xs">
+                              {insights.data.lastTestTopics.slice(0, 3).map((topic: any, idx: number) => (
+                                <li key={idx} className="flex justify-between">
+                                  <span>{topic.topic}</span>
+                                  <span className="text-indigo-600">{topic.accuracy}%</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <InsightCard variant="indigo">
+                              Complete a test to get AI feedback on your performance!
+                            </InsightCard>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Strengths Tab */}
+                    {activeTab === 2 && (
+                      <div className="space-y-2">
+                        {(!analytics || analytics.totalTests === 0) ? (
+                          <div className="space-y-2">
+                            <InsightCard variant="gray">
+                              Complete practice tests to unlock your strengths!
+                            </InsightCard>
+                          </div>
+                        ) : insights?.data?.llmInsights?.strengths?.insights ? (
+                          <div className="space-y-2">
+                            {insights.data.llmInsights.strengths.insights.length > 0 && (() => {
+                              const firstInsight = insights.data.llmInsights.strengths.insights[0] as any;
+                              return (
+                                <InsightCard key={firstInsight?.id ?? firstInsight} variant="green">
+                                  {firstInsight?.text ?? firstInsight}
+                                </InsightCard>
+                              );
+                            })()}
+                          </div>
+                        ) : insights?.data?.strengthTopics && insights.data.strengthTopics.length > 0 ? (
+                          <div>
+                            <p className="text-xs text-green-700 mb-2">Your top performing topics:</p>
+                            <ul className="space-y-1 text-xs">
+                              {insights.data.strengthTopics.slice(0, 3).map((topic: any, idx: number) => (
+                                <li key={idx} className="flex justify-between">
+                                  <span>{topic.topic}</span>
+                                  <span className="text-green-600">{topic.accuracy}%</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <InsightCard variant="green">
+                              Take some tests to get AI analysis of your strengths!
+                            </InsightCard>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Weaknesses Tab */}
+                    {activeTab === 3 && (
+                      <div className="space-y-2">
+                        {insights?.data?.llmInsights?.weaknesses?.insights ? (
+                          <div className="space-y-2">
+                            {insights.data.llmInsights.weaknesses.insights.length > 0 && (() => {
+                              const firstInsight = insights.data.llmInsights.weaknesses.insights[0] as any;
+                              return (
+                                <InsightCard key={firstInsight?.id ?? firstInsight} variant="red">
+                                  {firstInsight?.text ?? firstInsight}
+                                </InsightCard>
+                              );
+                            })()}
+                          </div>
+                        ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
+                          <div>
+                            <p className="text-xs text-red-700 mb-2">Topics needing focus:</p>
+                            <ul className="space-y-1 text-xs">
+                              {insights.data.weakTopics.slice(0, 3).map((topic: any, idx: number) => (
+                                <li key={idx} className="flex justify-between">
+                                  <span>{topic.topic}</span>
+                                  <span className="text-red-600">{topic.accuracy}%</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <InsightCard variant="red">
+                              Take some tests to get AI analysis of your weaknesses!
+                            </InsightCard>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
-          </>
-        )}
+          </div>
+        </>
 
 
         {/* ============================================================================= */}

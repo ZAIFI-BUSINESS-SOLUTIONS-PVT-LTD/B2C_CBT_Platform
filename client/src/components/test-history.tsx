@@ -100,7 +100,7 @@ export default function TestHistory() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-100 py-2">
+    <div className="bg-gray-100 py-4">
       <div className="container mx-auto max-w-6xl ">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 px-4">
           <div>

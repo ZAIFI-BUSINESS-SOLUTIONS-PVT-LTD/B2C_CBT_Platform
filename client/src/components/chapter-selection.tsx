@@ -46,7 +46,7 @@ export function ChapterSelection() {
   // Slider bounds (keep centralised for easy changes)
   const SLIDER_MIN = 5;
   const SLIDER_MAX = 180;
-  const SLIDER_STEP = 5;
+  const SLIDER_STEP = 1; // Snap every 1 minute for time slider
   const MAX_TIME_MULTIPLIER = 1.5; // 1 minute actual + 0.5 minute buffer per question
 
   // === STEP WIZARD STATE ===
@@ -300,66 +300,37 @@ export function ChapterSelection() {
     }
   }, [topics]);
 
-  // Compute dynamic bounds for the time slider
-  const timeMin = SLIDER_MIN;
-  const timeMax = useMemo(() => Math.max(SLIDER_MIN, Math.ceil(questionCount * MAX_TIME_MULTIPLIER)), [questionCount]);
+  // --- Responsive time limit logic (like random-test.tsx) ---
+  const SLIDER_MIN_TIME = 1;
+  const MAX_TIME_MULTIPLIER_LOCAL = 1.5;
+  const timeMin = SLIDER_MIN_TIME;
+  const timeMax = useMemo(() => Math.max(SLIDER_MIN_TIME, Math.ceil(questionCount * MAX_TIME_MULTIPLIER_LOCAL)), [questionCount]);
 
-  // When available questions change, adjust question count if it exceeds available
+  // Keep timeLimit in bounds if questionCount changes
   useEffect(() => {
-    if (availableQuestions > 0) {
-      let newQuestionCount = questionCount;
-
-      if (availableQuestions < 5) {
-        // If available questions is less than 5, use the exact available count
-        newQuestionCount = availableQuestions;
-      } else if (questionCount > availableQuestions) {
-        // Find the largest available option that doesn't exceed available questions
-        const validOptions = [5, 10, 15, 20, 25, 30, 60, 90, 180].filter(count => count <= availableQuestions);
-        if (validOptions.length > 0) {
-          newQuestionCount = Math.max(...validOptions);
-        } else {
-          // Fallback to available questions if no valid options
-          newQuestionCount = availableQuestions;
-        }
-      }
-
-      if (newQuestionCount !== questionCount) {
-        setQuestionCount(newQuestionCount);
-        setTimeLimit(newQuestionCount);
-      }
+    if (timeLimit > timeMax) {
+      setTimeLimit(timeMax);
     }
-  }, [availableQuestions, questionCount]);
-
-  // Set reasonable default question count when user first moves to step 4
-  useEffect(() => {
-    if (currentStep === 4 && availableQuestions > 0) {
-      let defaultQuestionCount = 20; // Default fallback
-
-      if (availableQuestions < 5) {
-        // If available questions is less than 5, use the exact available count
-        defaultQuestionCount = availableQuestions;
-      } else {
-        // Choose a reasonable default based on available questions
-        const validOptions = [5, 10, 15, 20, 25, 30, 60, 90, 180].filter(count => count <= availableQuestions);
-        if (validOptions.length > 0) {
-          // Prefer 20 if available, otherwise the largest option that's reasonable
-          if (validOptions.includes(20)) {
-            defaultQuestionCount = 20;
-          } else {
-            // Choose the middle option or the largest that's not too big
-            const midIndex = Math.floor(validOptions.length / 2);
-            defaultQuestionCount = validOptions[Math.min(midIndex, validOptions.length - 1)];
-          }
-        }
-      }
-
-      // Only set if current question count is still the initial 20 and we have a better default
-      if (questionCount === 20 && defaultQuestionCount !== 20) {
-        setQuestionCount(defaultQuestionCount);
-        setTimeLimit(defaultQuestionCount);
-      }
+    if (timeLimit < timeMin) {
+      setTimeLimit(timeMin);
     }
-  }, [currentStep, availableQuestions, questionCount]);
+  }, [timeMax, timeLimit]);
+
+  // When user selects question count, update time limit to match (like random-test)
+  const handleQuestionCountSelect = (count: number) => {
+    setQuestionCount(count);
+    setTimeLimit(count); // default time limit = question count
+    setLastChanged('questions');
+  };
+
+  // When user changes time slider, update timeLimit and lastChanged
+  const handleTimeLimitChange = (v: number[]) => {
+    let val = v[0];
+    if (val < timeMin) val = timeMin;
+    if (val > timeMax) val = timeMax;
+    setTimeLimit(val);
+    setLastChanged('time');
+  };
 
   // Test session creation for custom mode will use API via handleCreateTest
 
@@ -907,16 +878,13 @@ export function ChapterSelection() {
                     <div className="text-sm font-medium text-gray-700 mb-3">Number of Questions</div>
                     <div className="grid grid-cols-3 gap-2">
                       {(() => {
-                        // Always show the standard set; optionally add a custom small-count first
                         const standardOptions = [5, 10, 15, 20, 25, 30, 60, 90, 180];
                         const buttonOptions = (availableQuestions > 0 && availableQuestions < 5)
                           ? [availableQuestions, ...standardOptions]
                           : standardOptions;
-
                         return buttonOptions.map((count) => {
                           const isDisabled = availableQuestions > 0 ? count > availableQuestions : true;
                           const isActive = !isDisabled && questionCount === count;
-
                           return (
                             <Button
                               key={count}
@@ -925,9 +893,7 @@ export function ChapterSelection() {
                               disabled={isDisabled}
                               onClick={() => {
                                 if (isDisabled) return;
-                                setQuestionCount(count);
-                                setTimeLimit(count);
-                                setLastChanged('questions');
+                                handleQuestionCountSelect(count);
                               }}
                               className={`text-sm ${isDisabled ? 'opacity-50 cursor-not-allowed line-through' : ''}`}
                             >
@@ -953,7 +919,7 @@ export function ChapterSelection() {
                   {/* Time Limit Slider - Positioned above footer */}
                   <div className="fixed bottom-20 left-0 right-0 z-40 p-4 bg-white border-t">
                     <div className="text-sm font-medium text-gray-700 mb-2">Time Limit: {timeLimit} minutes</div>
-                    <Slider value={[timeLimit]} onValueChange={(v) => { let val = v[0]; if (val < timeMin) val = timeMin; if (val > timeMax) val = timeMax; setTimeLimit(val); setLastChanged('time'); }} min={timeMin} max={timeMax} step={SLIDER_STEP} />
+                    <Slider value={[timeLimit]} onValueChange={handleTimeLimitChange} min={timeMin} max={timeMax} step={1} />
                   </div>
                 </div>
               )}

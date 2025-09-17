@@ -5,7 +5,7 @@ import { useLocation, Link } from "wouter";
 import { useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ArrowRight, UserRound, Trophy, ChevronLeft } from "lucide-react";
+import { AlertCircle, ArrowRight, UserRound, Trophy, ChevronLeft, Edit } from "lucide-react";
 import { API_CONFIG } from "@/config/api";
 import { authenticatedFetch } from "@/lib/auth";
 import PracticeArena from "@/components/your-space";
@@ -20,8 +20,10 @@ export default function LandingDashboard() {
   const [selectedPlatformTestId, setSelectedPlatformTestId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'practice' | 'battle'>('practice');
   const [imageError, setImageError] = useState<boolean>(false);
-  const { isAuthenticated, loading, student } = useAuth();
+  const { isAuthenticated, loading, student, setStudent, logout } = useAuth();
   const [, navigate] = useLocation();
+  const [editExamYear, setEditExamYear] = useState(false);
+  const [examYearInput, setExamYearInput] = useState(student?.targetExamYear ? String(student.targetExamYear) : '');
 
   // === NAVIGATION GUARD ===
   // Redirect to home page when user tries to navigate back from landing dashboard
@@ -160,17 +162,55 @@ export default function LandingDashboard() {
                         )}
                       </div>
 
-                      {/* Name */}
+                      {/* Name and Email */}
                       <div>
                         <h3 className="text-xl font-semibold text-gray-900">{student.fullName}</h3>
+                        <p className="text-sm text-gray-500 mt-1">{student.email}</p>
                       </div>
 
-                      {/* Target Exam Year */}
+                      {/* Target Exam Year (editable) */}
                       <div>
                         <p className="text-sm text-gray-600">Target Exam Year</p>
-                        <p className="text-lg font-medium text-blue-600">
-                          {student.targetExamYear ? `NEET ${student.targetExamYear}` : 'Not set'}
-                        </p>
+                        {!editExamYear ? (
+                          <div className="flex items-end gap-0">
+                            <p className="text-base font-medium text-blue-600">
+                              {student.targetExamYear ? `NEET ${student.targetExamYear}` : 'Not set'}
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 p-0 text-gray-500"
+                              onClick={() => { setEditExamYear(true); setExamYearInput(student.targetExamYear ? String(student.targetExamYear) : ''); }}>
+                              <Edit />
+                            </Button>
+                          </div>
+                        ) : (
+                          <form className="flex items-center gap-2" onSubmit={e => {
+                            e.preventDefault();
+                            if (examYearInput && setStudent) {
+                              setStudent({ ...student, targetExamYear: Number(examYearInput) });
+                            }
+                            setEditExamYear(false);
+                          }}>
+                            <input
+                              type="number"
+                              min="2025"
+                              max="2100"
+                              value={examYearInput}
+                              onChange={e => setExamYearInput(e.target.value)}
+                              className="border rounded px-2 py-1 text-sm w-24"
+                              placeholder="Year"
+                              required
+                            />
+                            <Button type="submit" size="sm" variant="default">Save</Button>
+                            <Button type="button" size="sm" variant="outline" onClick={() => setEditExamYear(false)}>Cancel</Button>
+                          </form>
+                        )}
+                      </div>
+
+                      {/* Logout Button */}
+                      <div className="mt-2">
+                        <Button variant="outline" size="sm" onClick={logout} className="w-32">Logout</Button>
                       </div>
                     </div>
                   </CardContent>
@@ -178,7 +218,21 @@ export default function LandingDashboard() {
               )}
 
               {/* Insights Container */}
-              {insights && (
+              {/* Fallback card if no tests written */}
+              {(analytics?.totalTests === 0) && (
+                <Card className="mt-4">
+                  <CardContent className="p-6 text-center">
+                    <Trophy className="h-10 w-10 text-yellow-500 mx-auto mb-2" />
+                    <h3 className="text-lg font-semibold mb-2">No Tests Taken Yet</h3>
+                    <p className="text-gray-600 mb-4">Take your first test to see your performance analytics and unlock insights!</p>
+                    <Link href="/topics">
+                      <Button className="bg-blue-600 hover:bg-blue-700 text-white">Take a Test</Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              )}
+
+              {insights && analytics?.totalTests > 0 && (
                 <PracticeArena
                   analytics={analytics}
                   insights={insights}

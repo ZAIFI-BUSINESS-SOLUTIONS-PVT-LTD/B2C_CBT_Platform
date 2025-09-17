@@ -62,6 +62,7 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
   },
+    publicDir: path.resolve(import.meta.dirname, "client", "public"),
   server: {
   // listen on all addresses so other devices on the network can reach the dev server
   host: "0.0.0.0",

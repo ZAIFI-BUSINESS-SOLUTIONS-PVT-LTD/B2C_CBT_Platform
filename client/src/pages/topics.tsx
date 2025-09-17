@@ -61,7 +61,7 @@ export default function Topics() {
       </div>
 
       {/* Test History Section */}
-      <div className="max-w-7xl mx-auto mt-4">
+      <div className="max-w-7xl mx-auto mt-4 pb-20">
         <TestHistory />
       </div>
 

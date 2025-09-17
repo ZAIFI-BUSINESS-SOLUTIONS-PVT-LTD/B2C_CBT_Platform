@@ -23,35 +23,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Timer } from "@/components/timer";
 import { useToast } from "@/hooks/use-toast";
 import useFullscreenEnforcement from "@/hooks/useFullscreenEnforcement";
 import TestHeader from "./test-interface/TestHeader";
-import SecureModeStrip from "./test-interface/SecureModeStrip";
 import SecurityBanner from "./test-interface/SecurityBanner";
 import { API_CONFIG } from "@/config/api";
 import { apiRequest } from "@/lib/queryClient";
 import { authenticatedFetch } from "@/lib/auth";
 import { debugAuthentication, testAuthenticatedRequest } from "@/lib/debug-auth";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Bookmark,
-  Check,
-  AlertTriangle,
-  Clock,
-  Info
-} from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ChevronLeft, ChevronRight, Bookmark, AlertTriangle, Info } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, } from "@/components/ui/alert-dialog";
 import SubmitDialog from "./test-interface/dialogs/SubmitDialog";
 import TimeOverDialog from "./test-interface/dialogs/TimeOverDialog";
 import QuitDialog from "./test-interface/dialogs/QuitDialog";
@@ -469,24 +450,39 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       return;
     }
 
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: answer
-    }));
-
-    // Calculate time spent on this question
-    const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
-    setQuestionTimes(prev => ({
-      ...prev,
-      [questionId]: (prev[questionId] || 0) + timeSpent
-    }));
-
-    // Submit answer immediately with time tracking
-    submitAnswerMutation.mutate({
-      sessionId,
-      questionId,
-      selectedAnswer: answer,
-      timeSpent: questionTimes[questionId] || timeSpent,
+    setAnswers(prev => {
+      // If clicking the already selected answer, deselect it
+      if (prev[questionId] === answer) {
+        // Remove the answer
+        const { [questionId]: _, ...rest } = prev;
+        // Submit null to backend
+        submitAnswerMutation.mutate({
+          sessionId,
+          questionId,
+          selectedAnswer: null,
+          timeSpent: questionTimes[questionId] || Math.round((Date.now() - questionStartTime) / 1000),
+        });
+        return rest;
+      } else {
+        // Set the answer
+        // Calculate time spent on this question
+        const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
+        setQuestionTimes(prevTimes => ({
+          ...prevTimes,
+          [questionId]: (prevTimes[questionId] || 0) + timeSpent
+        }));
+        // Submit answer immediately with time tracking
+        submitAnswerMutation.mutate({
+          sessionId,
+          questionId,
+          selectedAnswer: answer,
+          timeSpent: questionTimes[questionId] || timeSpent,
+        });
+        return {
+          ...prev,
+          [questionId]: answer
+        };
+      }
     });
   };
 
@@ -1142,8 +1138,18 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         onSubmitTest={showTimeOverDialog ? handleTimeOverSubmit : handleSubmitTest}
         showTimeOverDialog={showTimeOverDialog}
         isSubmitting={isSubmitting}
+        onQuit={() => setShowQuitDialog(true)}
       />
 
+      {/* Quit Exam Dialog */}
+      <QuitDialog
+        isOpen={showQuitDialog}
+        answersCount={Object.keys(answers).length}
+        totalQuestions={testData?.questions?.length || 0}
+        isPending={isSubmitting}
+        onConfirm={handleQuitConfirm}
+        onCancel={() => setShowQuitDialog(false)}
+      />
       {/* Secure Test Mode Banner */}
       <SecurityBanner enabled={isNavigationBlocked} />
 
@@ -1189,7 +1195,16 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                     key={option}
                     className="flex items-start p-3 bg-gray-50 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors border-2 border-gray-200 hover:border-blue-300 min-h-[3rem]"
                   >
-                    <RadioGroupItem value={option} className="mr-3 mt-1" />
+                    <RadioGroupItem
+                      value={option}
+                      className="mr-3 mt-1"
+                      onClick={(e) => {
+                        if (answers[currentQuestion.id] === option) {
+                          e.preventDefault(); // Prevent RadioGroup from re-selecting
+                          handleAnswerChange(currentQuestion.id, option);
+                        }
+                      }}
+                    />
                     <div className="flex items-start flex-1">
                       <span className="bg-gray-200 text-gray-900 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold mr-3 flex-shrink-0 mt-0.5">
                         {option}
@@ -1202,6 +1217,20 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                 ))}
               </div>
             </RadioGroup>
+            {/* Clear Answer Button: only show if an answer is selected */}
+            {answers[currentQuestion.id] && (
+              <div className="mt-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs text-gray-700 border-gray-300 hover:bg-gray-100"
+                  onClick={() => handleAnswerChange(currentQuestion.id, answers[currentQuestion.id])}
+                  disabled={showTimeOverDialog}
+                >
+                  Clear Answer
+                </Button>
+              </div>
+            )}
           </CardContent>
 
           {/* Question Navigation Panel */}
@@ -1238,6 +1267,14 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                 <div className="flex items-center">
                   <div className="w-3 h-3 bg-amber-500 rounded mr-2"></div>
                   <span>Marked</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 bg-purple-500 rounded mr-2"></div>
+                  <span>Answered &amp; Marked for Review</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-3 h-3 bg-blue-500 rounded mr-2"></div>
+                  <span>Current Question</span>
                 </div>
                 <div className="flex items-center">
                   <div className="w-3 h-3 bg-gray-200 rounded mr-2"></div>
