@@ -153,14 +153,14 @@ def sql_agent_generate_task(self, student_id: str, user_message: str):
 
 
 @shared_task(bind=True)
-def send_welcome_email_task(self, user_id: int):
-    """Task wrapper to send welcome email for a StudentProfile by id."""
+def send_welcome_email_task(self, user_id: str):
+    """Task wrapper to send welcome email for a StudentProfile by student_id."""
     try:
         # Import locally to avoid circular imports at module import time
         from .models import StudentProfile
         from .notifications import _render_welcome_templates, _send_email_sync
 
-        user = StudentProfile.objects.get(id=user_id)
+        user = StudentProfile.objects.get(student_id=user_id)
         frontend_base = getattr(__import__('django.conf').conf.settings, 'FRONTEND_URL', None) or getattr(__import__('django.conf').conf.settings, 'FRONTEND_RESET_URL', None)
         context = {
             'user': user,
@@ -176,12 +176,12 @@ def send_welcome_email_task(self, user_id: int):
 
 
 @shared_task(bind=True)
-def send_test_result_email_task(self, user_id: int, results: Dict):
+def send_test_result_email_task(self, user_id: str, results: Dict):
     try:
         from .models import StudentProfile
         from .notifications import _render_test_result_templates, _send_email_sync
 
-        user = StudentProfile.objects.get(id=user_id)
+        user = StudentProfile.objects.get(student_id=user_id)
         frontend_base = getattr(__import__('django.conf').conf.settings, 'FRONTEND_URL', None) or getattr(__import__('django.conf').conf.settings, 'FRONTEND_RESET_URL', None)
         context = {
             'user': user,
@@ -204,12 +204,12 @@ def send_test_result_email_task(self, user_id: int, results: Dict):
 
 
 @shared_task(bind=True)
-def send_inactivity_reminder_task(self, user_id: int, last_test_date: Optional[str] = None):
+def send_inactivity_reminder_task(self, user_id: str, last_test_date: Optional[str] = None):
     try:
         from .models import StudentProfile
         from .notifications import _render_inactivity_templates, _send_email_sync
 
-        user = StudentProfile.objects.get(id=user_id)
+        user = StudentProfile.objects.get(student_id=user_id)
         frontend_base = getattr(__import__('django.conf').conf.settings, 'FRONTEND_URL', None) or getattr(__import__('django.conf').conf.settings, 'FRONTEND_RESET_URL', None)
         context = {
             'user': user,
@@ -222,6 +222,144 @@ def send_inactivity_reminder_task(self, user_id: int, last_test_date: Optional[s
         return _send_email_sync(user.email, rendered['subject'], rendered.get('html'), rendered['text'])
     except Exception:
         logger.exception('send_inactivity_reminder_task failed')
+        raise
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_kwargs={"max_retries": 2},
+    retry_backoff=True,
+    soft_time_limit=120,
+    time_limit=240,
+)
+def dashboard_analytics_task(self, student_id: str):
+    """Background task to generate dashboard analytics for a student."""
+    try:
+        from .models import StudentProfile
+        from .views.dashboard_views import dashboard_analytics
+        from rest_framework.test import APIRequestFactory
+        
+        # Verify student exists
+        user = StudentProfile.objects.get(student_id=student_id)
+        
+        # Create mock request with authenticated student
+        factory = APIRequestFactory()
+        request = factory.get('/api/dashboard/analytics/')
+        
+        class MockUser:
+            def __init__(self, student_id):
+                self.student_id = student_id
+                self.is_authenticated = True
+                self.is_active = True
+        
+        request.user = MockUser(student_id)
+        
+        # Call the analytics view
+        response = dashboard_analytics(request)
+        
+        if response.status_code == 200:
+            logger.info(f'Dashboard analytics generated successfully for student {student_id}')
+            return response.data
+        else:
+            logger.error(f'Dashboard analytics failed with status {response.status_code} for student {student_id}')
+            raise Exception(f'Analytics generation failed with status {response.status_code}')
+            
+    except Exception:
+        logger.exception('dashboard_analytics_task failed')
+        raise
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_kwargs={"max_retries": 2},
+    retry_backoff=True,
+    soft_time_limit=120,
+    time_limit=240,
+)
+def dashboard_comprehensive_analytics_task(self, student_id: str):
+    """Background task to generate comprehensive dashboard analytics for a student."""
+    try:
+        from .models import StudentProfile
+        from .views.dashboard_views import dashboard_comprehensive_analytics
+        from rest_framework.test import APIRequestFactory
+        
+        # Verify student exists
+        user = StudentProfile.objects.get(student_id=student_id)
+        
+        # Create mock request with authenticated student
+        factory = APIRequestFactory()
+        request = factory.get('/api/dashboard/comprehensive-analytics/')
+        
+        class MockUser:
+            def __init__(self, student_id):
+                self.student_id = student_id
+                self.is_authenticated = True
+                self.is_active = True
+        
+        request.user = MockUser(student_id)
+        
+        # Call the comprehensive analytics view
+        response = dashboard_comprehensive_analytics(request)
+        
+        if response.status_code == 200:
+            logger.info(f'Comprehensive analytics generated successfully for student {student_id}')
+            return response.data
+        else:
+            logger.error(f'Comprehensive analytics failed with status {response.status_code} for student {student_id}')
+            raise Exception(f'Comprehensive analytics generation failed with status {response.status_code}')
+            
+    except Exception:
+        logger.exception('dashboard_comprehensive_analytics_task failed')
+        raise
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_kwargs={"max_retries": 2},
+    retry_backoff=True,
+    soft_time_limit=90,
+    time_limit=180,
+)
+def platform_test_analytics_task(self, student_id: str, test_id: str = None):
+    """Background task to generate platform test analytics for a student."""
+    try:
+        from .models import StudentProfile
+        from .views.dashboard_views import platform_test_analytics
+        from rest_framework.test import APIRequestFactory
+        
+        # Verify student exists
+        user = StudentProfile.objects.get(student_id=student_id)
+        
+        # Create mock request with authenticated student and optional test_id
+        factory = APIRequestFactory()
+        url = '/api/dashboard/platform-test-analytics/'
+        if test_id:
+            url += f'?test_id={test_id}'
+        request = factory.get(url)
+        
+        class MockUser:
+            def __init__(self, student_id):
+                self.student_id = student_id
+                self.is_authenticated = True
+                self.is_active = True
+        
+        request.user = MockUser(student_id)
+        
+        # Call the platform test analytics view
+        response = platform_test_analytics(request)
+        
+        if response.status_code == 200:
+            logger.info(f'Platform test analytics generated successfully for student {student_id}, test_id: {test_id}')
+            return response.data
+        else:
+            logger.error(f'Platform test analytics failed with status {response.status_code} for student {student_id}')
+            raise Exception(f'Platform test analytics generation failed with status {response.status_code}')
+            
+    except Exception:
+        logger.exception('platform_test_analytics_task failed')
         raise
 
 

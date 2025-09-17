@@ -373,7 +373,7 @@ const PaymentButtons: React.FC = () => {
               </div>
               <div className="mt-3">
                 <span className="text-2xl font-bold">₹1,500</span>
-                <span className="text-sm text-gray-500">/month</span>
+                <span className="text-sm text-gray-500">/year</span>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
@@ -430,7 +430,7 @@ const PaymentButtons: React.FC = () => {
               </div>
               <div className="mt-3">
                 <span className="text-2xl font-bold">₹2,500</span>
-                <span className="text-sm text-gray-500">/month</span>
+                <span className="text-sm text-gray-500">/year</span>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
@@ -441,7 +441,7 @@ const PaymentButtons: React.FC = () => {
                 </li>
                 <li className="flex items-center text-sm">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                  Official NEET papers access
+                  Personalized study plans
                 </li>
                 <li className="flex items-center text-sm">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
@@ -453,7 +453,7 @@ const PaymentButtons: React.FC = () => {
                 </li>
                 <li className="flex items-center text-sm">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                  Detailed explanations
+                  Mock Test Series for Competitive Exams
                 </li>
               </ul>
               <Button

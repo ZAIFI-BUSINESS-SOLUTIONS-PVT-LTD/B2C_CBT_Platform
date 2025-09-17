@@ -103,13 +103,20 @@ def dispatch_welcome_email(user):
     try:
         # Enqueue Celery task to send welcome email
         from .tasks import send_welcome_email_task
-        send_welcome_email_task.delay(user.id)
+        send_welcome_email_task.delay(user.student_id)
+        logger.info(f'Welcome email task enqueued for user {user.student_id}')
         return True
-    except Exception:
-        # Fallback to threaded send if Celery is unavailable
+    except ImportError:
+        # Celery tasks not available, fallback to threading
+        logger.warning('Celery tasks not available, falling back to threading for welcome email')
         thread = threading.Thread(target=_worker, daemon=True)
         thread.start()
         return True
+    except Exception as e:
+        # Log the specific error but still try to send via Celery
+        logger.error(f'Error enqueueing welcome email task for user {user.student_id}: {e}')
+        # Re-raise to let Celery handle retries
+        raise
 
 
 def _render_test_result_templates(user, context: Dict) -> Dict[str, str]:
@@ -191,12 +198,20 @@ def dispatch_test_result_email(user, results: Dict) -> bool:
 
     try:
         from .tasks import send_test_result_email_task
-        send_test_result_email_task.delay(user.id, results)
+        send_test_result_email_task.delay(user.student_id, results)
+        logger.info(f'Test result email task enqueued for user {user.student_id}')
         return True
-    except Exception:
+    except ImportError:
+        # Celery tasks not available, fallback to threading
+        logger.warning('Celery tasks not available, falling back to threading for test result email')
         thread = threading.Thread(target=_worker, daemon=True)
         thread.start()
         return True
+    except Exception as e:
+        # Log the specific error but still try to send via Celery
+        logger.error(f'Error enqueueing test result email task for user {user.student_id}: {e}')
+        # Re-raise to let Celery handle retries
+        raise
 
 
 def _render_inactivity_templates(user, context: Dict) -> Dict[str, str]:
@@ -264,9 +279,17 @@ def dispatch_inactivity_reminder(user, last_test_date=None) -> bool:
 
     try:
         from .tasks import send_inactivity_reminder_task
-        send_inactivity_reminder_task.delay(user.id, last_test_date)
+        send_inactivity_reminder_task.delay(user.student_id, last_test_date)
+        logger.info(f'Inactivity reminder task enqueued for user {user.student_id}')
         return True
-    except Exception:
+    except ImportError:
+        # Celery tasks not available, fallback to threading
+        logger.warning('Celery tasks not available, falling back to threading for inactivity reminder')
         thread = threading.Thread(target=_worker, daemon=True)
         thread.start()
         return True
+    except Exception as e:
+        # Log the specific error but still try to send via Celery
+        logger.error(f'Error enqueueing inactivity reminder task for user {user.student_id}: {e}')
+        # Re-raise to let Celery handle retries
+        raise

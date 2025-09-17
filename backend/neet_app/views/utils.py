@@ -185,11 +185,44 @@ def generate_questions_for_topics(selected_topics, question_count=None, exclude_
         selected_topics: List of topic IDs
         question_count: Maximum number of questions to return (optional)
         exclude_question_ids: Set/list of question IDs to exclude (for preventing repetition)
+        difficulty_distribution: Override default difficulty distribution
     
     Returns:
         QuerySet of Question objects with cleaned text
     """
+    from ..services.selection_engine import generate_questions_with_rules
+    from django.conf import settings
     import random
+    
+    # Try new rule-based engine first
+    try:
+        neet_settings = getattr(settings, 'NEET_SETTINGS', {})
+        if neet_settings.get('USE_RULE_ENGINE', True) and question_count:
+            logger.info("Using rule-based selection engine")
+            
+            # Convert exclude_question_ids to set
+            exclude_ids = set(exclude_question_ids) if exclude_question_ids else set()
+            
+            # Call rule engine
+            rule_engine_result = generate_questions_with_rules(
+                selected_topics=selected_topics,
+                question_count=question_count,
+                test_type="topic",
+                exclude_question_ids=exclude_ids,
+                difficulty_distribution=difficulty_distribution
+            )
+            
+            if rule_engine_result is not None and rule_engine_result.exists():
+                logger.info(f"Rule engine selected {rule_engine_result.count()} questions")
+                return rule_engine_result
+            else:
+                logger.warning("Rule engine returned no questions, falling back to legacy method")
+        
+    except Exception as e:
+        logger.exception(f"Rule engine failed: {e}, falling back to legacy method")
+    
+    # Legacy selection logic (fallback)
+    logger.info("Using legacy selection method")
     
     try:
         # Initialize exclude_question_ids as empty set if not provided
@@ -449,6 +482,37 @@ def generate_random_questions_from_database(question_count, exclude_question_ids
     Returns:
         QuerySet of Question objects with cleaned text
     """
+    from ..services.selection_engine import generate_questions_with_rules
+    from django.conf import settings
+    
+    # Try new rule-based engine first
+    try:
+        neet_settings = getattr(settings, 'NEET_SETTINGS', {})
+        if neet_settings.get('USE_RULE_ENGINE', True):
+            logger.info("Using rule-based selection engine for random test")
+            
+            # Convert exclude_question_ids to set
+            exclude_ids = set(exclude_question_ids) if exclude_question_ids else set()
+            
+            # Call rule engine with empty topics for random selection
+            rule_engine_result = generate_questions_with_rules(
+                selected_topics=[],  # Empty for random test
+                question_count=question_count,
+                test_type="random",
+                exclude_question_ids=exclude_ids
+            )
+            
+            if rule_engine_result is not None and rule_engine_result.exists():
+                logger.info(f"Rule engine selected {rule_engine_result.count()} random questions")
+                return rule_engine_result
+            else:
+                logger.warning("Rule engine returned no questions, falling back to legacy random method")
+        
+    except Exception as e:
+        logger.exception(f"Rule engine failed for random test: {e}, falling back to legacy method")
+    
+    # Legacy random selection logic (fallback)
+    logger.info("Using legacy random selection method")
     
     try:
         # Initialize exclude_question_ids as empty set if not provided

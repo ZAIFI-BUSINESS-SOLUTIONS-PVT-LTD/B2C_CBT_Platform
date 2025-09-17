@@ -38,34 +38,38 @@ def update_subject_scores_on_completion(sender, instance, created, **kwargs):
                     _processed_sessions.add(insights_key)
                     
                     try:
-                        # Create a mock request object with the student user
-                        from rest_framework.test import APIRequestFactory
-                        import json
-                        factory = APIRequestFactory()
-                        
-                        # Force regeneration of insights by setting force_regenerate=True
-                        request_data = {'force_regenerate': True}
-                        request = factory.post('/api/insights/student/', 
-                                             data=json.dumps(request_data),
-                                             content_type='application/json')
-                        
-                        # Set up a mock user object with student_id
-                        class MockUser:
-                            def __init__(self, student_id):
-                                self.student_id = student_id
-                                self.is_authenticated = True
-                                self.is_active = True
-                        request.user = MockUser(instance.student_id)
-                        
-                        print(f"🔄 Forcing fresh insights generation for student {instance.student_id} after test {instance.id}")
-                        
-                        # Call the insights view to generate and cache fresh insights
-                        response = get_student_insights(request)
-                        if response.status_code == 200:
-                            print(f"✅ Fresh insights generated and cached for student {instance.student_id} after test completion.")
-                        else:
-                            print(f"⚠️ Insights generation returned status {response.status_code} for student {instance.student_id}")
+                        # Prefer asynchronous enqueue via Celery task so this signal handler returns quickly.
+                        # If Celery isn't available or enqueuing fails, fall back to the previous synchronous call.
+                        try:
+                            from .tasks import generate_insights_task
+                            # Use the same signature as the view: (student_id, request_data, force_regenerate)
+                            request_data = {'force_regenerate': True}
+                            generate_insights_task.delay(instance.student_id, request_data, True)
+                            print(f"🔄 Enqueued generate_insights_task for student {instance.student_id} after test {instance.id}")
+                        except ImportError:
+                            # Celery not installed/available in this environment, fall back to synchronous call
+                            print("⚠️ Celery not available, falling back to synchronous insights generation")
+                            from rest_framework.test import APIRequestFactory
+                            import json
+                            factory = APIRequestFactory()
+                            request_data = {'force_regenerate': True}
+                            request = factory.post('/api/insights/student/', data=json.dumps(request_data), content_type='application/json')
+
+                            class MockUser:
+                                def __init__(self, student_id):
+                                    self.student_id = student_id
+                                    self.is_authenticated = True
+                                    self.is_active = True
+                            request.user = MockUser(instance.student_id)
+
+                            print(f"🔄 Forcing fresh insights generation (sync) for student {instance.student_id} after test {instance.id}")
+                            response = get_student_insights(request)
+                            if response.status_code == 200:
+                                print(f"✅ Fresh insights generated and cached for student {instance.student_id} after test completion.")
+                            else:
+                                print(f"⚠️ Insights generation returned status {response.status_code} for student {instance.student_id}")
                     except Exception as e:
+                        # Catch any unexpected exception from enqueue or synchronous call and log, but don't raise
                         print(f"❌ Failed to trigger insights for student {instance.student_id}: {e}")
             else:
                 print(f"⚠️ No answers found for session {instance.id}, skipping score calculation")

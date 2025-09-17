@@ -318,6 +318,41 @@ NEET_SETTINGS = {
     'ADAPTIVE_RATIO_NEW': 60,            # Percentage for new (never attempted) questions
     'ADAPTIVE_RATIO_WRONG': 30,          # Percentage for wrong/unanswered questions
     'ADAPTIVE_RATIO_CORRECT': 10,        # Percentage for correctly answered questions
+    
+    # Rule-based selection engine settings
+    'USE_RULE_ENGINE': True,             # Enable new 14-rule engine
+    'DYNAMIC_SELECTION_MODE': False,     # Enable dynamic question selection during test
+    
+    # High-weightage topics that must be included (R9)
+    'HIGH_WEIGHT_TOPICS': [
+        'Human Physiology',
+        'Organic Chemistry', 
+        'Mechanics',
+        'Coordination Compounds',
+        'Thermodynamics',
+        'Genetics',
+        'Cell Biology',
+        'Ecology',
+        'Plant Physiology',
+        'Atomic Structure'
+    ],
+    
+    # Rule thresholds
+    'ACCURACY_THRESHOLD': 60,            # R1, R5: Accuracy threshold percentage
+    'TIME_THRESHOLD_SLOW': 120,          # R4: Slow response time in seconds
+    'TIME_THRESHOLD_FAST': 60,           # R5: Fast response time in seconds
+    'CONSECUTIVE_STREAK': 3,             # R3, R12, R13: Consecutive answer streak
+    'EXCLUSION_DAYS': 15,                # R8: Days to exclude recent questions
+    
+    # Weak/strong topic allocation ratios (R14)
+    'WEAK_TOPIC_RATIO': 70,              # Percentage for weak topics
+    'STRONG_TOPIC_RATIO': 20,            # Percentage for strong topics
+    'RANDOM_TOPIC_RATIO': 10,            # Percentage for random topics
+    
+    # Default difficulty distribution (R6)
+    'DIFFICULTY_EASY_RATIO': 30,         # Percentage for easy questions
+    'DIFFICULTY_MODERATE_RATIO': 40,     # Percentage for moderate questions
+    'DIFFICULTY_HARD_RATIO': 30,         # Percentage for hard questions
 }
 
 # Logging configuration
