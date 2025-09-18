@@ -32,6 +32,58 @@ print(f"🗂️ INSIGHTS_CACHE_SETUP: Current __file__: {__file__}")
 print(f"🗂️ INSIGHTS_CACHE_SETUP: Directory of __file__: {os.path.dirname(__file__)}")
 print(f"🗂️ INSIGHTS_CACHE_SETUP: Cache dir exists at startup: {os.path.exists(INSIGHTS_CACHE_DIR)}")
 
+def is_celery_worker_available():
+    """
+    Check if Celery workers are available and ready to process tasks.
+    Uses very short timeouts to avoid blocking.
+    
+    Returns:
+        bool: True if workers are available, False otherwise
+    """
+    try:
+        from celery import current_app
+        import socket
+        
+        # First, do a quick socket check to the Redis broker
+        try:
+            # Parse Redis URL to get host and port
+            broker_url = current_app.conf.broker_url
+            if 'redis://' in broker_url:
+                # Quick socket test with minimal timeout
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(0.1)  # 100ms timeout
+                result = sock.connect_ex(('127.0.0.1', 6379))
+                sock.close()
+                
+                if result != 0:
+                    print(f"❌ Error connecting to broker while checking workers: Connection refused")
+                    print("❌ Celery broker appears unreachable - tasks cannot be enqueued or processed")
+                    return False
+            
+            print("✅ Celery broker is reachable")
+        except Exception as broker_e:
+            print(f"❌ Error connecting to broker while checking workers: {str(broker_e)}")
+            print("❌ Celery broker appears unreachable - tasks cannot be enqueued or processed")
+            return False
+        
+        # If broker is reachable, do a quick check for active workers
+        try:
+            inspect = current_app.control.inspect(timeout=0.5)  # 500ms timeout
+            active_workers = inspect.active()
+            if active_workers:
+                print(f"✅ Celery workers detected: {list(active_workers.keys())}")
+                return True
+            else:
+                print(f"⚠️ No active Celery workers found")
+                return False
+        except Exception as inspect_e:
+            print(f"❌ Error inspecting workers: {str(inspect_e)}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error checking Celery workers: {str(e)}")
+        return False
+
 def get_insights_file_path(student_id):
     """Get the file path for storing student insights JSON."""
     file_path = os.path.join(INSIGHTS_CACHE_DIR, f'insights_{student_id}.json')
@@ -787,11 +839,23 @@ def get_student_insights(request):
         if async_flag:
             try:
                 from .tasks import generate_insights_task
-                task = generate_insights_task.delay(student_id, data, force_regenerate)
-                return Response({'status': 'queued', 'task_id': task.id}, status=202)
+                
+                # Check if Celery workers are available before enqueueing
+                if not is_celery_worker_available():
+                    print(f"⚠️ No active Celery workers detected, processing insights synchronously for student {student_id}")
+                    logger.warning('No active Celery workers found - falling back to synchronous generation')
+                    # Fall back to synchronous generation when no workers are available
+                    # Continue to the synchronous generation code below
+                else:
+                    print(f"✅ Celery workers available, enqueueing insights task for student {student_id}")
+                    task = generate_insights_task.delay(student_id, data, force_regenerate)
+                    return Response({'status': 'queued', 'task_id': task.id}, status=202)
+                    
             except Exception as e:
-                logger.exception('Failed to enqueue generate_insights_task')
-                return Response({'status': 'error', 'message': 'Failed to enqueue task'}, status=500)
+                logger.exception('Failed to enqueue generate_insights_task - falling back to synchronous generation')
+                print(f"⚠️ Celery unavailable, processing insights synchronously for student {student_id}: {str(e)}")
+                # Fall back to synchronous generation when Celery is unavailable
+                # Continue to the synchronous generation code below instead of returning error
         
         # Generate new insights if cache not found or force_regenerate is True
         print(f"🔄 Generating new insights for student {student_id}")

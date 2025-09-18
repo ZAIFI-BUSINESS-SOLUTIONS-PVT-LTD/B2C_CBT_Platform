@@ -27,108 +27,130 @@ def datetime_serializer(obj):
 
 class NeetChatbotService:
     """
-    Simplified NEET AI tutoring chatbot focusing on core functionality.
-    Features: API key rotation, SQL agent, single NEET prompt, intent classification
+    Refactored NEET Chatbot Service with improved structure and error handling
+    Uses singleton pattern for performance optimization
     """
     
-    def __init__(self):
-        """Initialize the chatbot service with essential components only"""
-        # Initialize SQL Agent (uses Grok API internally)
-        try:
-            self.sql_agent = SQLAgent()
-        except Exception as e:
-            print(f"⚠️ SQLAgent init failed: {e}")
-            self.sql_agent = None
+    _instance = None
+    _sql_agent = None
+    _gemini_client = None
+    _grok_client = None
+    _ai_available = False
+    _initialization_time = None
+    _neet_prompt = None
+    
+    def __new__(cls):
+        """Implement singleton pattern to reuse expensive SQL agent initialization"""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialize_services()
+        return cls._instance
+    
+    def _initialize_services(self):
+        """Initialize expensive services once and reuse"""
+        if self._initialization_time is None:
+            import time
+            start_time = time.time()
+            print("🔧 Initializing NeetChatbotService (first time)...")
+            
+            # Initialize Gemini client
+            try:
+                print("🔄 Initializing Gemini client...")
+                self._gemini_client = GeminiClient()
+                print("✅ Gemini client initialized successfully")
+            except Exception as e:
+                print(f"❌ Error initializing Gemini client: {e}")
+                self._gemini_client = None
+            
+            # Initialize Grok client for backup
+            try:
+                print("🔄 Initializing Grok client...")
+                self._grok_client = self._initialize_grok_client()
+                if self._grok_client:
+                    print("✅ Grok client initialized successfully")
+                else:
+                    print("⚠️ Grok client not available")
+            except Exception as e:
+                print(f"❌ Error initializing Grok client: {e}")
+                self._grok_client = None
+            
+            # Initialize SQL agent
+            try:
+                print("🔄 Initializing SQL agent...")
+                self._sql_agent = SQLAgent()
+                print("✅ SQL Agent initialized successfully")
+            except Exception as e:
+                print(f"❌ Error initializing SQL agent: {e}")
+                self._sql_agent = None
+            
+            # Set AI availability based on successful initializations
+            self._ai_available = (self._gemini_client is not None or 
+                                self._grok_client is not None) and self._sql_agent is not None
+            
+            # Initialize NEET prompt for personalized responses
+            self._neet_prompt = """You are NEET Ninja, an AI tutor specializing in NEET exam preparation.
 
-        # Initialize Gemini client for general responses
-        try:
-            self.gemini_client = GeminiClient()
-        except Exception as e:
-            print(f"⚠️ GeminiClient init failed: {e}")
-            self.gemini_client = None
+Your expertise covers:
+- Physics: Mechanics, Thermodynamics, Optics, Electricity & Magnetism, Modern Physics
+- Chemistry: Physical Chemistry, Organic Chemistry, Inorganic Chemistry  
+- Biology: Botany, Zoology, Human Physiology, Genetics, Ecology
 
-        # Initialize Grok API for SQL-related responses (backup)
-        try:
-            self.grok_client = self._initialize_grok_client()
-        except Exception as e:
-            print(f"⚠️ Grok client init failed: {e}")
-            self.grok_client = None
-
-        # Check if AI components are available: require Gemini OR Grok for general responses, SQL agent optional
-        llm_ok = (self.gemini_client and getattr(self.gemini_client, 'is_available', lambda: False)()) or (self.grok_client is not None)
-        sql_ok = (self.sql_agent and getattr(self.sql_agent, 'is_available', lambda: False)())
-        self.ai_available = llm_ok or sql_ok
+When providing personalized responses:
+1. Analyze the student's performance data carefully
+2. Identify strengths, weaknesses, and patterns
+3. Provide specific, actionable recommendations
+4. Use encouraging and supportive language
+5. Connect performance to NEET exam requirements
+6. Suggest targeted study strategies and practice areas
+7. Do not include raw data formatting (e.g., asterisks, markdown tables, or code blocks) in your response.
+8. Do not mention session IDs or any internal identifiers in your answer.
+9. Please respond in plain text only, without any Markdown formatting (no bold, italics, headings, or symbols like *, `, #, etc.)."""
+            
+            self._initialization_time = time.time() - start_time
+            print(f"⏱️ Service initialization completed in {self._initialization_time:.2f}s")
+            print(f"🤖 AI Available: {self._ai_available}")
+            print("NEET Chatbot Service initialized - AI Available: True" if self._ai_available else "NEET Chatbot Service initialized - AI Available: False")
+    
+    @property
+    def sql_agent(self):
+        """Get the cached SQL agent instance"""
+        return self._sql_agent
+    
+    @property
+    def gemini_client(self):
+        """Get the cached Gemini client instance"""
+        return self._gemini_client
+    
+    @property
+    def grok_client(self):
+        """Get the cached Grok client instance"""
+        return self._grok_client
+    
+    @property
+    def ai_available(self):
+        """Check if AI services are available"""
+        return self._ai_available
+    
+    @property
+    def neet_prompt(self):
+        """Get the NEET prompt for personalized responses"""
+        return self._neet_prompt
+    
+    @classmethod
+    def reset_instance(cls):
+        """Reset the singleton instance (useful for testing or reinitialization)"""
+        cls._instance = None
+        cls._sql_agent = None
+        cls._gemini_client = None
+        cls._grok_client = None
+        cls._ai_available = False
+        cls._initialization_time = None
+        cls._neet_prompt = None
+        print("🔄 NeetChatbotService instance reset")
         
-        print(f"NEET Chatbot Service initialized - AI Available: {self.ai_available}")
-        
-        # Single NEET tutor prompt
-        self.neet_prompt = """You are NEET Ninja, a specialized and empathetic AI tutor for NEET aspirants. Your purpose is to assist students by analyzing their performance data and answering their specific questions with personalized, actionable insights.
-
-You are strictly limited to the NEET syllabus, covering Physics, Chemistry, Botany, and Zoology. Below is your topic reference:
-
-NEET_STRUCTURE = {
-    Physics: [
-        "Physical world", "Units and Measurements", "Motion in a Straight Line", "Motion in a Plane",
-        "Laws of Motion", "Work, Energy and Power", "System of Particles and Rotational Motion",
-        "Gravitation", "Mechanical Properties of Solids", "Mechanical Properties of Fluids",
-        "Thermal Properties of Matter", "Thermodynamics", "Kinetic Theory", "Oscillations", "Waves",
-        "Electric Charges and Fields", "Electrostatic Potential and Capacitance", "Current Electricity",
-        "Moving Charges and Magnetism", "Magnetism and Matter", "Electromagnetic Induction",
-        "Alternating Current", "Electromagnetic Waves", "Ray Optics and Optical Instruments",
-        "Wave Optics", "Dual Nature of Radiation and Matter", "Atoms", "Nuclei", "Semiconductor Electronics"
-    ],
- 
-    chemistry: [
-        "Some Basic Concepts of Chemistry", "Structure of Atom", "Classification of Elements and Periodicity in Properties",
-        "Chemical Bonding and Molecular Structure", "States of Matter", "Thermodynamics", "Equilibrium",
-        "Redox Reactions", "Hydrogen", "The s-Block Element (Alkali and Alkaline earth metals)", "Some p-Block Elements",
-        "Organic Chemistry – Some Basic Principles and Techniques", "Hydrocarbons", "Environmental Chemistry",
-        "Solid State", "Solutions", "Electrochemistry", "Chemical Kinetics", "Surface Chemistry",
-        "General Principles and Processes of Isolation of Elements", "The p-Block Elements",
-        "The d- and f-Block Elements", "Coordination Compounds", "Haloalkanes and Haloarenes",
-        "Alcohols, Phenols and Ethers", "Aldehydes, Ketones and Carboxylic Acids",
-        "Organic Compounds containing Nitrogen", "Biomolecules", "Polymers", "Chemistry in Everyday Life"
-    ],
- 
-    Botany: [
-        "Diversity in the Living World", "Biological Classification", "Plant Kingdom",
-        "Morphology of Flowering Plants", "Anatomy of Flowering Plants", "Structural Organisation in Animals",
-        "Cell - The Unit of Life", "Biomolecules", "Cell Cycle and Cell Division", "Transport in Plants",
-        "Mineral Nutrition", "Photosynthesis in Higher Plants", "Respiration in Plants",
-        "Plant Growth and Development", "Reproduction in Organisms", "Sexual Reproduction in Flowering Plants",
-        "Principles of Inheritance and Variation", "Molecular Basis of Inheritance",
-        "Strategies for Enhancement in Food Production", "Microbes in Human Welfare",
-        "Biotechnology – Principles and Processes", "Biotechnology and Its Applications",
-        "Organisms and Populations", "Ecosystem", "Biodiversity and Conservation", "Environmental Issues"
-    ],
- 
-    Zoology: [
-        "Animal Kingdom", "Structural Organisation in Animals", "Biomolecules", "Digestion and Absorption",
-        "Breathing and Exchange of Gases", "Body Fluids and Circulation", "Excretory Products and Their Elimination",
-        "Locomotion and Movement", "Neural Control and Coordination", "Chemical Coordination and Integration",
-        "Human Reproduction", "Reproductive Health", "Evolution", "Human Health and Disease",
-        "Biotechnology – Principles and Processes", "Biotechnology and Its Applications", "Animal Husbandry"
-    ]
-}
-
-Do NOT generate generic feedback. Only respond based on the student's actual query. Your analysis and explanation must align with what the student is asking — whether it’s a request for strengths, weaknesses, subject-wise performance, suggestions for improvement, etc.
-
-The input data format is flexible and will vary based on the question. You must interpret the structure and extract relevant meaning based on the field names and values provided.
-
-Your response must:
-- Focus only on the intent of the question.
-- Use the performance data to support your insights.
-- Avoid unnecessary elaboration or listing unless asked.
-- Maintain a friendly, motivating, and clear tone.
-- Do not include raw data formatting (e.g., asterisks, markdown tables, or code blocks) in your response.
-- Do not mention session IDs or any internal identifiers in your answer.
-- Present information in clear, readable sentences suitable for students
-- Please respond in plain text only, without any Markdown formatting (no bold, italics, headings, or symbols like *, , #, etc.).
-- If the student asks for performance-based insights or advice but has not yet taken any test (i.e., no performance data is provided in the input), politely inform them that they need to take their first test to know their performance.
-- If the student asks for complete syllabus explanations, inform them that explanations can only be given topic-wise or chapter-wise based on specific requests.
-- If the student asks for exact mark or rank prediction, inform them that exact predictions are not possible, but improvement suggestions can be shared based on performance.
-- If the student's query is outside the NEET syllabus (e.g., JEE topics or general career guidance), politely refuse and remind them that you are limited to NEET syllabus only.
-Do not provide insights outside the NEET syllabus."""
+    def get_initialization_time(self):
+        """Get the time it took to initialize the service"""
+        return self._initialization_time
         
     def _initialize_grok_client(self):
         """Initialize Grok API client for SQL-related responses (backup)"""
@@ -284,8 +306,10 @@ Respond with ONLY one word: either "STUDENT_SPECIFIC" or "GENERAL"."""
             print(f"   AI Available: {self.ai_available}")
             
             # Step 1: Classify intent (general or student_specific)
+            intent_start = time.time()
             intent = self._classify_intent(query)
-            print(f"📝 Intent classified as: {intent}")
+            intent_time = time.time() - intent_start
+            print(f"📝 Intent classified as: {intent} (time: {intent_time:.2f}s)")
             
             # Step 2: Handle student-specific queries - fetch SQL data
             sql_data = None
@@ -293,6 +317,7 @@ Respond with ONLY one word: either "STUDENT_SPECIFIC" or "GENERAL"."""
             
             if intent == 'student_specific' and self.ai_available:
                 print(f"🔍 Student-specific query detected - fetching SQL data...")
+                sql_start = time.time()
                 try:
                     print(f"   Calling SQL agent with query: '{query}' for student: {student_id}")
                     sql_result = self.sql_agent.generate_sql_and_execute(
@@ -324,6 +349,7 @@ Respond with ONLY one word: either "STUDENT_SPECIFIC" or "GENERAL"."""
             
             # Step 3: Generate AI response based on intent type
             if self.ai_available and self.gemini_client:
+                ai_start = time.time()
                 print(f"🤖 Generating AI response for intent: {intent}")
                 
                 if intent == 'general':
@@ -362,14 +388,17 @@ When answering:
                     print(f"   Using personalized prompt (length: {len(full_prompt)} chars)")
                 
                 print(f"   Sending to Gemini API...")
+                gemini_start = time.time()
                 try:
                     # First try Gemini for general responses
                     ai_response = self.gemini_client.generate_response(full_prompt)
-                    print(f"   ✅ Gemini response received (length: {len(ai_response)} chars)")
+                    gemini_time = time.time() - gemini_start
+                    print(f"   ✅ Gemini response received (length: {len(ai_response)} chars, time: {gemini_time:.2f}s)")
                     print(f"   Response preview: {ai_response[:200]}...")
                     
                 except Exception as e:
-                    print(f"⚠️ Gemini API error: {e}")
+                    gemini_time = time.time() - gemini_start
+                    print(f"⚠️ Gemini API error after {gemini_time:.2f}s: {e}")
                     
                     # Fallback to Grok API if Gemini fails
                     if self.grok_client:
@@ -392,25 +421,32 @@ When answering:
                     else:
                         ai_response = "I'm experiencing technical difficulties. Please try again in a moment."
                 
+                ai_time = time.time() - ai_start
+                print(f"   🎯 Total AI response time: {ai_time:.2f}s")
+                
             else:
                 ai_response = "I'm currently unavailable. Please try again in a moment."
                 print(f"⚠️ AI unavailable - using fallback response")
             
             # Step 4: Save to database
             processing_time = time.time() - start_time
-            print(f"💾 Saving to database (processing time: {processing_time:.2f}s)")
+            print(f"💾 Saving to database (total processing time: {processing_time:.2f}s)")
             
+            db_start_time = time.time()
             try:
                 message_id = self._save_chat_message(
                     chat_session_id, query, ai_response, 
                     metadata={'intent': intent, 'has_sql_data': sql_data is not None, 'processing_time': processing_time}
                 )
-                print(f"   ✅ Chat message saved with ID: {message_id}")
+                db_save_time = time.time() - db_start_time
+                print(f"   ✅ Chat message saved with ID: {message_id} (DB save time: {db_save_time:.2f}s)")
                 
                 # Save SQL query if available
                 if sql_query and message_id:
+                    sql_start_time = time.time()
                     self._save_sql_query(message_id, sql_query)
-                    print(f"   ✅ SQL query saved to message {message_id}")
+                    sql_save_time = time.time() - sql_start_time
+                    print(f"   ✅ SQL query saved to message {message_id} (SQL save time: {sql_save_time:.2f}s)")
                     
             except Exception as e:
                 print(f"   ❌ Failed to save chat message: {e}")

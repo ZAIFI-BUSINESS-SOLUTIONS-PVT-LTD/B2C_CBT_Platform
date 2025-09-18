@@ -196,6 +196,26 @@ def dispatch_test_result_email(user, results: Dict) -> bool:
         except Exception:
             logger.exception('Unhandled exception sending test result email')
 
+    # First check if Celery workers are available to avoid Redis connection delays
+    try:
+        from .views.insights_views import is_celery_worker_available
+        
+        if not is_celery_worker_available():
+            print(f"⚠️ No Celery workers available, using background thread for email to {user.student_id}")
+            # Immediately fall back to background thread
+            thread = threading.Thread(target=_worker, daemon=True)
+            thread.start()
+            print(f"🚀 Background email thread started for user {user.student_id}")
+            return True
+    except Exception as check_e:
+        print(f"⚠️ Error checking Celery availability for email, using background thread: {str(check_e)}")
+        # Fall back to background thread if worker check fails
+        thread = threading.Thread(target=_worker, daemon=True)
+        thread.start()
+        print(f"🚀 Background email thread started for user {user.student_id}")
+        return True
+
+    # If workers are available, try Celery first
     try:
         from .tasks import send_test_result_email_task
         send_test_result_email_task.delay(user.student_id, results)
@@ -208,10 +228,12 @@ def dispatch_test_result_email(user, results: Dict) -> bool:
         thread.start()
         return True
     except Exception as e:
-        # Log the specific error but still try to send via Celery
+        # Log the specific error and fallback to threading instead of failing
         logger.error(f'Error enqueueing test result email task for user {user.student_id}: {e}')
-        # Re-raise to let Celery handle retries
-        raise
+        logger.warning('Falling back to background thread for test result email')
+        thread = threading.Thread(target=_worker, daemon=True)
+        thread.start()
+        return True
 
 
 def _render_inactivity_templates(user, context: Dict) -> Dict[str, str]:

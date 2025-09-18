@@ -90,11 +90,11 @@ class SelectionEngineTestCase(TestCase):
                 topic=topic,
                 difficulty=difficulty,
                 question=question_text,
-                optionA="Option A",
-                optionB="Option B", 
-                optionC="Option C",
-                optionD="Option D",
-                correctAnswer="A"
+                option_a="Option A",
+                option_b="Option B", 
+                option_c="Option C",
+                option_d="Option D",
+                correct_answer="A"
             )
     
     def test_engine_initialization(self):
@@ -174,9 +174,11 @@ class SelectionEngineTestCase(TestCase):
         # Create test session and answers for recent questions
         test_session = TestSession.objects.create(
             student_id=self.student_id,
+            selected_topics=[],
+            start_time=timezone.now() - timedelta(days=5),  # Within 15 days
+            total_questions=5,
             question_count=5,
-            is_completed=True,
-            created_at=timezone.now() - timedelta(days=5)  # Within 15 days
+            is_completed=True
         )
         
         # Add some test answers
@@ -184,13 +186,15 @@ class SelectionEngineTestCase(TestCase):
             session=test_session,
             question_id=1,
             selected_answer="A",
-            is_correct=True
+            is_correct=True,
+            answered_at=timezone.now() - timedelta(days=5)
         )
         TestAnswer.objects.create(
             session=test_session,
             question_id=2,
             selected_answer="B",
-            is_correct=False
+            is_correct=False,
+            answered_at=timezone.now() - timedelta(days=5)
         )
         
         available = self.engine._apply_exclusion_rule([], set(), "random")
@@ -241,6 +245,9 @@ class SelectionEngineTestCase(TestCase):
         # Create test session with answers
         test_session = TestSession.objects.create(
             student_id=self.student_id,
+            selected_topics=[1, 2],
+            start_time=timezone.now(),
+            total_questions=4,
             question_count=4,
             is_completed=True
         )
@@ -393,14 +400,17 @@ class StreakRulesTestCase(TestCase):
                 topic=self.topic,
                 difficulty="Easy" if i <= 2 else "Hard",
                 question=f"Question {i}",
-                optionA="A", optionB="B", optionC="C", optionD="D",
-                correctAnswer="A"
+                option_a="A", option_b="B", option_c="C", option_d="D",
+                correct_answer="A"
             )
         
         self.student_id = "STU123"
         self.session = TestSession.objects.create(
             id=1,
             student_id=self.student_id,
+            selected_topics=[1],
+            start_time=timezone.now(),
+            total_questions=5,
             question_count=5
         )
     
@@ -412,7 +422,8 @@ class StreakRulesTestCase(TestCase):
                 session=self.session,
                 question_id=i,
                 selected_answer="A" if is_correct else "B",
-                is_correct=is_correct
+                is_correct=is_correct,
+                answered_at=timezone.now()
             )
             answers.append(answer)
         return list(reversed(answers))  # Most recent first
@@ -515,8 +526,8 @@ class PublicInterfaceTestCase(TestCase):
                 topic=self.topic,
                 difficulty=["Easy", "Moderate", "Hard"][i % 3],
                 question=f"Question {i}",
-                optionA="A", optionB="B", optionC="C", optionD="D",
-                correctAnswer="A"
+                option_a="A", option_b="B", option_c="C", option_d="D",
+                correct_answer="A"
             )
     
     def test_generate_questions_with_rules_success(self):
