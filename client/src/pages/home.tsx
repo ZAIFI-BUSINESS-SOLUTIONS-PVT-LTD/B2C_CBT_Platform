@@ -12,17 +12,15 @@
  */
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { LoginForm } from "@/components/LoginForm";
 import { useLocation } from "wouter";
 import { StudentProfile } from "@/components/profile-avatar";
 import Logo from "@/assets/images/logo.svg";
 import MiniChatbot from '@/components/mini-chatbot';
 import MiniDashboard from '@/components/mini-dashboard';
-import { ArrowRight, History, NotebookPen, TestTube, Trophy, AlertTriangle, Sparkles, Crown, Lock } from "lucide-react";
+import { ArrowRight, History, NotebookPen, Trophy, AlertTriangle, Crown, Lock } from "lucide-react";
 import MobileDock from "@/components/mobile-dock";
 import { AnalyticsData, InsightsData } from "@/components/insight-card";
 import NeetCountdown from '@/components/coundown';
@@ -289,10 +287,22 @@ export default function Home() {
   // =============================================================================
 
   // Show login form if not authenticated
+  // Redirect to login page if not authenticated
   if (!isAuthenticated) {
+    // While auth is loading, keep the placeholder minimal
+    if (loading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-50">
+          <div className="text-center text-sm text-gray-600">Checking authentication...</div>
+        </div>
+      );
+    }
+
+    // Navigate to login for unauthenticated users
+    navigate('/login');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-50">
-        <LoginForm />
+        <div className="text-center text-sm text-gray-600">Redirecting to login...</div>
       </div>
     );
   }

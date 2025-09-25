@@ -27,10 +27,10 @@ export function StudentProfile() {
     <Button
       variant="ghost"
       className="p-1 rounded-full hover:bg-gray-100 touch-none"
-      onClick={() => navigate('/dashboard')}
+      onClick={() => navigate('/profile')}
     >
-      <Avatar className="h-10 w-10">
-        <AvatarFallback className="bg-blue-600 text-white">{initials}</AvatarFallback>
+      <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
+        <AvatarFallback className="bg-blue-600 text-white sm:text-2xl font-bold sm:pt-1">{initials}</AvatarFallback>
       </Avatar>
     </Button>
   );

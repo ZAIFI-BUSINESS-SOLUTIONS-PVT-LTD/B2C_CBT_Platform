@@ -23,6 +23,7 @@ export default function MobileDock() {
     const items = [
         { key: "home", href: "/", label: "Home", icon: <Home className="h-5 w-5" /> },
         { key: "test", href: "/topics", label: "Test", icon: <NotepadText className="h-5 w-5" /> },
+        { key: "analysis", href: "/dashboard", label: "Analysis", icon: <FileChartPie className="h-5 w-5" /> },
         { key: "chatbot", href: "/chatbot", label: "Chatbot", icon: <MessageSquareMore className="h-5 w-5" /> },
     ];
 

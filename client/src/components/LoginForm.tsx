@@ -3,9 +3,8 @@ import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { RegisterForm } from "@/components/RegisterForm";
 import GoogleSignIn from "@/components/google-signin";
+import Logo from "@/assets/images/logo.svg";
 
 import { AlertCircle, Eye, EyeOff } from "lucide-react";
 
@@ -14,7 +13,7 @@ export function LoginForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
-  const [showRegister, setShowRegister] = useState(false);
+  // register modal removed; standalone /register page now
   const [showPassword, setShowPassword] = useState(false);
 
   // Check if there's any authentication error
@@ -77,31 +76,23 @@ export function LoginForm() {
   );
 
   return (
-    <div className="min-h-screen w-full flex items-end justify-center bg-gradient-to-br from-sky-200 via-blue-200 to-indigo-200 relative overflow-hidden">
-
-      {/* Top Section - Welcome Message */}
-      <div className="absolute top-40 left-0 right-0 flex items-center justify-center px-6 py-12">
-        <div className="text-center max-w-md mx-auto">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            Welcome to InzightEd
-          </h1>
-          <p className="text-base text-gray-600">
-            Free unlimited mock tests with AI-powered NEET preparation
-          </p>
-        </div>
-      </div>
-
+    // Page wrappers (e.g. `pages/login.tsx` / `pages/register.tsx`) are now responsible for background
+    <div>
       {/* Login Form */}
-      <div className="w-full flex flex-col items-center justify-center">
-        <form onSubmit={handleSubmit} className="space-y-4 w-full px-6 py-8 bg-white rounded-t-xl shadow-lg">
+      <div className="w-full flex flex-col items-center justify-center md:max-w-md">
+        <form onSubmit={handleSubmit} className="space-y-4 w-full p-6 pb-6 pt-8 bg-white rounded-t-2xl shadow-lg md:rounded-2xl md:mx-4 md:px-6 md:py-8">
+          <div className="space-y-1 items-center text-center text-sm text-gray-600">
+            <img src={Logo} alt="Logo" className="h-6 mx-auto mb-2" />
+            Login
+          </div>
           <div className="space-y-1">
             <Input
               type="text"
-              placeholder="Username, Email, or Student ID"
+              placeholder="Username"
               value={username}
               onChange={e => setUsername(e.target.value)}
               required
-              className={`transition-all duration-200 text-base py-3 ${hasAuthError
+              className={`transition-all duration-200 text-base h-12 rounded-xl ${hasAuthError
                 ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
                 : "focus:border-blue-500 focus:ring-blue-500"
                 }`}
@@ -117,7 +108,7 @@ export function LoginForm() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              className={`transition-all duration-200 pr-10 text-base py-3 ${hasAuthError
+              className={`transition-all duration-200 pr-10 text-base h-12 rounded-xl ${hasAuthError
                 ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
                 : "focus:border-blue-500 focus:ring-blue-500"
                 }`}
@@ -160,15 +151,14 @@ export function LoginForm() {
             </div>
           )}
 
-          {/* Login Button and Create Profile Side by Side */}
-          {/* Login Button and Create Profile Side by Side */}
-          <div className="flex flex-col w-full gap-2">
-
+          {/* Login Button and link to Register page */}
+          <div className="flex flex-col w-full gap-3">
             <Button
               variant="default"
               type="submit"
               disabled={loading}
               size={"lg"}
+              className="w-full rounded-xl h-12"
             >
               {loading ? (
                 <div className="flex items-center space-x-2">
@@ -179,28 +169,18 @@ export function LoginForm() {
                 "Login"
               )}
             </Button>
-            <Dialog open={showRegister} onOpenChange={setShowRegister}>
-              <DialogTrigger asChild>
-                <Button
-                  type="button"
-                  size={"lg"}
-                  variant="outline"
-                >
-                  Create Profile
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>
-                    <span className="block text-center text-blue-700 text-2xl font-bold">Create Student Profile</span>
-                  </DialogTitle>
-                </DialogHeader>
-                <RegisterForm onSuccess={(profile) => {
-                  console.log("Profile created successfully:", profile);
-                  setTimeout(() => setShowRegister(false), 100);
-                }} />
-              </DialogContent>
-            </Dialog>
+            {/* Google Sign-In Button */}
+            <GoogleSignIn
+              onSuccess={(data) => {
+                console.log("Google sign-in successful:", data);
+              }}
+              onError={(error) => {
+                console.error("Google sign-in error:", error);
+                setFormError(error);
+              }}
+              disabled={loading}
+            />
+
           </div>
 
           {/* OR Divider */}
@@ -212,22 +192,17 @@ export function LoginForm() {
               OR
             </div>
           </div>
-
-          {/* Google Sign-In Button */}
-          <GoogleSignIn
-            onSuccess={(data) => {
-              console.log("Google sign-in successful:", data);
-            }}
-            onError={(error) => {
-              console.error("Google sign-in error:", error);
-              setFormError(error);
-            }}
-            className="text-lg py-3"
-            disabled={loading}
-          />
+          <Button
+            asChild
+            type="button"
+            size={"lg"}
+            variant="outline"
+            className="w-full rounded-xl h-12"
+          >
+            <Link href="/register" className="w-full text-center">Create Profile</Link>
+          </Button>
         </form>
       </div>
-
     </div>
   );
 }

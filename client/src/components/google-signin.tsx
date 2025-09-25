@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 import { GOOGLE_CLIENT_ID, GOOGLE_CONFIG, isGoogleConfigured, GOOGLE_ERRORS, API_BASE_URL } from "@/config/google-auth";
 
 declare global {
@@ -32,11 +33,11 @@ interface GoogleSignInProps {
   disabled?: boolean;
 }
 
-export default function GoogleSignIn({ 
-  onSuccess, 
-  onError, 
-  className = "", 
-  disabled = false 
+export default function GoogleSignIn({
+  onSuccess,
+  onError,
+  className = "",
+  disabled = false
 }: GoogleSignInProps) {
   const { loginWithGoogle, setAuthFromTokens } = useAuth();
   const [, setLocation] = useLocation();
@@ -73,7 +74,7 @@ export default function GoogleSignIn({
 
     const initializeGoogle = () => {
       if (!window.google) return;
-      
+
       try {
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
@@ -93,7 +94,7 @@ export default function GoogleSignIn({
 
   const handleCredentialResponse = async (response: any) => {
     setLoading(true);
-    
+
     try {
       if (!response.credential) {
         throw new Error(GOOGLE_ERRORS.NO_CREDENTIAL);
@@ -116,7 +117,7 @@ export default function GoogleSignIn({
     } catch (error) {
       console.error('Google sign-in error:', error);
       const errorMessage = error instanceof Error ? error.message : GOOGLE_ERRORS.SIGN_IN_FAILED;
-      
+
       toast({
         title: "Sign-in Failed",
         description: errorMessage,
@@ -131,13 +132,13 @@ export default function GoogleSignIn({
 
   const handleGoogleSignIn = () => {
     setLoading(true);
-    
+
     // Create a Google OAuth popup URL
     const redirectUri = `${window.location.origin}/auth/google/callback`;
     const scope = 'email profile';
     const responseType = 'code';
     const state = Math.random().toString(36).substring(2, 15);
-    
+
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${GOOGLE_CLIENT_ID}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
@@ -173,9 +174,9 @@ export default function GoogleSignIn({
     // Listen for messages from popup
     const messageHandler = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
-      
+
       clearTimeout(timeoutId);
-      
+
       if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
         popup.close();
         handleAuthSuccess(event.data.code, state);
@@ -187,7 +188,7 @@ export default function GoogleSignIn({
     };
 
     window.addEventListener('message', messageHandler);
-    
+
     // Cleanup after timeout
     setTimeout(() => {
       window.removeEventListener('message', messageHandler);
@@ -205,9 +206,9 @@ export default function GoogleSignIn({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           code: code,
-          state: state 
+          state: state
         }),
       });
 
@@ -264,17 +265,11 @@ export default function GoogleSignIn({
   }
 
   return (
-    <button
+    <Button
       onClick={handleGoogleSignIn}
       disabled={disabled || loading || !googleLoaded}
-      className={`
-        w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm 
-        text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 
-        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
-        disabled:opacity-50 disabled:cursor-not-allowed
-        transition-colors duration-200
-        ${className}
-      `}
+      variant="outline"
+      className={`w-full rounded-xl h-12`}
     >
       {loading ? (
         <>
@@ -304,6 +299,6 @@ export default function GoogleSignIn({
           Continue with Google
         </>
       )}
-    </button>
+    </Button>
   );
 }

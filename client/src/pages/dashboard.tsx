@@ -5,11 +5,12 @@ import { useLocation, Link } from "wouter";
 import { useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ArrowRight, UserRound, Trophy, ChevronLeft, Edit } from "lucide-react";
+import { AlertCircle, ArrowRight, UserRound, Trophy, ChevronLeft } from "lucide-react";
 import { API_CONFIG } from "@/config/api";
 import { authenticatedFetch } from "@/lib/auth";
 import PracticeArena from "@/components/your-space";
 import BattleArena from "@/components/battle-arena";
+import MobileDock from "@/components/mobile-dock";
 import { AnalyticsData, InsightsData, PlatformTestAnalyticsData } from "@/types/dashboard";
 
 /**
@@ -19,11 +20,9 @@ export default function LandingDashboard() {
   const [timeDistSubject, setTimeDistSubject] = useState<string>('All');
   const [selectedPlatformTestId, setSelectedPlatformTestId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'practice' | 'battle'>('practice');
-  const [imageError, setImageError] = useState<boolean>(false);
-  const { isAuthenticated, loading, student, setStudent, logout } = useAuth();
+  const { isAuthenticated, loading, student } = useAuth();
+
   const [, navigate] = useLocation();
-  const [editExamYear, setEditExamYear] = useState(false);
-  const [examYearInput, setExamYearInput] = useState(student?.targetExamYear ? String(student.targetExamYear) : '');
 
   // === NAVIGATION GUARD ===
   // Redirect to home page when user tries to navigate back from landing dashboard
@@ -101,10 +100,7 @@ export default function LandingDashboard() {
         <div className="sticky top-0 bg-white z-10 border-b border-gray-200">
           {/* Header Section */}
           <div className="w-full mx-auto py-3 px-4 border-b border-gray-200 inline-flex items-center gap-3">
-            <Button variant="secondary" size="icon" className="size-8" onClick={() => navigate('/')}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <h1 className="text-lg font-bold text-gray-900">Profile & Performance</h1>
+            <h1 className="text-lg font-bold text-gray-900">Performance</h1>
           </div>
 
           {/* Tab Navigation */}
@@ -138,85 +134,6 @@ export default function LandingDashboard() {
         <div className="px-4 py-4">
           {activeTab === 'practice' && (
             <div className="space-y-4">
-              {/* Profile Details */}
-              {student && (
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex flex-col items-center text-center space-y-4">
-                      {/* Profile Image or Initials */}
-                      <div className="relative">
-                        {student.googlePicture && !imageError ? (
-                          <img
-                            src={student.googlePicture}
-                            alt={`${student.fullName}'s profile`}
-                            className="w-20 h-20 rounded-full object-cover border-4 border-blue-100"
-                            onError={() => {
-                              console.log('Google profile image failed to load, showing initials');
-                              setImageError(true);
-                            }}
-                          />
-                        ) : (
-                          <div className="w-20 h-20 rounded-full bg-blue-500 flex items-center justify-center text-white text-2xl font-bold border-4 border-blue-100">
-                            {student.fullName.split(' ').map(name => name[0]).join('').toUpperCase().slice(0, 2)}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Name and Email */}
-                      <div>
-                        <h3 className="text-xl font-semibold text-gray-900">{student.fullName}</h3>
-                        <p className="text-sm text-gray-500 mt-1">{student.email}</p>
-                      </div>
-
-                      {/* Target Exam Year (editable) */}
-                      <div>
-                        <p className="text-sm text-gray-600">Target Exam Year</p>
-                        {!editExamYear ? (
-                          <div className="flex items-end gap-0">
-                            <p className="text-base font-medium text-blue-600">
-                              {student.targetExamYear ? `NEET ${student.targetExamYear}` : 'Not set'}
-                            </p>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 p-0 text-gray-500"
-                              onClick={() => { setEditExamYear(true); setExamYearInput(student.targetExamYear ? String(student.targetExamYear) : ''); }}>
-                              <Edit />
-                            </Button>
-                          </div>
-                        ) : (
-                          <form className="flex items-center gap-2" onSubmit={e => {
-                            e.preventDefault();
-                            if (examYearInput && setStudent) {
-                              setStudent({ ...student, targetExamYear: Number(examYearInput) });
-                            }
-                            setEditExamYear(false);
-                          }}>
-                            <input
-                              type="number"
-                              min="2025"
-                              max="2100"
-                              value={examYearInput}
-                              onChange={e => setExamYearInput(e.target.value)}
-                              className="border rounded px-2 py-1 text-sm w-24"
-                              placeholder="Year"
-                              required
-                            />
-                            <Button type="submit" size="sm" variant="default">Save</Button>
-                            <Button type="button" size="sm" variant="outline" onClick={() => setEditExamYear(false)}>Cancel</Button>
-                          </form>
-                        )}
-                      </div>
-
-                      {/* Logout Button */}
-                      <div className="mt-2">
-                        <Button variant="outline" size="sm" onClick={logout} className="w-32">Logout</Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
               {/* Insights Container */}
               {/* Fallback card if no tests written */}
               {(analytics?.totalTests === 0) && (
@@ -263,6 +180,7 @@ export default function LandingDashboard() {
 
 
       </div>
+      <MobileDock />
     </div>
   );
 }

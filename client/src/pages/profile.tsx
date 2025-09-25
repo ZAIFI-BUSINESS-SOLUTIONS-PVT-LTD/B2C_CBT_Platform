@@ -3,12 +3,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -165,44 +164,45 @@ export function StudentProfile() {
     // If not loading and no profile, show the full-page create profile form
     if (!isLoading && !profile) {
         return (
-            <main className="min-h-screen w-full flex flex-col items-center py-8 px-4 bg-gray-50">
+            <main className="min-h-screen w-full flex flex-col items-center py-8 px-4 bg-slate-50">
                 {/* Sticky header */}
                 <header className="sticky top-0 z-10 w-full bg-transparent">
-                    <div className="max-w-xl mx-auto flex items-center justify-between py-3 px-2">
+                    <div className="w-full mx-auto border-b border-gray-200 inline-flex items-center gap-3 px-4 sm:px-6 lg:px-8">
                         <Button
                             variant="secondary"
+                            size="icon"
                             onClick={() => navigate('/')}
                             aria-label="Go home"
-                            className="p-1 h-8 w-8 flex items-center justify-center"
+                            className="size-8"
                         >
                             <ChevronLeft className="h-4 w-4" />
                         </Button>
-                        <h1 className="text-lg font-semibold">Create Profile</h1>
-                        <div className="w-8" />
+                        <h1 className="text-lg font-bold text-gray-900">Create Profile</h1>
                     </div>
-                    <Separator />
                 </header>
 
-                <div className="w-full max-w-xl bg-white rounded-lg shadow-sm p-4 sm:p-6 mt-4">
-                    <div className="flex flex-col items-center text-center space-y-3 mb-4">
-                        <Avatar className="h-16 w-16">
-                            <AvatarFallback className="bg-blue-600 text-white">
-                                <Plus className="h-5 w-5" />
-                            </AvatarFallback>
-                        </Avatar>
-                        <h2 className="text-lg font-semibold">Create Your Profile</h2>
-                        <p className="text-sm text-gray-600">Add basic details so we can personalise your experience.</p>
-                    </div>
+                <div className="w-full max-w-3xl mt-6 mx-4 sm:mx-6 lg:mx-8">
+                    <Card className="shadow-md rounded-lg overflow-hidden">
+                        <CardContent className="p-4 sm:p-6 lg:p-8">
+                            <div className="flex flex-col items-center text-center space-y-3 mb-4">
+                                <Avatar className="h-16 w-16">
+                                    <AvatarFallback className="bg-blue-600 text-white">
+                                        <Plus className="h-5 w-5" />
+                                    </AvatarFallback>
+                                </Avatar>
+                                <h2 className="text-lg font-semibold">Create Your Profile</h2>
+                                <p className="text-sm text-gray-600">Add basic details so we can personalise your experience.</p>
+                            </div>
 
-                    <Separator />
-
-                    <div className="mt-4">
-                        <ProfileForm
-                            form={form}
-                            onSubmit={onSubmit}
-                            isLoading={profileMutation.isPending}
-                        />
-                    </div>
+                            <div className="mt-4">
+                                <ProfileForm
+                                    form={form}
+                                    onSubmit={onSubmit}
+                                    isLoading={profileMutation.isPending}
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
             </main>
         );
@@ -211,48 +211,45 @@ export function StudentProfile() {
     // Show loading state
     if (isLoading) {
         return (
-            <div className="flex items-center space-x-2">
-                <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
+            <div className="flex items-center justify-center min-h-40">
+                <div className="w-12 h-12 bg-gray-200 rounded-full animate-pulse"></div>
             </div>
         );
     }
 
     // Main profile display as a dedicated page with sticky header
     return (
-        <main className="min-h-screen w-full flex flex-col items-center p-4 bg-gray-50">
-            <header className="sticky top-0 z-10 w-full bg-transparent">
-                <div className="max-w-xl mx-auto flex items-center justify-between">
-                    <Button
-                        variant="secondary"
-                        onClick={() => navigate('/')}
-                        aria-label="Go home"
-                        className="p-1 h-8 w-8 flex items-center justify-center"
-                    >
-                        <ChevronLeft className="h-4 w-4" />
+        <main className="min-h-screen w-full flex flex-col items-center bg-gray-50">
+            <header className="sticky top-0 z-10 w-full border-b border-gray-200 bg-white">
+                <div className="w-full mx-auto py-3 inline-flex items-center gap-3 px-4 sm:px-6 lg:px-8">
+                    <Button variant="secondary" size="icon" className="rounded-xl h-8 w-8" onClick={() => navigate('/')}>
+                        <ChevronLeft />
                     </Button>
-                    <h1 className="text-lg md:text-xl font-semibold">Profile</h1>
-                    <div className="w-8" />
+                    <h1 className="text-lg font-bold text-gray-900">Profile</h1>
                 </div>
             </header>
-
-            <div className="w-full max-w-xl bg-white rounded-lg shadow-sm p-4 sm:p-6 mt-4">
-                {!isEditing ? (
-                    <ProfileView
-                        profile={profile!}
-                        onEdit={() => setIsEditing(true)}
-                        onLogout={async () => {
-                            await logout();
-                            navigate('/'); // Redirect to home page after logout
-                        }}
-                    />
-                ) : (
-                    <ProfileForm
-                        form={form}
-                        onSubmit={onSubmit}
-                        isLoading={profileMutation.isPending}
-                        onCancel={() => setIsEditing(false)}
-                    />
-                )}
+            <div className="w-full max-w-3xl mt-6 mx-3 sm:mx-6 lg:mx-8">
+                <Card className="mt-4 shadow-md rounded-lg overflow-hidden">
+                    <CardContent className="p-4 sm:p-6 lg:p-8">
+                        {!isEditing ? (
+                            <ProfileView
+                                profile={profile!}
+                                onEdit={() => setIsEditing(true)}
+                                onLogout={async () => {
+                                    await logout();
+                                    navigate('/'); // Redirect to home page after logout
+                                }}
+                            />
+                        ) : (
+                            <ProfileForm
+                                form={form}
+                                onSubmit={onSubmit}
+                                isLoading={profileMutation.isPending}
+                                onCancel={() => setIsEditing(false)}
+                            />
+                        )}
+                    </CardContent>
+                </Card>
             </div>
         </main>
     );
@@ -272,37 +269,38 @@ function ProfileView({ profile, onEdit, onLogout }: ProfileViewProps) {
     return (
         <div className="space-y-6 ">
             {/* Profile Header */}
-            <div className="flex items-center space-x-4 ">
-                <Avatar className="h-12 w-12 md:h-16 md:w-16">
-                    {/* AvatarImage removed: profilePicture field no longer exists */}
-                    <AvatarFallback className="bg-blue-600 text-white text-lg">
-                        {profile.fullName
-                            .split(" ")
-                            .map(word => word.charAt(0))
-                            .join("")
-                            .toUpperCase()
-                            .slice(0, 2)}
-                    </AvatarFallback>
-                </Avatar>
+            <div className="flex items-center gap-4">
+                <div className="flex-shrink-0">
+                    <Avatar className="h-14 w-14 md:h-20 md:w-20 ring-2 ring-white shadow-sm">
+                        <AvatarFallback className="bg-blue-600 text-white text-lg">
+                            {profile.fullName
+                                .split(" ")
+                                .map(word => word.charAt(0))
+                                .join("")
+                                .toUpperCase()
+                                .slice(0, 2)}
+                        </AvatarFallback>
+                    </Avatar>
+                </div>
 
                 <div className="flex-1 min-w-0">
-                    <h3 className="text-base md:text-lg font-semibold truncate">{profile.fullName}</h3>
-                    <p className="text-sm md:text-sm text-gray-600 truncate">{profile.email}</p>
-                    {profile.targetExamYear && (
-                        <Badge variant="outline" className="mt-1">
-                            NEET {profile.targetExamYear}
-                        </Badge>
-                    )}
+                    <h3 className="text-lg md:text-2xl font-semibold truncate">{profile.fullName}</h3>
+                    <p className="text-sm text-gray-600 truncate">{profile.email}</p>
+                    <div className="mt-2 flex items-center gap-2">
+                        {profile.targetExamYear && (
+                            <Badge variant="outline">
+                                NEET {profile.targetExamYear}
+                            </Badge>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            <Separator />
-
             {/* Profile Details */}
-            <div className="grid grid-cols-1 gap-4 ">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {profile.phoneNumber && (
-                    <div className="flex items-center space-x-3">
-                        <Phone className="h-4 w-4 text-gray-500" />
+                    <div className="flex items-start space-x-3">
+                        <Phone className="h-5 w-5 text-gray-500 mt-1" />
                         <div>
                             <p className="text-sm font-medium">Phone Number</p>
                             <p className="text-sm text-gray-600">{profile.phoneNumber}</p>
@@ -311,8 +309,8 @@ function ProfileView({ profile, onEdit, onLogout }: ProfileViewProps) {
                 )}
 
                 {profile.dateOfBirth && (
-                    <div className="flex items-center space-x-3">
-                        <Calendar className="h-4 w-4 text-gray-500" />
+                    <div className="flex items-start space-x-3">
+                        <Calendar className="h-5 w-5 text-gray-500 mt-1" />
                         <div>
                             <p className="text-sm font-medium">Date of Birth</p>
                             <p className="text-sm text-gray-600">
@@ -323,8 +321,8 @@ function ProfileView({ profile, onEdit, onLogout }: ProfileViewProps) {
                 )}
 
                 {profile.schoolName && (
-                    <div className="flex items-center space-x-3">
-                        <GraduationCap className="h-4 w-4 text-gray-500" />
+                    <div className="flex items-start space-x-3">
+                        <GraduationCap className="h-5 w-5 text-gray-500 mt-1" />
                         <div>
                             <p className="text-sm font-medium">School/College</p>
                             <p className="text-sm text-gray-600">{profile.schoolName}</p>
@@ -334,15 +332,18 @@ function ProfileView({ profile, onEdit, onLogout }: ProfileViewProps) {
             </div>
 
             {/* Action Buttons */}
-            <div className="pt-4 space-y-2 sm:flex sm:space-y-0 sm:justify-between">
-                <Button
-                    variant="outline"
-                    onClick={onLogout}
-                    className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 w-full sm:w-auto justify-center"
-                >
-                    <LogOut className="h-4 w-4" />
-                    Logout
-                </Button>
+            <div className="pt-4 flex flex-col sm:flex-row sm:justify-end sm:items-center gap-3">
+                <div className="flex-1 sm:flex-none">
+                    <Button
+                        variant="outline"
+                        onClick={onLogout}
+                        className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 w-full sm:w-auto justify-center"
+                    >
+                        <LogOut className="h-4 w-4" />
+                        Logout
+                    </Button>
+                </div>
+
                 <Button onClick={onEdit} className="flex items-center gap-2 w-full sm:w-auto justify-center">
                     <Edit className="h-4 w-4" />
                     Edit Profile
@@ -366,8 +367,8 @@ interface ProfileFormProps {
 function ProfileForm({ form, onSubmit, isLoading, onCancel }: ProfileFormProps) {
     return (
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4">
-                <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
                     <Label htmlFor="fullName">Full Name *</Label>
                     <Input
                         id="fullName"
@@ -381,7 +382,7 @@ function ProfileForm({ form, onSubmit, isLoading, onCancel }: ProfileFormProps) 
                     )}
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                     <Label htmlFor="email">Email Address *</Label>
                     <Input
                         id="email"
@@ -414,7 +415,7 @@ function ProfileForm({ form, onSubmit, isLoading, onCancel }: ProfileFormProps) 
                     />
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                     <Label htmlFor="schoolName">School/College Name</Label>
                     <Input
                         id="schoolName"
@@ -436,7 +437,7 @@ function ProfileForm({ form, onSubmit, isLoading, onCancel }: ProfileFormProps) 
                 </div>
             </div>
 
-            <div className="pt-4 space-y-2 sm:flex sm:space-y-0 sm:justify-end">
+            <div className="pt-4 flex flex-col sm:flex-row sm:justify-end sm:items-center gap-3">
                 {onCancel && (
                     <Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto">
                         Cancel

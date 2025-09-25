@@ -53,14 +53,14 @@ export default {
   				'5': 'hsl(27, 87%, 67%)'
   			},
   			sidebar: {
-  				DEFAULT: 'hsl(0, 0%, 100%)',
-  				foreground: 'hsl(240, 9%, 14%)',
-  				primary: 'hsl(220, 90%, 56%)',
-  				'primary-foreground': 'hsl(0, 0%, 100%)',
-  				accent: 'hsl(240, 4%, 95%)',
-  				'accent-foreground': 'hsl(240, 6%, 10%)',
-  				border: 'hsl(240, 6%, 90%)',
-  				ring: 'hsl(220, 90%, 56%)'
+  				DEFAULT: 'hsl(var(--sidebar-background))',
+  				foreground: 'hsl(var(--sidebar-foreground))',
+  				primary: 'hsl(var(--sidebar-primary))',
+  				'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
+  				accent: 'hsl(var(--sidebar-accent))',
+  				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
+  				border: 'hsl(var(--sidebar-border))',
+  				ring: 'hsl(var(--sidebar-ring))'
   			}
   		},
   		keyframes: {

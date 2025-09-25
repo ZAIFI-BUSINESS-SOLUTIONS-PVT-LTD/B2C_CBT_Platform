@@ -1,55 +1,22 @@
-/**
- * Main Application Component for NEET Practice Platform
- * 
- * This is the root component that sets up the application structure including:
- * - React Query for server state management
- * - Wouter for client-side routing
- * - Toast notifications for user feedback
- * - Tooltip support for enhanced UX
- */
-
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
-import NotFound from "@/pages/not-found";
-import Home from "@/pages/home";
-import Test from "@/pages/test";
-import Results from "@/pages/results";
-import TestHistory from "@/components/test-history";
-import Topics from "@/pages/topics";
-import LandingDashboard from "@/pages/profile-performance";
-import ScheduledTests from "@/pages/scheduled-tests";
-import Chatbot from "@/pages/chatbot";
-import ForgotPassword from "@/pages/forgot-password";
-import ResetPassword from "@/pages/reset-password";
-import GoogleAuthCallback from "@/pages/google-auth-callback";
-import GoogleCallback from "@/pages/GoogleCallback";
-import ErrorPage from "@/pages/error-page";
-import { StudentProfile } from "@/pages/profile-page";
-// ...floating chatbot removed
+import { NotFound, Home, Test, Results, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, } from "@/pages";
 import { ErrorBoundary } from "@/components/error-boundary";
-// useLocation removed (no longer needed)
-import PaymentPage from "@/pages/payment-page";
 
-/**
- * Error Page Wrapper for Router
- * Wraps ErrorPage to work with wouter's route props
- */
 function ErrorPageRoute() {
   return <ErrorPage />;
 }
-/**
- * Application Router Component
- * Defines all available routes and their corresponding page components
- */
+
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />                           {/* Home page with topic selection */}
-      <Route path="/login" component={Home} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/register" component={RegisterPage} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/topics" component={Topics} />                  {/* Topics overview page */}
@@ -69,10 +36,6 @@ function Router() {
   );
 }
 
-/**
- * Root Application Component
- * Provides global context providers and renders the router
- */
 
 function App() {
   return (
