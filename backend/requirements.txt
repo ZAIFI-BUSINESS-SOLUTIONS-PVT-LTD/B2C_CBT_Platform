@@ -32,6 +32,13 @@ django-neomodel==0.2.0
 # HTTP Requests (for testing and external API calls)
 requests==2.31.0
 
+# Redis for OTP caching and rate limiting
+redis==5.0.1
+
+# AWS SDK for SMS via SNS
+boto3==1.35.9
+botocore==1.35.9
+
 # Development and Testing Dependencies
 # (Optional - can be moved to separate requirements-dev.txt)
 # These are used in test files but not required for production

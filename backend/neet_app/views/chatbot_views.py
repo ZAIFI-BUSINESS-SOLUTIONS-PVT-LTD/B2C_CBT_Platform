@@ -13,10 +13,11 @@ from django.shortcuts import get_object_or_404
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from ..models import ChatSession, ChatMessage, StudentProfile
+from ..models import ChatSession, ChatMessage, ChatMemory, StudentProfile
 from ..serializers import (
     ChatSessionSerializer, ChatMessageSerializer, 
-    ChatMessageCreateSerializer, ChatSessionCreateSerializer
+    ChatMessageCreateSerializer, ChatSessionCreateSerializer,
+    ChatMemorySerializer, ChatMemoryCreateSerializer
 )
 from ..services.chatbot_service_refactored import NeetChatbotService
 from ..jwt_authentication import StudentJWTAuthentication
@@ -28,6 +29,7 @@ class ChatSessionViewSet(mixins.ListModelMixin,
                         mixins.CreateModelMixin,
                         mixins.RetrieveModelMixin,
                         mixins.UpdateModelMixin,
+                        mixins.DestroyModelMixin,
                         viewsets.GenericViewSet):
     """
     ViewSet for managing chat sessions
@@ -293,6 +295,23 @@ class ChatSessionViewSet(mixins.ListModelMixin,
             recent_messages = chat_session.messages.order_by('-created_at')[:2]
             messages_data = ChatMessageSerializer(recent_messages, many=True).data
             
+            # Check if we should trigger memory summarization
+            # Trigger every 10 messages to extract long-term memories
+            total_messages = chat_session.messages.count()
+            if total_messages > 0 and total_messages % 10 == 0:
+                try:
+                    from ..tasks import chat_memory_summarizer_task
+                    # Enqueue summarization task in background
+                    chat_memory_summarizer_task.delay(
+                        chat_session_id=chat_session_id,
+                        student_id=request.user.student_id,
+                        message_threshold=10
+                    )
+                    print(f"🧠 Triggered memory summarization for session {chat_session_id} after {total_messages} messages")
+                except Exception as e:
+                    print(f"⚠️ Failed to trigger memory summarization: {e}")
+                    # Don't fail the main request if summarization fails
+            
             return Response({
                 'success': bot_response_data.get('success', True),
                 'user_message': user_message,
@@ -301,6 +320,8 @@ class ChatSessionViewSet(mixins.ListModelMixin,
                 'recent_messages': messages_data,
                 'intent': bot_response_data.get('intent', 'unknown'),
                 'has_personalized_data': bot_response_data.get('has_personalized_data', False),
+                'has_session_memory': bot_response_data.get('has_session_memory', False),
+                'has_long_term_memory': bot_response_data.get('has_long_term_memory', False),
                 'processing_time': bot_response_data.get('processing_time', 0),
                 'message_id': bot_response_data.get('message_id')
             }, status=status.HTTP_200_OK)
@@ -470,11 +491,215 @@ class ChatSessionViewSet(mixins.ListModelMixin,
                 "student_id": getattr(request.user, 'student_id', None)
             })
             raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to deactivate session', details={'exception': str(e)})
+    
+    def destroy(self, request, chat_session_id=None):
+        """Delete (soft-delete) a chat session by setting is_active=False"""
+        try:
+            sentry_sdk.add_breadcrumb(
+                message="Deleting chat session",
+                category="chat",
+                level="info",
+                data={
+                    "chat_session_id": chat_session_id,
+                    "student_id": getattr(request.user, 'student_id', None)
+                }
+            )
+            
+            try:
+                chat_session = ChatSession.objects.get(
+                    chat_session_id=chat_session_id,
+                    student_id=request.user.student_id,
+                    is_active=True
+                )
+            except ChatSession.DoesNotExist:
+                sentry_sdk.capture_message(
+                    "Chat session not found when deleting",
+                    level="warning",
+                    extra={
+                        "chat_session_id": chat_session_id,
+                        "student_id": getattr(request.user, 'student_id', None)
+                    }
+                )
+                raise AppError(
+                    code=ErrorCodes.CHAT_SESSION_NOT_FOUND,
+                    message='Chat session not found'
+                )
+            
+            # Soft delete by setting is_active=False
+            chat_session.is_active = False
+            chat_session.save()
+            
+            sentry_sdk.add_breadcrumb(
+                message="Chat session deleted successfully",
+                category="chat",
+                level="info",
+                data={"chat_session_id": chat_session_id}
+            )
+            
+            return Response({
+                'success': True,
+                'message': 'Chat session deleted successfully'
+            }, status=status.HTTP_200_OK)
+            
+        except AppError:
+            # Re-raise known AppError exceptions without additional processing
+            raise
+        except Exception as e:
+            sentry_sdk.capture_exception(e, extra={
+                "action": "delete_chat_session",
+                "chat_session_id": chat_session_id,
+                "student_id": getattr(request.user, 'student_id', None)
+            })
+            raise AppError(code=ErrorCodes.SERVER_ERROR, message='Failed to delete session', details={'exception': str(e)})
+
+
+class ChatMemoryViewSet(mixins.ListModelMixin,
+                       mixins.CreateModelMixin,
+                       mixins.RetrieveModelMixin,
+                       mixins.UpdateModelMixin,
+                       mixins.DestroyModelMixin,
+                       viewsets.GenericViewSet):
+    """
+    ViewSet for managing chat memories
+    Allows students to view and manage their long-term memories
+    """
+    authentication_classes = [StudentJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return ChatMemoryCreateSerializer
+        return ChatMemorySerializer
+    
+    def get_queryset(self):
+        """Return memories for the authenticated student only"""
+        try:
+            sentry_sdk.add_breadcrumb(
+                message="Getting chat memories for student",
+                category="memory",
+                level="info",
+                data={"student_id": getattr(self.request.user, 'student_id', None)}
+            )
+            
+            if hasattr(self.request.user, 'student_id'):
+                return ChatMemory.objects.filter(
+                    student__student_id=self.request.user.student_id
+                ).order_by('-updated_at')
+            return ChatMemory.objects.none()
+        except Exception as e:
+            sentry_sdk.capture_exception(e, extra={
+                "action": "get_chat_memories",
+                "user": str(self.request.user)
+            })
+            return ChatMemory.objects.none()
+    
+    def create(self, request, *args, **kwargs):
+        """Create a new chat memory for the authenticated student"""
+        try:
+            sentry_sdk.add_breadcrumb(
+                message="Creating new chat memory",
+                category="memory",
+                level="info",
+                data={"student_id": getattr(request.user, 'student_id', None)}
+            )
+            
+            # Validate input
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            
+            # Get student profile
+            from ..models import StudentProfile
+            student_profile = StudentProfile.objects.get(student_id=request.user.student_id)
+            
+            # Create memory
+            memory = ChatMemory.objects.create(
+                student=student_profile,
+                **serializer.validated_data
+            )
+            
+            sentry_sdk.add_breadcrumb(
+                message="Chat memory created successfully",
+                category="memory",
+                level="info",
+                data={"memory_id": memory.id, "student_id": request.user.student_id}
+            )
+            
+            # Return serialized response
+            response_serializer = ChatMemorySerializer(memory)
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+            
+        except StudentProfile.DoesNotExist:
+            raise AppError(
+                code=ErrorCodes.SERVER_ERROR,
+                message='Student profile not found'
+            )
+        except Exception as e:
+            sentry_sdk.capture_exception(e, extra={
+                "action": "create_chat_memory",
+                "student_id": getattr(request.user, 'student_id', None),
+                "request_data": request.data
+            })
+            raise AppError(
+                code=ErrorCodes.SERVER_ERROR,
+                message='Failed to create chat memory'
+            )
+    
+    @action(detail=False, methods=['post'], url_path='trigger-summarization')
+    def trigger_summarization(self, request):
+        """Manually trigger memory summarization for a session"""
+        try:
+            session_id = request.data.get('session_id')
+            if not session_id:
+                raise AppError(
+                    code=ErrorCodes.VALIDATION_ERROR,
+                    message='session_id is required'
+                )
+            
+            # Verify session belongs to user
+            from ..models import ChatSession
+            try:
+                ChatSession.objects.get(
+                    chat_session_id=session_id,
+                    student_id=request.user.student_id,
+                    is_active=True
+                )
+            except ChatSession.DoesNotExist:
+                raise AppError(
+                    code=ErrorCodes.CHAT_SESSION_NOT_FOUND,
+                    message='Chat session not found'
+                )
+            
+            # Enqueue summarization task
+            from ..tasks import chat_memory_summarizer_task
+            task = chat_memory_summarizer_task.delay(
+                chat_session_id=session_id,
+                student_id=request.user.student_id,
+                message_threshold=1  # Allow summarization even with few messages
+            )
+            
+            return Response({
+                'success': True,
+                'task_id': task.id,
+                'message': 'Memory summarization started'
+            }, status=status.HTTP_202_ACCEPTED)
+            
+        except AppError:
+            raise
+        except Exception as e:
+            sentry_sdk.capture_exception(e, extra={
+                "action": "trigger_memory_summarization",
+                "student_id": getattr(request.user, 'student_id', None)
+            })
+            raise AppError(
+                code=ErrorCodes.SERVER_ERROR,
+                message='Failed to trigger summarization'
+            )
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def chat_statistics(request):
+
     """Get chat statistics for the authenticated student"""
     try:
         sentry_sdk.add_breadcrumb(

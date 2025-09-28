@@ -42,6 +42,11 @@ export const API_CONFIG = {
     CHAT_SESSION_SEND_MESSAGE: (sessionId: string) => `/api/chat-sessions/${sessionId}/send-message/`,
     CHAT_QUICK: '/api/chatbot/quick-chat/',
     CHAT_STATISTICS: '/api/chatbot/statistics/',
+    
+    // Chat Memory endpoints
+    CHAT_MEMORY: '/api/chat-memory/',
+    CHAT_MEMORY_DETAIL: (memoryId: string) => `/api/chat-memory/${memoryId}/`,
+    CHAT_MEMORY_TRIGGER_SUMMARIZATION: '/api/chat-memory/trigger-summarization/',
 
     // Platform Tests endpoints
     PLATFORM_TESTS_AVAILABLE: '/api/platform-tests/available/',
@@ -52,6 +57,10 @@ export const API_CONFIG = {
     AUTH_FORGOT_PASSWORD: '/api/auth/forgot-password/',
     AUTH_VERIFY_RESET: '/api/auth/verify-reset-token/',
     AUTH_RESET_PASSWORD: '/api/auth/reset-password/',
+
+    // Mobile OTP authentication endpoints
+    AUTH_SEND_OTP: '/api/auth/send-otp/',
+    AUTH_VERIFY_OTP: '/api/auth/verify-otp/',
 
     // Payment endpoints
     PAYMENTS_CREATE_ORDER: '/api/payments/create-order/',
@@ -147,4 +156,68 @@ export async function verifyPayment(payload: {
  */
 export async function getSubscriptionStatus() {
   return await apiRequest(API_CONFIG.ENDPOINTS.PAYMENTS_SUBSCRIPTION_STATUS, "GET");
+}
+
+// --- Chat Session API Functions ---
+
+/**
+ * Delete a chat session by setting it as inactive
+ * @param sessionId Chat session ID to delete
+ * @returns Delete confirmation response
+ */
+export async function deleteChatSession(sessionId: string) {
+  return await apiRequest(API_CONFIG.ENDPOINTS.CHAT_SESSION_DETAIL(sessionId), "DELETE");
+}
+
+// --- Chat Memory API Functions ---
+
+/**
+ * Get all chat memories for the authenticated student
+ * @returns List of chat memories
+ */
+export async function getChatMemories() {
+  return await apiRequest(API_CONFIG.ENDPOINTS.CHAT_MEMORY, "GET");
+}
+
+/**
+ * Create a new chat memory
+ * @param memoryData Memory data object
+ * @returns Created memory response
+ */
+export async function createChatMemory(memoryData: {
+  memory_type?: 'long_term' | 'short_term';
+  content: any;
+  source_session_id?: string;
+  key_tags?: string[];
+  confidence_score?: number;
+}) {
+  return await apiRequest(API_CONFIG.ENDPOINTS.CHAT_MEMORY, "POST", memoryData);
+}
+
+/**
+ * Update an existing chat memory
+ * @param memoryId Memory ID to update
+ * @param memoryData Updated memory data
+ * @returns Updated memory response
+ */
+export async function updateChatMemory(memoryId: string, memoryData: any) {
+  return await apiRequest(API_CONFIG.ENDPOINTS.CHAT_MEMORY_DETAIL(memoryId), "PATCH", memoryData);
+}
+
+/**
+ * Delete a chat memory
+ * @param memoryId Memory ID to delete
+ * @returns Delete confirmation response
+ */
+export async function deleteChatMemory(memoryId: string) {
+  return await apiRequest(API_CONFIG.ENDPOINTS.CHAT_MEMORY_DETAIL(memoryId), "DELETE");
+}
+
+/**
+ * Manually trigger memory summarization for a session
+ * @param sessionId Chat session ID to summarize
+ * @returns Task response with task_id
+ */
+export async function triggerMemorySummarization(sessionId: string) {
+  return await apiRequest(API_CONFIG.ENDPOINTS.CHAT_MEMORY_TRIGGER_SUMMARIZATION, "POST", { session_id: sessionId });
 }

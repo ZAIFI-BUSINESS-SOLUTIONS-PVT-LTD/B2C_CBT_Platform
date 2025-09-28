@@ -524,10 +524,10 @@ class StudentProfile(models.Model):
     generated_password = models.CharField(max_length=64, blank=True)  # User-defined password (plain text for transition)
     
     # Basic profile information
-    full_name = models.TextField(null=False)
-    email = models.EmailField(unique=True, null=False)
+    full_name = models.TextField(null=True, blank=True)
+    email = models.EmailField(unique=True, null=True, blank=True)
     phone_number = models.CharField(max_length=20, null=True, blank=True)
-    date_of_birth = models.DateField(null=False)  # Required for ID and password generation
+    date_of_birth = models.DateField(null=True, blank=True)  # Required for ID and password generation
     
     # Google OAuth fields
     google_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)  # Google's stable user ID
@@ -537,6 +537,7 @@ class StudentProfile(models.Model):
     auth_provider = models.CharField(max_length=20, default='local', choices=[
         ('local', 'Local'),
         ('google', 'Google'),
+        ('mobile', 'Mobile'),
         ('both', 'Both'),
     ])  # Authentication provider
     
@@ -998,6 +999,54 @@ class PlatformAdmin(models.Model):
     def check_password(self, raw_password):
         from django.contrib.auth.hashers import check_password
         return check_password(raw_password, self.password_hash)
+
+
+class ChatMemory(models.Model):
+    """
+    Stores long-term and short-term memory for chatbot sessions
+    Enables chatbot to remember important facts across sessions
+    """
+    id = models.AutoField(primary_key=True)
+    # Link to StudentProfile using student_id for consistency
+    student = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, to_field='student_id', db_column='student_id', related_name='chat_memories')
+    # Memory type - long_term for cross-session facts, short_term for session-specific
+    memory_type = models.CharField(
+        max_length=20, 
+        choices=[('long_term', 'Long Term'), ('short_term', 'Short Term')], 
+        default='long_term',
+        null=False
+    )
+    # Memory content stored as JSON for structured data
+    content = models.JSONField(default=dict, help_text='Structured memory content with facts, tags, and metadata')
+    # Optional link to source session
+    source_session_id = models.CharField(max_length=100, null=True, blank=True, db_index=True)
+    # Key tags for categorization and search
+    key_tags = models.JSONField(default=list, blank=True, help_text='Tags for categorizing memories (subjects, topics, etc.)')
+    # Confidence score for memory reliability (0.0 to 1.0)
+    confidence_score = models.FloatField(default=1.0, help_text='Confidence in memory accuracy (0.0-1.0)')
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, null=False)
+    updated_at = models.DateTimeField(auto_now=True, null=False)
+    
+    class Meta:
+        db_table = 'chat_memory'
+        verbose_name = 'Chat Memory'
+        verbose_name_plural = 'Chat Memories'
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['student', 'memory_type']),
+            models.Index(fields=['source_session_id']),
+            models.Index(fields=['memory_type', 'updated_at']),
+            models.Index(fields=['student', 'memory_type', 'confidence_score']),
+        ]
+    
+    def __str__(self):
+        content_preview = str(self.content).get('summary', str(self.content))[:50] if self.content else 'Empty'
+        return f"{self.memory_type} memory for {self.student.student_id}: {content_preview}..."
+    
+    def get_student_profile(self):
+        """Get the associated StudentProfile"""
+        return self.student
 
 
 class RazorpayOrder(models.Model):

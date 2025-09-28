@@ -25,9 +25,14 @@ class GeminiClient:
         self.lock = threading.Lock()
         
         # Model configuration
-        self.model_name = "gemini-1.5-flash"
+        # Allow overriding max output tokens via environment or Django settings
+        self.model_name = "gemini-2.5-flash"
         self.temperature = 0.3
-        self.max_output_tokens = 2048
+        try:
+            # prefer Django settings if available
+            self.max_output_tokens = int(getattr(settings, 'GEMINI_MAX_OUTPUT_TOKENS', os.getenv('GEMINI_MAX_OUTPUT_TOKENS', 4096)))
+        except Exception:
+            self.max_output_tokens = 4096
         
         # Initialize with first available key
         self.client = None
@@ -70,12 +75,22 @@ class GeminiClient:
         try:
             current_key = self.api_keys[self.current_key_index]
             genai.configure(api_key=current_key)
+            
+            # Configure safety settings for educational content
+            safety_settings = {
+                genai.types.HarmCategory.HARM_CATEGORY_HATE_SPEECH: genai.types.HarmBlockThreshold.BLOCK_ONLY_HIGH,
+                genai.types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: genai.types.HarmBlockThreshold.BLOCK_ONLY_HIGH,
+                genai.types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: genai.types.HarmBlockThreshold.BLOCK_ONLY_HIGH,
+                genai.types.HarmCategory.HARM_CATEGORY_HARASSMENT: genai.types.HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            }
+            
             self.client = genai.GenerativeModel(
                 model_name=self.model_name,
                 generation_config={
                     "temperature": self.temperature,
                     "max_output_tokens": self.max_output_tokens,
-                }
+                },
+                safety_settings=safety_settings
             )
             print(f"Initialized Gemini client with API key {self.current_key_index + 1}")
         except Exception as e:
@@ -116,10 +131,56 @@ class GeminiClient:
                 # Generate response
                 response = self.client.generate_content(prompt)
                 
-                if response and response.text:
-                    return response.text.strip()
+                if response and response.candidates:
+                    # Try simple text accessor first
+                    try:
+                        if response.text:
+                            return response.text.strip()
+                    except (ValueError, AttributeError):
+                        # If simple accessor fails, use parts structure
+                        pass
+                    
+                    # Extract text from response parts
+                    text_parts = []
+                    print(f"🔍 Processing {len(response.candidates)} candidates")
+                    
+                    for i, candidate in enumerate(response.candidates):
+                        print(f"Candidate {i}: finish_reason={candidate.finish_reason}")
+                        
+                        # Check for safety blocks
+                        if candidate.finish_reason == 2:  # SAFETY
+                            print(f"🚫 Response blocked by safety filters")
+                            if candidate.safety_ratings:
+                                for rating in candidate.safety_ratings:
+                                    print(f"   Safety: {rating.category} - {rating.probability}")
+                            return "I cannot analyze this conversation due to content safety restrictions. Please try with a shorter or different conversation."
+                        elif candidate.finish_reason == 3:  # RECITATION
+                            print(f"🚫 Response blocked due to recitation concerns")
+                            return "I cannot provide this response due to recitation concerns. Please rephrase your request."
+                        
+                        if candidate.content and candidate.content.parts:
+                            print(f"  Has {len(candidate.content.parts)} content parts")
+                            for j, part in enumerate(candidate.content.parts):
+                                print(f"    Part {j}: type={type(part)}, has_text={hasattr(part, 'text')}")
+                                if hasattr(part, 'text') and part.text:
+                                    text_parts.append(part.text)
+                                    print(f"    ✅ Added text: {part.text[:50]}...")
+                                elif hasattr(part, 'text'):
+                                    print(f"    ❌ Text attribute empty")
+                                else:
+                                    print(f"    ❌ No text attribute, available: {[attr for attr in dir(part) if not attr.startswith('_')]}")
+                        else:
+                            print(f"  ❌ No content or parts")
+                    
+                    if text_parts:
+                        combined = ''.join(text_parts).strip()
+                        print(f"✅ Successfully combined {len(text_parts)} text parts: {combined[:100]}...")
+                        return combined
+                    else:
+                        print("❌ No text content found in any response parts")
+                        return self._get_fallback_response()
                 else:
-                    print("Warning: Empty response from Gemini")
+                    print("Warning: Empty response or no candidates from Gemini")
                     return self._get_fallback_response()
                     
             except Exception as e:

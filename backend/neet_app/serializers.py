@@ -1,6 +1,6 @@
 # your_app_name/serializers.py
 from rest_framework import serializers
-from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, PlatformTest, RazorpayOrder
+from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, ChatMemory, PlatformTest, RazorpayOrder
 from django.db.models import F
 from django.utils import timezone
 
@@ -564,6 +564,43 @@ class VerifyPaymentSerializer(serializers.Serializer):
     razorpay_payment_id = serializers.CharField()
     razorpay_signature = serializers.CharField()
     local_order_id = serializers.IntegerField()
+
+
+# --- Chat Memory Serializers ---
+class ChatMemorySerializer(serializers.ModelSerializer):
+    """Serializer for ChatMemory model"""
+    
+    class Meta:
+        model = ChatMemory
+        fields = [
+            'id', 'student', 'memory_type', 'content', 'source_session_id',
+            'key_tags', 'confidence_score', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def validate_confidence_score(self, value):
+        """Validate confidence score is between 0.0 and 1.0"""
+        if not 0.0 <= value <= 1.0:
+            raise serializers.ValidationError("Confidence score must be between 0.0 and 1.0")
+        return value
+
+
+class ChatMemoryCreateSerializer(serializers.Serializer):
+    """Serializer for creating chat memories"""
+    memory_type = serializers.ChoiceField(
+        choices=[('long_term', 'Long Term'), ('short_term', 'Short Term')],
+        default='long_term'
+    )
+    content = serializers.JSONField()
+    source_session_id = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    key_tags = serializers.ListField(child=serializers.CharField(max_length=100), required=False, default=list)
+    confidence_score = serializers.FloatField(default=1.0, min_value=0.0, max_value=1.0)
+    
+    def validate_content(self, value):
+        """Validate content structure"""
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Content must be a JSON object")
+        return value
 
 
 class RazorpayOrderSerializer(serializers.ModelSerializer):

@@ -88,3 +88,47 @@ def ensure_unique_student_id(full_name, date_of_birth):
     timestamp = str(int(time.time()))[-4:]  # Last 4 digits of timestamp
     base_id = f"STU{date_of_birth.strftime('%y%d%m')}"
     return f"{base_id}{timestamp}"
+
+
+def generate_unique_student_id_for_mobile(mobile_number):
+    """
+    Generate unique student ID for mobile-only registration
+    Format: MOB + YYMMDD + random 6 digits
+    
+    Args:
+        mobile_number (str): E.164 format mobile number (+919876543210)
+        
+    Returns:
+        str: Unique student ID for mobile user
+        
+    Example:
+        Mobile: +919876543210, Date: 2024-12-26
+        Result: MOB2412263A5B7C
+    """
+    from ..models import StudentProfile
+    import secrets
+    from datetime import datetime
+    
+    # Get current date
+    now = datetime.now()
+    date_part = now.strftime('%y%m%d')  # YYMMDD format
+    
+    max_attempts = 100
+    attempts = 0
+    
+    while attempts < max_attempts:
+        # Generate random 6-character suffix (mix of letters and numbers)
+        random_part = get_random_string(6, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
+        
+        # Combine parts
+        candidate_id = f"MOB{date_part}{random_part}"
+        
+        # Check uniqueness
+        if not StudentProfile.objects.filter(student_id=candidate_id).exists():
+            return candidate_id
+            
+        attempts += 1
+    
+    # Fallback: use timestamp if we couldn't generate unique ID
+    timestamp = str(int(now.timestamp()))[-6:]  # Last 6 digits of timestamp
+    return f"MOB{date_part}{timestamp}"

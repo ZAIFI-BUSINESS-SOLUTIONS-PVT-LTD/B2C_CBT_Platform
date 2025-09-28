@@ -291,11 +291,90 @@ Respond with ONLY one word: either "STUDENT_SPECIFIC" or "GENERAL"."""
             print(f"❌ Fallback: No student-specific keywords found - treating as general")
             return 'general'
     
+    def _get_session_history(self, chat_session_id: str, limit: int = 10) -> list:
+        """Fetch recent messages from current session for short-term memory"""
+        try:
+            from ..models import ChatMessage, ChatSession
+            
+            # Get the chat session
+            chat_session = ChatSession.objects.get(chat_session_id=chat_session_id, is_active=True)
+            
+            # Fetch last N messages in chronological order
+            messages = ChatMessage.objects.filter(
+                chat_session=chat_session
+            ).order_by('-created_at')[:limit]
+            
+            # Convert to chronological order and format for prompt
+            session_history = []
+            for msg in reversed(messages):  # Reverse to get chronological order
+                role = "User" if msg.message_type == 'user' else "Bot"
+                # Truncate long messages to save tokens
+                content = msg.message_content[:200] + "..." if len(msg.message_content) > 200 else msg.message_content
+                session_history.append(f"{role}: {content}")
+            
+            print(f"   📋 Session history: {len(session_history)} messages")
+            return session_history
+            
+        except Exception as e:
+            print(f"   ⚠️ Failed to fetch session history: {e}")
+            return []
+    
+    def _get_long_term_memories(self, student_id: str, limit: int = 5) -> list:
+        """Fetch long-term memories for the student"""
+        try:
+            from ..models import ChatMemory
+            
+            # Fetch most recent and high-confidence long-term memories
+            memories = ChatMemory.objects.filter(
+                student__student_id=student_id,
+                memory_type='long_term'
+            ).order_by('-confidence_score', '-updated_at')[:limit]
+            
+            memory_facts = []
+            for memory in memories:
+                if isinstance(memory.content, dict):
+                    # Extract fact or summary from structured content
+                    fact = memory.content.get('fact') or memory.content.get('summary') or str(memory.content)
+                else:
+                    fact = str(memory.content)
+                
+                # Truncate if too long
+                if len(fact) > 150:
+                    fact = fact[:150] + "..."
+                
+                memory_facts.append(f"- {fact}")
+            
+            print(f"   🧠 Long-term memories: {len(memory_facts)} facts")
+            return memory_facts
+            
+        except Exception as e:
+            print(f"   ⚠️ Failed to fetch long-term memories: {e}")
+            return []
+    
+    def _build_memory_context(self, session_history: list, long_term_memories: list) -> str:
+        """Build memory context string for prompt injection"""
+        context_parts = []
+        
+        # Add long-term memories if available
+        if long_term_memories:
+            context_parts.append("STUDENT MEMORY SUMMARY:")
+            context_parts.extend(long_term_memories)
+            context_parts.append("")  # Empty line for spacing
+        
+        # Add session history if available
+        if session_history:
+            context_parts.append("SESSION HISTORY (recent messages):")
+            for i, msg in enumerate(session_history, 1):
+                context_parts.append(f"{i}. {msg}")
+            context_parts.append("")  # Empty line for spacing
+        
+        return "\n".join(context_parts)
+    
     def generate_response(self, query: str, student_id: str, chat_session_id: str) -> Dict[str, Any]:
         """
-        Generate response using simplified logic with two types:
-        1. General queries: Only send prompt + query to LLM
-        2. Student-specific queries: Fetch data from DB, send prompt + query + data to LLM
+        Generate response using simplified logic with memory integration:
+        1. General queries: prompt + query + session memory + long-term memory
+        2. Student-specific queries: prompt + query + session memory + long-term memory + SQL data
         """
         try:
             start_time = time.time()
@@ -305,7 +384,14 @@ Respond with ONLY one word: either "STUDENT_SPECIFIC" or "GENERAL"."""
             print(f"   Chat Session ID: {chat_session_id}")
             print(f"   AI Available: {self.ai_available}")
             
-            # Step 1: Classify intent (general or student_specific)
+            # Step 1: Fetch memory context (both short-term and long-term)
+            memory_start = time.time()
+            session_history = self._get_session_history(chat_session_id)
+            long_term_memories = self._get_long_term_memories(student_id)
+            memory_time = time.time() - memory_start
+            print(f"💾 Memory fetched: {len(session_history)} session messages, {len(long_term_memories)} long-term memories (time: {memory_time:.2f}s)")
+            
+            # Step 2: Classify intent (general or student_specific)
             intent_start = time.time()
             intent = self._classify_intent(query)
             intent_time = time.time() - intent_start
@@ -347,13 +433,16 @@ Respond with ONLY one word: either "STUDENT_SPECIFIC" or "GENERAL"."""
             else:
                 print(f"📖 General query - skipping SQL data fetch")
             
-            # Step 3: Generate AI response based on intent type
+            # Step 3: Build memory context for prompt injection
+            memory_context = self._build_memory_context(session_history, long_term_memories)
+            
+            # Step 4: Generate AI response based on intent type
             if self.ai_available and self.gemini_client:
                 ai_start = time.time()
                 print(f"🤖 Generating AI response for intent: {intent}")
                 
                 if intent == 'general':
-                    # For general queries: Only send prompt + query
+                    # For general queries: prompt + query + memory context
                     general_prompt = """You are NEET Ninja, an AI tutor specializing in NEET exam preparation.
 
 Your expertise covers:
@@ -367,15 +456,22 @@ When answering:
 3. Focus on NEET-specific concepts and patterns
 4. Include formulas, equations, or diagrams when helpful
 5. Connect topics to real-world applications when possible
-6. Do not include raw data formatting (e.g., asterisks, markdown tables, or code blocks) in your response.
-7. Do not mention session IDs or any internal identifiers in your answer.
-8.Please respond in plain text only, without any Markdown formatting (no bold, italics, headings, or symbols like *, , #, etc.)."""
+6. Use the student's memory and session history to provide personalized responses
+7. Do not include raw data formatting (e.g., asterisks, markdown tables, or code blocks) in your response.
+8. Do not mention session IDs or any internal identifiers in your answer.
+9. Please respond in plain text only, without any Markdown formatting (no bold, italics, headings, or symbols like *, , #, etc.)."""
                     
-                    full_prompt = f"{general_prompt}\n\nStudent Query: {query}\n\nProvide a helpful response:"
-                    print(f"   Using general prompt (length: {len(full_prompt)} chars)")
+                    # Build full prompt with memory context
+                    prompt_parts = [general_prompt]
+                    if memory_context.strip():
+                        prompt_parts.append(f"\n{memory_context}")
+                    prompt_parts.append(f"Student Query: {query}\n\nProvide a helpful response:")
+                    
+                    full_prompt = "\n".join(prompt_parts)
+                    print(f"   Using general prompt with memory (length: {len(full_prompt)} chars)")
                     
                 elif intent == 'student_specific':
-                    # For student-specific queries: Send detailed prompt + query + data
+                    # For student-specific queries: detailed prompt + query + memory + SQL data
                     context_info = ""
                     if sql_data:
                         context_info = f"\n\nStudent's Performance Data: {json.dumps(sql_data, indent=2, default=datetime_serializer)}"
@@ -384,8 +480,14 @@ When answering:
                         context_info = "\n\nNote: No performance data available for this student."
                         print(f"   ⚠️ No performance data available")
                     
-                    full_prompt = f"{self.neet_prompt}\n\nStudent Query: {query}{context_info}\n\nProvide a personalized analysis and response:"
-                    print(f"   Using personalized prompt (length: {len(full_prompt)} chars)")
+                    # Build full prompt with memory context and performance data
+                    prompt_parts = [self.neet_prompt]
+                    if memory_context.strip():
+                        prompt_parts.append(f"\n{memory_context}")
+                    prompt_parts.append(f"Student Query: {query}{context_info}\n\nProvide a personalized analysis and response:")
+                    
+                    full_prompt = "\n".join(prompt_parts)
+                    print(f"   Using personalized prompt with memory (length: {len(full_prompt)} chars)")
                 
                 print(f"   Sending to Gemini API...")
                 gemini_start = time.time()
@@ -456,6 +558,8 @@ When answering:
                 'response': ai_response,
                 'intent': intent,
                 'has_personalized_data': sql_data is not None,
+                'has_session_memory': len(session_history) > 0,
+                'has_long_term_memory': len(long_term_memories) > 0,
                 'processing_time': round(processing_time, 2),
                 'message_id': message_id,
                 'success': True
@@ -464,6 +568,8 @@ When answering:
             print(f"🎉 Response generation completed successfully!")
             print(f"   Intent: {intent}")
             print(f"   Has personalized data: {sql_data is not None}")
+            print(f"   Has session memory: {len(session_history) > 0}")
+            print(f"   Has long-term memory: {len(long_term_memories) > 0}")
             print(f"   Processing time: {processing_time:.2f}s")
             
             return result

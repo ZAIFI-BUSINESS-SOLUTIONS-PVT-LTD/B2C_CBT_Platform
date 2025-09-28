@@ -146,6 +146,139 @@ class TestChatSessionLifecycle:
         sample_chat_session.refresh_from_db()
         assert sample_chat_session.is_active == False
 
+    @pytest.mark.django_db
+    def test_delete_own_chat_session_success(self, authenticated_client, sample_chat_session):
+        """Test successful deletion of own chat session"""
+        # Arrange - ensure session exists and is active
+        assert sample_chat_session.is_active == True
+        session_id = sample_chat_session.chat_session_id
+        
+        # Act
+        response = authenticated_client.delete(f'/api/chat-sessions/{session_id}/')
+        
+        # Assert
+        assert response.status_code == 200
+        response_data = response.json()
+        assert response_data['success'] == True
+        assert 'deleted successfully' in response_data['message']
+        
+        # Verify soft delete in database
+        sample_chat_session.refresh_from_db()
+        assert sample_chat_session.is_active == False
+
+    @pytest.mark.django_db
+    def test_delete_other_student_chat_session_forbidden(self, authenticated_client):
+        """Test that user cannot delete another student's chat session"""
+        # Arrange - create another student and their session
+        from neet_app.models import StudentProfile
+        other_profile = StudentProfile.objects.create(
+            student_id='STU25010100998', 
+            full_name='Other Student', 
+            email='other@test.com',
+            date_of_birth='2000-01-01'
+        )
+        other_profile.set_password('pass')
+        other_profile.save()
+        
+        other_session = ChatSession.objects.create(
+            student_id=other_profile.student_id,
+            chat_session_id='other_session_456',
+            session_title='Other Student Session',
+            is_active=True
+        )
+        
+        # Act - try to delete other student's session
+        response = authenticated_client.delete(f'/api/chat-sessions/{other_session.chat_session_id}/')
+        
+        # Assert - should return 404 (not 403) to avoid leaking session existence
+        assert response.status_code == 404
+        
+        # Verify session remains active
+        other_session.refresh_from_db()
+        assert other_session.is_active == True
+
+    @pytest.mark.django_db
+    def test_delete_nonexistent_chat_session(self, authenticated_client):
+        """Test deletion of non-existent chat session"""
+        # Act
+        response = authenticated_client.delete('/api/chat-sessions/nonexistent_session_123/')
+        
+        # Assert
+        assert response.status_code == 404
+        response_data = response.json()
+        assert 'not found' in response_data.get('message', '').lower()
+
+    @pytest.mark.django_db
+    def test_delete_already_deleted_session(self, authenticated_client, sample_chat_session):
+        """Test deletion of already deactivated chat session"""
+        # Arrange - first deactivate the session
+        sample_chat_session.is_active = False
+        sample_chat_session.save()
+        
+        # Act - try to delete again
+        response = authenticated_client.delete(f'/api/chat-sessions/{sample_chat_session.chat_session_id}/')
+        
+        # Assert - should return 404 since it's filtered out by is_active=True
+        assert response.status_code == 404
+
+    @pytest.mark.django_db
+    def test_delete_session_with_messages(self, authenticated_client, sample_chat_session):
+        """Test deletion of chat session that has messages"""
+        # Arrange - add some messages to the session
+        ChatMessage.objects.create(
+            chat_session=sample_chat_session,
+            message_type='user',
+            message_content='Hello'
+        )
+        ChatMessage.objects.create(
+            chat_session=sample_chat_session,
+            message_type='bot',
+            message_content='Hi there!'
+        )
+        
+        # Act
+        response = authenticated_client.delete(f'/api/chat-sessions/{sample_chat_session.chat_session_id}/')
+        
+        # Assert
+        assert response.status_code == 200
+        sample_chat_session.refresh_from_db()
+        assert sample_chat_session.is_active == False
+        
+        # Verify messages still exist (soft delete doesn't remove messages)
+        assert sample_chat_session.messages.count() == 2
+
+    @pytest.mark.django_db
+    def test_deleted_session_not_in_list(self, authenticated_client, sample_chat_session):
+        """Test that deleted sessions don't appear in session list"""
+        # Arrange - delete the session
+        authenticated_client.delete(f'/api/chat-sessions/{sample_chat_session.chat_session_id}/')
+        
+        # Act - get session list
+        response = authenticated_client.get('/api/chat-sessions/')
+        
+        # Assert - deleted session should not appear
+        assert response.status_code == 200
+        sessions = response.json().get('results', response.json())
+        if isinstance(sessions, list):
+            session_ids = [s.get('chatSessionId') or s.get('chat_session_id') for s in sessions]
+            assert sample_chat_session.chat_session_id not in session_ids
+
+    @pytest.mark.django_db
+    def test_send_message_to_deleted_session_fails(self, authenticated_client, sample_chat_session):
+        """Test that sending messages to deleted sessions fails"""
+        # Arrange - delete the session
+        authenticated_client.delete(f'/api/chat-sessions/{sample_chat_session.chat_session_id}/')
+        
+        # Act - try to send message to deleted session
+        response = authenticated_client.post(
+            f'/api/chat-sessions/{sample_chat_session.chat_session_id}/send-message/',
+            {'message': 'Hello'},
+            format='json'
+        )
+        
+        # Assert - should fail since session is inactive
+        assert response.status_code == 404
+
 
 @pytest.mark.chat
 @pytest.mark.unit
