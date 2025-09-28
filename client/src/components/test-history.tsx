@@ -100,7 +100,7 @@ export default function TestHistory() {
   });
 
   return (
-    <div className="bg-gray-100 py-4">
+    <div className="py-4">
       <div className="container mx-auto max-w-6xl ">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 px-4">
           <div>
@@ -126,7 +126,7 @@ export default function TestHistory() {
             ) : (
               <>
                 {/* Mobile Card View */}
-                <div className="block md:hidden space-y-2 ">
+                <div className="block space-y-2 ">
                   {filteredSessions.map((s, idx) => {
                     const r = resultsQueries[idx];
                     const payload = (r?.data ?? null) as any;

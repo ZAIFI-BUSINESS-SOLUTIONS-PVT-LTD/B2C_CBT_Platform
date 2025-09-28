@@ -1,9 +1,13 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { StudentProfile } from "@/components/profile-avatar";
 import Logo from "@/assets/images/logo.svg";
-import { Crown, Home, NotepadText, FileChartPie, MessageSquareMore } from "lucide-react";
+import { Crown, Home, NotepadText, FileChartPie, MessageSquareMore, ChevronDown, ChevronRight } from "lucide-react";
+import { getAccessToken } from '@/lib/auth';
+import { API_CONFIG } from '@/config/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 /**
  * Header component extracted from the desktop home page.
@@ -17,6 +21,19 @@ interface NavItem {
     icon: React.ReactNode;
     activePattern?: RegExp;
     onClick?: () => void;
+    expandable?: boolean;
+    expanded?: boolean;
+}
+
+interface ChatSession {
+    id: number;
+    chatSessionId: string;
+    sessionTitle: string;
+    studentName: string;
+    createdAt: string;
+    updatedAt: string;
+    messageCount: number;
+    lastMessage: string | null;
 }
 
 function SidebarItem({ item, currentPath, navigate }: { item: NavItem; currentPath: string; navigate: (to: string) => void; }) {
@@ -27,14 +44,23 @@ function SidebarItem({ item, currentPath, navigate }: { item: NavItem; currentPa
                 onClick={() => { item.onClick ? item.onClick() : navigate(item.to); }}
                 role="menuitem"
                 aria-label={item.text}
-                className={`group w-full flex items-center rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 px-4 py-3 text-left ${isActive ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 font-medium shadow-sm' : 'text-gray-700 hover:bg-blue-50'}`}
+                className={`group w-full flex items-center rounded-lg transition-all duration-200 focus:outline-none px-4 py-3 text-left ${isActive ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 font-medium shadow-sm' : 'text-gray-700 hover:bg-blue-50'}`}
             >
                 <div className={`flex items-center justify-center transition-colors duration-200 group-hover:text-blue-600 mr-3 ${isActive ? 'text-blue-600' : 'text-gray-600'}`}>
                     {item.icon}
                 </div>
-                <span className="text-base whitespace-nowrap overflow-hidden">
+                <span className="text-base whitespace-nowrap overflow-hidden flex-1">
                     {item.text}
                 </span>
+                {item.expandable && (
+                    <div className={`transition-colors duration-200 ${isActive ? 'text-blue-600' : 'text-gray-500'}`}>
+                        {item.expanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                        ) : (
+                            <ChevronRight className="h-4 w-4" />
+                        )}
+                    </div>
+                )}
             </button>
         </li>
     );
@@ -42,6 +68,38 @@ function SidebarItem({ item, currentPath, navigate }: { item: NavItem; currentPa
 
 export default function HeaderDesktop() {
     const [, navigate] = useLocation();
+
+    const { student } = useAuth();
+    const [sessions, setSessions] = useState<ChatSession[]>([]);
+    const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+    const getAuthHeaders = () => {
+        const token = getAccessToken();
+        return {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        };
+    };
+
+    const loadChatSessions = async () => {
+        try {
+            const url = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CHAT_SESSIONS}`;
+            const response = await fetch(url, { headers: getAuthHeaders() });
+            if (response.ok) {
+                const data = await response.json();
+                const loadedSessions = data.results || [];
+                setSessions(loadedSessions);
+            } else {
+                console.error('Failed to load sessions:', response.status);
+            }
+        } catch (error) {
+            console.error('Failed to load chat sessions:', error);
+        }
+    };
+
+    useEffect(() => {
+        loadChatSessions();
+    }, []);
 
     // compute left spacing class for header when used in a layout with sidebar
     const leftClass = 'md:left-64';
@@ -51,11 +109,37 @@ export default function HeaderDesktop() {
         { to: '/', text: 'Home', icon: <Home className="h-5 w-5" />, activePattern: /^\/$/ },
         { to: '/topics', text: 'Test', icon: <NotepadText className="h-5 w-5" />, activePattern: /^\/topics/ },
         { to: '/dashboard', text: 'Analysis', icon: <FileChartPie className="h-5 w-5" />, activePattern: /^\/dashboard/ },
-        { to: '/chatbot', text: 'Chatbot', icon: <MessageSquareMore className="h-5 w-5" />, activePattern: /^\/chatbot/ },
+        {
+            to: '/chatbot', text: 'Chatbot', icon: <MessageSquareMore className="h-5 w-5" />, activePattern: /^\/chatbot/, onClick: () => {
+                // If already on chatbot page, just toggle expansion
+                if (path.startsWith('/chatbot')) {
+                    setExpandedItems(prev => {
+                        const newSet = new Set(prev);
+                        if (newSet.has('chatbot')) {
+                            newSet.delete('chatbot');
+                        } else {
+                            newSet.add('chatbot');
+                        }
+                        return newSet;
+                    });
+                } else {
+                    // Navigate to chatbot page and expand
+                    navigate('/chatbot');
+                    setExpandedItems(prev => new Set([...prev, 'chatbot']));
+                }
+            }, expandable: true, expanded: expandedItems.has('chatbot')
+        },
     ];
 
     // Wouter current path (hack: useLocation gives [path, set])
     const [path] = useLocation();
+
+    // Auto-expand chatbot section when on chatbot page (only expand, don't collapse)
+    useEffect(() => {
+        if (path.startsWith('/chatbot')) {
+            setExpandedItems(prev => new Set([...prev, 'chatbot']));
+        }
+    }, [path]);
 
     return (
         <>
@@ -100,6 +184,23 @@ export default function HeaderDesktop() {
                                 <SidebarItem key={item.to} item={item} currentPath={path} navigate={navigate} />
                             ))}
                         </ul>
+                        {expandedItems.has('chatbot') && (
+                            <div className="mt-2">
+                                <ScrollArea className="max-h-40">
+                                    <div className="space-y-1">
+                                        {sessions.map((session) => (
+                                            <button
+                                                key={session.chatSessionId}
+                                                onClick={() => navigate(`/chatbot?session=${session.chatSessionId}`)}
+                                                className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg truncate"
+                                            >
+                                                {session.sessionTitle || `Chat ${session.id}`}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </ScrollArea>
+                            </div>
+                        )}
                     </div>
 
                     {/* User profile + logout */}

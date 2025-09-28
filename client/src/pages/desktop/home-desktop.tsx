@@ -540,7 +540,7 @@ export default function Home() {
     return (
         <div className={`flex min-h-screen bg-gray-50 text-text`}>
             <HeaderDesktop />
-            <main className={`flex-1 flex flex-col bg-gray-50 mt-28 mb-24 transition-all duration-300 ${sidebarMarginClass}`}>
+            <main className={`flex-1 flex flex-col bg-gray-50 mt-20 mb-24 transition-all duration-300 ${sidebarMarginClass}`}>
 
                 {/* ============================================================================= */}
                 {/* MAIN CONTENT AREA */}

@@ -79,7 +79,7 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 pb-3">
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 pb-3 max-w-3xl mx-auto">
       {/* Overall Score Card */}
       <Card className="dashboard-card shadow-xl my-2 mx-2">
         <CardContent className="p-3">

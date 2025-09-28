@@ -8,9 +8,8 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, ArrowRight, UserRound, Trophy, ChevronLeft } from "lucide-react";
 import { API_CONFIG } from "@/config/api";
 import { authenticatedFetch } from "@/lib/auth";
-import PracticeArena from "@/components/your-space";
-import BattleArena from "@/components/battle-arena";
-import MobileDock from "@/components/mobile-dock";
+import PracticeArena from "@/components/your-space-desktop";
+import BattleArena from "@/components/battle-arena-desktop";
 import HeaderDesktop from "@/components/header-desktop";
 import { AnalyticsData, InsightsData, PlatformTestAnalyticsData } from "@/types/dashboard";
 
@@ -97,46 +96,12 @@ export default function LandingDashboard() {
     return (
         <div className="flex min-h-screen bg-gray-50">
             <HeaderDesktop />
-            <main className="flex-1 flex flex-col bg-gray-50 mt-28 mb-24 transition-all duration-300 md:ml-64">
+            <main className="flex-1 flex flex-col bg-gray-50 mt-24 mb-24 transition-all duration-300 md:ml-64">
                 <div className="w-full max-w-7xl mx-auto px-4">
                     <div className="md:flex md:items-start md:space-x-6">
                         <div className="flex-1">
-                            {/* Sticky Header with Tabs */}
-                            <div className="sticky top-0 bg-white z-10 border-b border-gray-200">
-                                {/* Header Section */}
-                                <div className="w-full mx-auto py-3 px-4 border-b border-gray-200 inline-flex items-center gap-3">
-                                    <h1 className="text-lg font-bold text-gray-900">Performance</h1>
-                                </div>
-
-                                {/* Tab Navigation */}
-                                <div className="border-b border-gray-200">
-                                    <nav className="flex px-4" aria-label="Tabs">
-                                        <button
-                                            onClick={() => setActiveTab('practice')}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-4 px-2 border-b-2 font-medium text-sm transition-colors duration-200 active:bg-gray-50 ${activeTab === 'practice'
-                                                ? 'border-blue-500 text-blue-600'
-                                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                                }`}
-                                        >
-                                            <UserRound className="h-4 w-4" />
-                                            <span>Your Space</span>
-                                        </button>
-                                        <button
-                                            onClick={() => setActiveTab('battle')}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-4 px-2 border-b-2 font-medium text-sm transition-colors duration-200 active:bg-gray-50 ${activeTab === 'battle'
-                                                ? 'border-blue-500 text-blue-600'
-                                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                                }`}
-                                        >
-                                            <Trophy className="h-4 w-4" />
-                                            <span>Battle Space</span>
-                                        </button>
-                                    </nav>
-                                </div>
-                            </div>
-
-                            {/* Tab Content */}
-                            <div className="px-0 py-4">
+                            {/* Your-space Content */}
+                            <div>
                                 {activeTab === 'practice' && (
                                     <div className="space-y-4">
                                         {/* Insights Container */}
@@ -164,14 +129,14 @@ export default function LandingDashboard() {
                                         )}
                                     </div>
                                 )}
+                            </div>
+                        </div>
 
-                                {activeTab === 'battle' && (
-                                    <div className="space-y-4">
-                                        <div className="text-center">
-                                            <h2 className="text-lg font-semibold text-gray-900 mb-1">Battle Arena</h2>
-                                            <p className="text-sm text-gray-600">Compete with others in platform tests</p>
-                                        </div>
-
+                        {/* Right sidebar (desktop only) */}
+                        <aside className="hidden md:block w-80">
+                            <div>
+                                <Card className="bg-white rounded-xl border mb-6">
+                                    <CardContent className="p-0">
                                         <BattleArena
                                             platformTestData={platformTestData}
                                             selectedPlatformTestId={selectedPlatformTestId}
@@ -179,58 +144,13 @@ export default function LandingDashboard() {
                                             selectedTestSubjectFilter={selectedTestSubjectFilter}
                                             setSelectedTestSubjectFilter={setSelectedTestSubjectFilter}
                                         />
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Right sidebar (desktop only) */}
-                        <aside className="hidden md:block w-80 mt-6 md:mt-0">
-                            <div className="space-y-4">
-                                <Card>
-                                    <CardContent className="p-4">
-                                        <h3 className="text-sm font-semibold text-gray-900 mb-2">Performance Summary</h3>
-                                        <div className="text-sm text-gray-600 space-y-2">
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Tests Taken</span>
-                                                <span className="font-medium text-gray-800">{analytics?.totalTests ?? '—'}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Average Score</span>
-                                                <span className="font-medium text-gray-800">{(analytics as any)?.averageScore ?? '—'}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Best Score</span>
-                                                <span className="font-medium text-gray-800">{(analytics as any)?.bestScore ?? '—'}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Last Test</span>
-                                                <span className="font-medium text-gray-800">{(analytics as any)?.lastTest?.score ?? '—'}</span>
-                                            </div>
-                                        </div>
                                     </CardContent>
                                 </Card>
-
-                                {/* Small CTA when no tests */}
-                                {analytics?.totalTests === 0 && (
-                                    <Card>
-                                        <CardContent className="p-4 text-center">
-                                            <Trophy className="h-6 w-6 text-yellow-500 mx-auto mb-2" />
-                                            <p className="text-sm text-gray-700">No tests yet. Take your first test to unlock insights.</p>
-                                            <div className="mt-3">
-                                                <Link href="/topics">
-                                                    <Button className="bg-blue-600 hover:bg-blue-700 text-white w-full">Take a Test</Button>
-                                                </Link>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                )}
                             </div>
                         </aside>
                     </div>
                 </div>
             </main>
-            <MobileDock />
         </div>
     );
 }
@@ -261,7 +181,6 @@ function DashboardSkeleton() {
                     </div>
                 </div>
             </main>
-            <MobileDock />
         </div>
     );
 }
@@ -292,7 +211,6 @@ function ErrorState() {
                     </Card>
                 </div>
             </main>
-            <MobileDock />
         </div>
     );
 }

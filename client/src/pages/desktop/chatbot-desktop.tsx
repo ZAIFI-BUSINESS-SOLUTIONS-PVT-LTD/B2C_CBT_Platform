@@ -1,6 +1,6 @@
 import { Input } from '@/components/ui/input';
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, Loader2, FilePen, Menu, Mic, Check, Pencil, X, Home } from 'lucide-react';
+import { Send, Bot, User, Loader2, FilePen, Mic, Check, Pencil, X, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,7 +8,7 @@ import { getAccessToken } from '@/lib/auth';
 import { useLocation } from 'wouter';
 import { API_CONFIG } from '@/config/api';
 import { SPEECH_CONFIG } from '@/config/speech';
-import ChatbotSidebar from '@/components/chatbot-sidebar';
+import HeaderDesktop from '@/components/header-desktop';
 import '@/types/speech.d.ts';
 
 // Mobile-specific styles
@@ -158,7 +158,6 @@ export default function ChatbotPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile drawer - start closed
   const [isNewSession, setIsNewSession] = useState(false); // Track if it's a new session waiting for first message
   const [pendingMessage, setPendingMessage] = useState<string | null>(null); // Store message to send after session creation
 
@@ -202,20 +201,20 @@ export default function ChatbotPage() {
     scrollToBottom();
   }, [messages]);
 
-  // Handle URL parameters for direct session creation from home page
+  // Handle URL parameters for direct session creation from home page or session switching from header
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('sessionId');
+    const sessionId = urlParams.get('sessionId') || urlParams.get('session');
     const message = urlParams.get('message');
 
-    if (sessionId && message) {
+    if (sessionId) {
       // Clear URL parameters
       window.history.replaceState({}, '', '/chatbot');
 
       // For existing sessions, load them directly
-      const handleRedirectMessage = async () => {
+      const handleSessionLoad = async () => {
         try {
           // First load sessions to find the target session
           const url = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CHAT_SESSIONS}`;
@@ -230,24 +229,27 @@ export default function ChatbotPage() {
               setIsNewSession(false);
               // Load existing messages
               await loadSessionMessages(targetSession.chatSessionId);
-              // Send the new message
-              setTimeout(() => {
-                sendMessageToSession(targetSession, decodeURIComponent(message));
-              }, 100);
+
+              // If there's also a message to send, send it after loading
+              if (message) {
+                setTimeout(() => {
+                  sendMessageToSession(targetSession, decodeURIComponent(message));
+                }, 100);
+              }
             } else {
-              // Session doesn't exist, create new session with the message
-              setPendingMessage(decodeURIComponent(message));
+              // Session doesn't exist, create new session
+              setPendingMessage(message ? decodeURIComponent(message) : null);
               setIsNewSession(true);
               setCurrentSession(null);
               setMessages([]);
             }
           }
         } catch (error) {
-          console.error('Failed to handle redirect message:', error);
+          console.error('Failed to handle session load:', error);
         }
       };
 
-      handleRedirectMessage();
+      handleSessionLoad();
     }
   }, [isAuthenticated]);
 
@@ -577,52 +579,14 @@ export default function ChatbotPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 overflow-hidden">
+    <div className="flex min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50">
       <style dangerouslySetInnerHTML={{ __html: mobileStyles }} />
-      {/* Header Container with top spacing */}
-      <div style={{ paddingTop: '4px' }} className="bg-white">
-        {/* Mobile Header - compact */}
-        <div className="bg-white flex items-center justify-between shadow-sm safe-area-top pl-2 pr-1 py-1">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className='aspect-square rounded-full'
-            >
-              <Menu className="h-6 w-6" />
-            </Button>
-          </div>
-          <h1 className="text-lg font-bold text-gray-800 tracking-tight">InzightEd AI Assistant</h1>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => createNewSession()}
-              title="New Chat"
-              className='aspect-square rounded-full'
-              disabled={isLoading}
-            >
-              <FilePen className="h-6 w-6" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/')}
-              title="Go to Home"
-              className='aspect-square rounded-full'
-            >
-              <Home className="h-6 w-6" />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <HeaderDesktop />
+      {/* Main Chat Area */}
+      <main className="flex-1 flex flex-col mt-20 transition-all duration-300 md:ml-64 relative h-[calc(100vh-5rem)]">
 
-      {/* Main Chat Area - full height on mobile */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-
-        {/* Messages Area - optimized for mobile */}
-        <div className="flex-1 overflow-hidden">
+        {/* Messages Area - takes remaining space and scrolls */}
+        <div className="flex-1 overflow-hidden pb-24">
           <ScrollArea className="h-full">
             <div className="max-w-full mx-auto px-3 py-4">
               {!currentSession || isNewSession ? (
@@ -668,8 +632,8 @@ export default function ChatbotPage() {
           </ScrollArea>
         </div>
 
-        {/* Input Area - always at bottom */}
-        <div className="bg-white border-t px-2 pt-2 pb-6">
+        {/* Input Area - fixed at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 bg-white border-t px-2 pt-2 pb-6">
           <div className="w-full">
             {error && (
               <div className="mb-3 p-3 bg-[#FEF2F2] border border-[#FCA5A5] rounded-lg">
@@ -737,26 +701,7 @@ export default function ChatbotPage() {
             )}
           </div>
         </div>
-      </div>
-
-      {/* Sidebar for Sessions */}
-      <ChatbotSidebar
-        sidebarOpen={sidebarOpen}
-        currentSession={currentSession}
-        isLoading={isLoading}
-        onCloseSidebar={() => setSidebarOpen(false)}
-        onCreateNewSession={createNewSession}
-        onSwitchSession={switchSession}
-        onLoadSessionMessages={loadSessionMessages}
-        onSetCurrentSession={setCurrentSession}
-        onSetSessions={() => { }} // Sidebar manages its own sessions
-        onSetIsNewSession={setIsNewSession}
-        onUpdateSessionTitle={(sessionId, title) => {
-          if (currentSession?.chatSessionId === sessionId) {
-            setCurrentSession(prev => prev ? { ...prev, sessionTitle: title } : prev);
-          }
-        }}
-      />
+      </main>
     </div>
   );
 }
