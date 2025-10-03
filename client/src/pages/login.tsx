@@ -27,19 +27,19 @@ export default function LoginPage() {
                 </div>
             </div>
 
-            {/* Desktop: two-column split with image on the left and white panel on the right. The form overlaps the dividing line. */}
-            <div className="hidden md:flex min-h-screen w-full relative">
-                {/* Left image column (taller/longer visual) */}
+            {/* Desktop: two-row split with image on the top and white panel on the bottom equally split. */}
+            <div className="hidden md:flex flex-col min-h-screen w-full relative">
+                {/* Top image row - flex-1 fills top half */}
                 <div
-                    className="w-3/5 min-h-screen h-screen flex-shrink-0 bg-cover bg-center bg-no-repeat"
+                    className="flex-1 w-full bg-cover bg-center bg-no-repeat"
                     style={{ backgroundImage: `url(${Login})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
                 />
 
-                {/* Right white column where the card sits; the card is shifted left to overlap the image */}
-                <div className="w-2/5 h-full bg-white" />
+                {/* Bottom white row - flex-1 fills bottom half */}
+                <div className="flex-1 w-full bg-white" />
 
-                {/* Absolutely positioned card placed at the seam of the two columns */}
-                <div className="absolute left-[60%] top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-md px-4">
+                {/* Absolutely positioned card centered in the viewport (middle seam) */}
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-md px-4">
                     <div className="mx-auto">
                         <LoginForm />
                     </div>

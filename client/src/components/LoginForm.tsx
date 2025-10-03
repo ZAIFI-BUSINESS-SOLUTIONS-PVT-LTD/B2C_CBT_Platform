@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { RegisterForm } from "@/components/RegisterForm";
 import GoogleSignIn from "@/components/google-signin";
 import MobileOtpLogin from "@/components/MobileOtpLogin";
 import Logo from "@/assets/images/logo.svg";
@@ -101,11 +100,10 @@ export function LoginForm() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className={`transition-all duration-200 text-base h-12 rounded-xl ${
-                hasAuthError
-                  ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
-                  : "focus:border-blue-500 focus:ring-blue-500"
-              }`}
+              className={`transition-all duration-200 text-base h-12 rounded-xl ${hasAuthError
+                ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
+                : "focus:border-blue-500 focus:ring-blue-500"
+                }`}
               aria-invalid={hasAuthError ? "true" : "false"}
               aria-describedby={hasAuthError ? "login-error" : undefined}
             />
@@ -118,11 +116,10 @@ export function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className={`transition-all duration-200 pr-10 text-base h-12 rounded-xl ${
-                hasAuthError
-                  ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
-                  : "focus:border-blue-500 focus:ring-blue-500"
-              }`}
+              className={`transition-all duration-200 pr-10 text-base h-12 rounded-xl ${hasAuthError
+                ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
+                : "focus:border-blue-500 focus:ring-blue-500"
+                }`}
               aria-invalid={hasAuthError ? "true" : "false"}
               aria-describedby={hasAuthError ? "login-error" : undefined}
             />
@@ -191,10 +188,10 @@ export function LoginForm() {
               size="lg"
               onClick={() => setShowOtpLogin(true)}
               disabled={loading}
-              className="w-full text-lg py-3 border-green-300 hover:bg-green-50 hover:border-green-400 text-green-700 hover:text-green-800"
+              className="w-full rounded-xl h-12"
             >
               <Smartphone className="h-5 w-5 mr-2" />
-              Login with Mobile OTP
+              Login with Mobile
             </Button>
 
           </div>

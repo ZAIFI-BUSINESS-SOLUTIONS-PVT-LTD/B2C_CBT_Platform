@@ -1,19 +1,6 @@
-/**
- * Home Page Component
- *
- * This file contains the main dashboard page for the B2C CBT Platform.
- * It displays user insights, analytics, and provides navigation to tes  // Accordion state for collapsible cards
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set(['study-plan']));Features:
- * - User authentication check
- * - Dashboard analytics and insights
- * - Tabbed interface for different insight categories
- * - Mobile-friendly swipe navigation
- * - AI-powered study recommendations
- */
-
 import { Button } from "@/components/ui/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { StudentProfile } from "@/components/profile-avatar";
@@ -26,56 +13,21 @@ import { AnalyticsData, InsightsData } from "@/components/insight-card";
 import NeetCountdown from '@/components/coundown';
 import Share from '@/components/share';
 
-// =============================================================================
-// UTILITY FUNCTIONS
-// =============================================================================
-
-/**
- * Formats a date string into a human-readable relative time string
- * @param dateString - ISO date string or null
- * @returns Relative time string (e.g., "2 hours ago", "just now")
- */
+// Utility: format a timestamp into a short relative time string
 const formatRelativeTime = (dateString: string | null): string => {
   if (!dateString) return 'just now';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return 'just now';
 
-  try {
-    const date = new Date(dateString);
-
-    // Check if date is valid
-    if (isNaN(date.getTime())) return 'just now';
-
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    // Handle future dates (shouldn't happen but just in case)
-    if (diffInSeconds < 0) return 'just now';
-
-    if (diffInSeconds < 60) return 'just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minute${Math.floor(diffInSeconds / 60) === 1 ? '' : 's'} ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hour${Math.floor(diffInSeconds / 3600) === 1 ? '' : 's'} ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} day${Math.floor(diffInSeconds / 86400) === 1 ? '' : 's'} ago`;
-    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)} week${Math.floor(diffInSeconds / 604800) === 1 ? '' : 's'} ago`;
-    if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)} month${Math.floor(diffInSeconds / 2592000) === 1 ? '' : 's'} ago`;
-    return `${Math.floor(diffInSeconds / 31536000)} year${Math.floor(diffInSeconds / 31536000) === 1 ? '' : 's'} ago`;
-  } catch (error) {
-    console.warn('Error parsing date for relative time:', dateString, error);
-    return 'just now';
-  }
-};
-
-/**
- * Test function to verify the formatRelativeTime function works correctly
- * Logs various test cases to the console
- */
-const testRelativeTime = () => {
-  const now = new Date();
-  console.log('Testing formatRelativeTime function:');
-  console.log('Just now:', formatRelativeTime(now.toISOString()));
-  console.log('5 minutes ago:', formatRelativeTime(new Date(now.getTime() - 5 * 60 * 1000).toISOString()));
-  console.log('2 hours ago:', formatRelativeTime(new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString()));
-  console.log('1 day ago:', formatRelativeTime(new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()));
-  console.log('Invalid date:', formatRelativeTime('invalid-date'));
-  console.log('Null:', formatRelativeTime(null));
+  const now = Date.now();
+  const diffInSeconds = Math.floor((now - date.getTime()) / 1000);
+  if (diffInSeconds < 60) return 'just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minute${Math.floor(diffInSeconds / 60) === 1 ? '' : 's'} ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hour${Math.floor(diffInSeconds / 3600) === 1 ? '' : 's'} ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} day${Math.floor(diffInSeconds / 86400) === 1 ? '' : 's'} ago`;
+  if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)} week${Math.floor(diffInSeconds / 604800) === 1 ? '' : 's'} ago`;
+  if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)} month${Math.floor(diffInSeconds / 2592000) === 1 ? '' : 's'} ago`;
+  return `${Math.floor(diffInSeconds / 31536000)} year${Math.floor(diffInSeconds / 31536000) === 1 ? '' : 's'} ago`;
 };
 
 // =============================================================================
@@ -88,41 +40,41 @@ const testRelativeTime = () => {
 // - text: Base text styling
 // - variants: Color schemes for different card types
 const INSIGHT_CARD_STYLES = {
-  // Main card container styles
-  container: "p-3 rounded-xl",
-  text: "text-sm",
+  // Main card container styles with subtle depth and layered background
+  container: "p-4 rounded-2xl shadow-sm ring-1 ring-black/5 bg-gradient-to-tr from-white/80 via-gray-50 to-white",
+  text: "text-sm leading-relaxed",
 
-  // Color variants for different insight types
+  // Color variants for different insight types with accent border and soft gradient
   variants: {
     blue: {
-      container: "bg-gray-200",
-      text: "text-gray-700",
+      container: "bg-gradient-to-br from-blue-50/60 via-white to-white border-l-4 border-blue-300",
+      text: "text-slate-800",
       accent: "text-blue-600",
-      accentBg: "bg-blue-50"
+      accentBg: "bg-blue-50/40"
     },
     indigo: {
-      container: "bg-gray-200",
-      text: "text-gray-700",
+      container: "bg-gradient-to-br from-indigo-50/60 via-white to-white border-l-4 border-indigo-300",
+      text: "text-slate-800",
       accent: "text-indigo-600",
-      accentBg: "bg-indigo-50"
+      accentBg: "bg-indigo-50/40"
     },
     green: {
-      container: "bg-gray-200",
-      text: "text-gray-700",
+      container: "bg-gradient-to-br from-green-50/60 via-white to-white border-l-4 border-green-300",
+      text: "text-slate-800",
       accent: "text-green-600",
-      accentBg: "bg-green-50"
+      accentBg: "bg-green-50/40"
     },
     red: {
-      container: "bg-gray-200",
-      text: "text-gray-700",
-      accent: "text-red-600",
-      accentBg: "bg-red-50"
+      container: "bg-gradient-to-br from-rose-50/60 via-white to-white border-l-4 border-rose-300",
+      text: "text-slate-800",
+      accent: "text-rose-600",
+      accentBg: "bg-rose-50/40"
     },
     gray: {
-      container: "bg-gray-200",
-      text: "text-gray-700",
+      container: "bg-gradient-to-br from-gray-50/80 via-white to-white border-l-4 border-gray-200",
+      text: "text-slate-800",
       accent: "text-gray-600",
-      accentBg: "bg-gray-50"
+      accentBg: "bg-gray-50/40"
     }
   }
 };
@@ -143,10 +95,8 @@ interface InsightCardProps {
 const InsightCard: React.FC<InsightCardProps> = ({ children, variant, className = "" }) => {
   const styles = INSIGHT_CARD_STYLES.variants[variant];
   return (
-    <div className={`${INSIGHT_CARD_STYLES.container} ${styles.container} ${className}`}>
-      <div className={`${INSIGHT_CARD_STYLES.text} ${styles.text}`}>
-        {children}
-      </div>
+    <div className={`${INSIGHT_CARD_STYLES.container} ${styles.container} ${className} transition-shadow duration-200 hover:shadow-md`}>
+      <div className={`${INSIGHT_CARD_STYLES.text} ${styles.text}`}>{children}</div>
     </div>
   );
 };
@@ -167,7 +117,6 @@ export default function Home() {
   // Authentication and navigation hooks
   const { isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
-  const queryClient = useQueryClient();
 
   // Tab state for horizontal swipable tabs
   const [activeTab, setActiveTab] = useState(0);
@@ -175,13 +124,19 @@ export default function Home() {
   // Touch/swipe navigation state for mobile
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
-  const [isSwiping, setIsSwiping] = useState(false);
 
   // Ref for touch container to attach native event listeners
   const touchContainerRef = useRef<HTMLDivElement>(null);
 
   // Ref for the tab navigation container
   const tabNavRef = useRef<HTMLElement>(null);
+
+  const tabs = useMemo(() => [
+    { id: 0, label: 'Study Plan', icon: NotebookPen, color: 'text-blue-600' },
+    { id: 1, label: 'Last Test Recommendations', icon: History, color: 'text-indigo-600' },
+    { id: 2, label: 'Strengths', icon: Trophy, color: 'text-green-600' },
+    { id: 3, label: 'Weaknesses', icon: AlertTriangle, color: 'text-red-600' }
+  ], []);
 
   // =============================================================================
   // UTILITY FUNCTIONS
@@ -267,18 +222,19 @@ export default function Home() {
     }
   }, [activeTab]);
 
-  // Debug insights data and test relative time function
+  // Dev-only logs for insights
   useEffect(() => {
-    // Test the relative time function
-    testRelativeTime();
-
-    if (insights) {
-      console.log('Insights data:', insights);
-      console.log('Cache info:', insights.cacheInfo);
-      if (insights.cacheInfo?.lastModified) {
-        console.log('Last modified:', insights.cacheInfo.lastModified);
-        console.log('Formatted time:', formatRelativeTime(insights.cacheInfo.lastModified));
-      }
+    if (process.env.NODE_ENV !== 'development') return;
+    if (!insights) return;
+    // eslint-disable-next-line no-console
+    console.debug('Insights data:', insights);
+    // eslint-disable-next-line no-console
+    console.debug('Cache info:', insights.cacheInfo);
+    if (insights.cacheInfo?.lastModified) {
+      // eslint-disable-next-line no-console
+      console.debug('Last modified:', insights.cacheInfo.lastModified);
+      // eslint-disable-next-line no-console
+      console.debug('Formatted time:', formatRelativeTime(insights.cacheInfo.lastModified));
     }
   }, [insights]);
 
@@ -325,22 +281,29 @@ export default function Home() {
       {/* ============================================================================= */}
       {/* HEADER SECTION */}
       {/* ============================================================================= */}
-      <header className="w-full bg-white border-b sticky top-0 z-50">
-        <div className="w-full mx-auto px-4 py-3">
+      <header className="w-full bg-white/80 backdrop-blur sticky top-0 z-50 border-b border-gray-100">
+        <div className="w-full mx-auto px-4 py-3 max-w-5xl">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <img src={Logo} alt="InzightEd" className="h-6 w-auto" />
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center gap-3">
+                <img src={Logo} alt="InzightEd" className="h-8 w-auto" />
+                <div className="hidden sm:block">
+                  <h2 className="text-lg font-semibold text-slate-900">InzightEd</h2>
+                  <p className="text-xs text-slate-500 -mt-0.5">Personalized learning, accelerated</p>
+                </div>
+              </div>
             </div>
             {/* Right side with profile */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3">
               <Button
-                variant="ghost"
-                size="icon"
+                variant="default"
+                size="sm"
                 onClick={() => navigate('/payment')}
-                className="aspect-square bg-orange-100 rounded-full h-10 w-10"
+                className="bg-amber-100 text-amber-800 hover:bg-amber-200 shadow-sm rounded-full px-3 py-2 border border-amber-200"
                 aria-label="Go to Payment"
               >
-                <Crown className="h-5 w-5 text-amber-600" />
+                <Crown className="h-4 w-4 mr-2 text-amber-600" />
+                Upgrade
               </Button>
               <StudentProfile />
             </div>
@@ -358,24 +321,19 @@ export default function Home() {
         {/* ============================================================================= */}
         <>
           {/* Tab Headers - Outside the card, below header */}
-          <div className="border-b border-gray-200 bg-gray-50">
-            <nav ref={tabNavRef} className="flex overflow-x-auto hide-scrollbar px-4" aria-label="Tabs">
-              {[
-                { id: 0, label: 'Study Plan', icon: NotebookPen, color: 'text-blue-600' },
-                { id: 1, label: 'Last Test Recommendations', icon: History, color: 'text-indigo-600' },
-                { id: 2, label: 'Strengths', icon: Trophy, color: 'text-green-600' },
-                { id: 3, label: 'Weaknesses', icon: AlertTriangle, color: 'text-red-600' }
-              ].map((tab) => (
+          <div className="border-b border-gray-100 bg-gradient-to-b from-white/60 to-white/40">
+            <nav ref={tabNavRef} className="flex gap-3 overflow-x-auto hide-scrollbar px-4 py-3 items-center" aria-label="Tabs">
+              {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   data-tab-id={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center justify-center gap-2 py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 active:bg-gray-50 whitespace-nowrap ${activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  className={`flex items-center gap-2 py-2 px-3 text-sm font-medium rounded-full transition-all duration-200 focus:outline-none whitespace-nowrap ${activeTab === tab.id
+                    ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 shadow-sm ring-1 ring-blue-100 scale-100'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
                     }`}
                 >
-                  <tab.icon className={`h-4 w-4 transition-colors duration-200 ${activeTab === tab.id ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} />
+                  <tab.icon className={`h-4 w-4 transition-colors duration-200 ${activeTab === tab.id ? 'text-blue-600' : 'text-slate-400'}`} />
                   <span>{tab.label}</span>
                 </button>
               ))}
@@ -383,7 +341,7 @@ export default function Home() {
           </div>
 
           {/* Tab Content Card */}
-          <div className="select-none insights-container relative">
+          <div className="select-none insights-container relative max-w-5xl mx-auto px-4">
             <div
               ref={touchContainerRef}
               onTouchStart={handleTouchStart}
@@ -392,27 +350,25 @@ export default function Home() {
               className="overflow-hidden"
             >
               {/* Tab Content */}
-              <div className="p-4 min-h-[120px]">
+              <div className="px-1 py-2 min-h-[120px]">
                 {/* If user has no tests, show a clear fallback CTA card for all tabs */}
                 {!hasData ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <InsightCard variant={activeTab === 0 ? 'blue' : activeTab === 1 ? 'indigo' : activeTab === 2 ? 'green' : 'red'}>
-                      <div className="flex flex-col  justify-center items-center gap-3">
-                        <div>
-
-                          <Lock className="h-16 w-16 text-gray-400" />
-
+                      <div className="flex flex-col justify-center items-center gap-3">
+                        <div className="p-4 rounded-full bg-white/60 shadow-inner">
+                          <Lock className="h-16 w-16 text-slate-400" />
                         </div>
                         <div className="text-center">
-                          <p className="font-semibold">Get personalized insights</p>
-                          <p className="text-xs text-gray-600">Take your first practice test to unlock AI study plans, strengths and weaknesses analysis.</p>
+                          <p className="font-semibold text-slate-900 text-lg">Get personalized insights</p>
+                          <p className="text-xs text-slate-500">Take your first practice test to unlock AI study plans, strengths and weaknesses analysis.</p>
                         </div>
-                        <div className="flex">
+                        <div className="flex w-full">
                           <Button
                             variant="default"
                             size="lg"
                             onClick={() => navigate('/topics')}
-                            className="w-full rounded-lg font-bold"
+                            className="w-full rounded-xl font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md"
                             aria-label="Take a Test"
                           >
                             Take Unlimited Mock Tests
@@ -420,6 +376,47 @@ export default function Home() {
                         </div>
                       </div>
                     </InsightCard>
+
+                    {/* Mini card grid to make the insights section feel populated */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <InsightCard variant="gray" className="p-3">
+                        <div>
+                          <p className="font-medium text-slate-900">What you'll get</p>
+                          <ul className="mt-2 text-xs text-slate-600 space-y-1">
+                            <li>• AI study plan tailored to your performance</li>
+                            <li>• Topic-wise strengths & weaknesses</li>
+                            <li>• Short, actionable practice recommendations</li>
+                          </ul>
+                        </div>
+                      </InsightCard>
+
+                      <InsightCard variant="indigo" className="p-3">
+                        <div>
+                          <p className="font-medium text-slate-900">Sample recommended topics</p>
+                          <ul className="mt-2 text-xs text-indigo-700 space-y-1">
+                            <li className="flex justify-between"><span>Algebra Basics</span><span className="text-indigo-600">72%</span></li>
+                            <li className="flex justify-between"><span>Geometry</span><span className="text-indigo-600">65%</span></li>
+                            <li className="flex justify-between"><span>Physics: Motion</span><span className="text-indigo-600">58%</span></li>
+                          </ul>
+                        </div>
+                      </InsightCard>
+
+                      <InsightCard variant="blue" className="p-3">
+                        <div>
+                          <p className="font-medium text-slate-900">Weekly goal</p>
+                          <div className="mt-2">
+                            <div className="w-full bg-slate-100 rounded-full h-2">
+                              <div className="h-2 rounded-full bg-blue-600" style={{ width: '28%' }} />
+                            </div>
+                            <p className="text-xs text-slate-500 mt-2">Complete 2 tests this week to unlock insights</p>
+                          </div>
+                        </div>
+                      </InsightCard>
+                    </div>
+
+                    <div className="mt-2 text-xs text-slate-500 text-center">
+                      Or try a <button onClick={() => navigate('/topics')} className="text-blue-600 underline font-medium">quick demo test</button> to populate your dashboard.
+                    </div>
                   </div>
                 ) : (
                   // Existing content when user has data
@@ -433,7 +430,14 @@ export default function Home() {
                               const firstInsight = insights.data.llmInsights.studyPlan.insights[0] as any;
                               return (
                                 <InsightCard key={firstInsight?.id ?? firstInsight} variant="blue">
-                                  {firstInsight?.text ?? firstInsight}
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex-shrink-0 mt-0.5">
+                                      <div className="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center">
+                                        <NotebookPen className="h-4 w-4 text-blue-600" />
+                                      </div>
+                                    </div>
+                                    <div className="text-slate-800">{firstInsight?.text ?? firstInsight}</div>
+                                  </div>
                                 </InsightCard>
                               );
                             })()}
@@ -481,7 +485,14 @@ export default function Home() {
                               const firstInsight = insights.data.llmInsights.lastTestFeedback.insights[0] as any;
                               return (
                                 <InsightCard key={firstInsight?.id ?? firstInsight} variant="indigo">
-                                  {firstInsight?.text ?? firstInsight}
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex-shrink-0 mt-0.5">
+                                      <div className="h-8 w-8 rounded-full bg-indigo-50 flex items-center justify-center">
+                                        <History className="h-4 w-4 text-indigo-600" />
+                                      </div>
+                                    </div>
+                                    <div className="text-slate-800">{firstInsight?.text ?? firstInsight}</div>
+                                  </div>
                                 </InsightCard>
                               );
                             })()}
@@ -523,7 +534,14 @@ export default function Home() {
                               const firstInsight = insights.data.llmInsights.strengths.insights[0] as any;
                               return (
                                 <InsightCard key={firstInsight?.id ?? firstInsight} variant="green">
-                                  {firstInsight?.text ?? firstInsight}
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex-shrink-0 mt-0.5">
+                                      <div className="h-8 w-8 rounded-full bg-green-50 flex items-center justify-center">
+                                        <Trophy className="h-4 w-4 text-green-600" />
+                                      </div>
+                                    </div>
+                                    <div className="text-slate-800">{firstInsight?.text ?? firstInsight}</div>
+                                  </div>
                                 </InsightCard>
                               );
                             })()}
@@ -559,7 +577,14 @@ export default function Home() {
                               const firstInsight = insights.data.llmInsights.weaknesses.insights[0] as any;
                               return (
                                 <InsightCard key={firstInsight?.id ?? firstInsight} variant="red">
-                                  {firstInsight?.text ?? firstInsight}
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex-shrink-0 mt-0.5">
+                                      <div className="h-8 w-8 rounded-full bg-rose-50 flex items-center justify-center">
+                                        <AlertTriangle className="h-4 w-4 text-rose-600" />
+                                      </div>
+                                    </div>
+                                    <div className="text-slate-800">{firstInsight?.text ?? firstInsight}</div>
+                                  </div>
                                 </InsightCard>
                               );
                             })()}
@@ -596,7 +621,7 @@ export default function Home() {
         {/* ============================================================================= */}
         {/* BODY CONTAINER - Main content area below insights */}
         {/* ============================================================================= */}
-        <div className="pb-20 bg-white rounded-t-3xl w-full shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1),0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)]">
+        <div className="pb-20 bg-white rounded-2xl max-w-5xl mx-auto mt-6 shadow-lg border border-gray-100">
 
           {/* ============================================================================= */}
           {/* AI TUTOR CHAT SECTION */}
@@ -620,7 +645,7 @@ export default function Home() {
                 size="lg"
                 onClick={() => navigate('/topics')}
                 aria-label="View Test ArrowRight"
-                className="w-full rounded-xl font-bold"
+                className="w-full rounded-xl font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg hover:from-blue-700 hover:to-indigo-700"
               >
                 Take a Test
                 <ArrowRight className="h-4 w-4 ml-2" />
@@ -630,11 +655,11 @@ export default function Home() {
           <div className="px-4 mt-3 mb-4 ">
             <div>
               <Button
-                variant="outline"
+                variant="default"
                 size="lg"
                 onClick={() => navigate('/topics')}
                 aria-label="View Test History"
-                className="w-full rounded-xl border border-blue-500 bg-blue-50 text-blue-600"
+                className="w-full rounded-xl font-medium bg-white border border-blue-100 text-blue-600 hover:bg-blue-50 shadow-sm"
               >
                 View Test History
                 <History className="h-4 w-4 ml-2" />

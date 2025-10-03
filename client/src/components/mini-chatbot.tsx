@@ -201,7 +201,7 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
                                     }}
                                     placeholder="Ask anything..."
                                     disabled={isChatLoading}
-                                    className="border-slate-200/80 rounded-full text-sm focus:border-blue-300 focus:ring-blue-100 focus:ring-1 shadow-sm transition-all duration-200 bg-white/80 backdrop-blur-sm group-hover:shadow-md pl-4 pr-20"
+                                    className="border-slate-200/80 rounded-full text-sm focus:border-blue-300 focus:ring-blue-100 focus:ring-1 shadow-sm transition-all duration-200 bg-white/80 backdrop-blur-sm group-hover:shadow-md pl-4 pr-20 h-12"
                                 />
                                 <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1.5">{speechSupported && (
                                     <Button
@@ -210,7 +210,7 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
                                         variant="ghost"
                                         onClick={toggleSpeechRecognition}
                                         disabled={isChatLoading}
-                                        className={`h-8 w-8 p-0 rounded-full transition-all duration-200 hover:scale-105 ${isRecording
+                                        className={`h-10 w-10 p-0 rounded-full transition-all duration-200 hover:scale-105 ${isRecording
                                             ? 'text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100'
                                             : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
                                             }`}
@@ -227,7 +227,7 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
                                             }
                                         }}
                                         disabled={!inputMessage.trim() || isChatLoading}
-                                        className="h-8 w-8 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                                        className="h-10 w-10 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
                                     >
                                         {isChatLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                                     </Button>
