@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { StudentProfile } from "@/components/profile-avatar";
 import Logo from "@/assets/images/logo.svg";
-import { Crown, Home, NotepadText, FileChartPie, MessageSquareMore, ChevronDown, ChevronRight } from "lucide-react";
+import { Crown, Home, NotepadText, FileChartPie, MessageSquareMore, ChevronDown, ChevronRight, School } from "lucide-react";
 import { getAccessToken } from '@/lib/auth';
+import { getPostTestHidden } from '@/lib/postTestHidden';
 import { API_CONFIG } from '@/config/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -23,6 +24,7 @@ interface NavItem {
     onClick?: () => void;
     expandable?: boolean;
     expanded?: boolean;
+    disabled?: boolean;
 }
 
 interface ChatSession {
@@ -38,15 +40,18 @@ interface ChatSession {
 
 function SidebarItem({ item, currentPath, navigate }: { item: NavItem; currentPath: string; navigate: (to: string) => void; }) {
     const isActive = item.activePattern ? item.activePattern.test(currentPath) : currentPath === item.to;
+    const disabled = !!item.disabled;
     return (
         <li role="none">
             <button
-                onClick={() => { item.onClick ? item.onClick() : navigate(item.to); }}
+                onClick={() => { if (disabled) return; item.onClick ? item.onClick() : navigate(item.to); }}
                 role="menuitem"
                 aria-label={item.text}
-                className={`group w-full flex items-center rounded-lg transition-all duration-200 focus:outline-none px-4 py-3 text-left ${isActive ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 font-medium shadow-sm' : 'text-gray-700 hover:bg-blue-50'}`}
+                aria-disabled={disabled}
+                disabled={disabled}
+                className={`group w-full flex items-center rounded-lg transition-all duration-200 focus:outline-none px-4 py-3 text-left ${isActive ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 font-medium shadow-sm' : 'text-gray-700 hover:bg-blue-50'} ${disabled ? 'filter blur-sm opacity-60 cursor-not-allowed' : ''}`}
             >
-                <div className={`flex items-center justify-center transition-colors duration-200 group-hover:text-blue-600 mr-3 ${isActive ? 'text-blue-600' : 'text-gray-600'}`}>
+                <div className={`flex items-center justify-center transition-colors duration-200 group-hover:text-blue-600 mr-3 ${isActive ? 'text-blue-600' : 'text-gray-600'} ${disabled ? 'text-gray-400' : ''}`}>
                     {item.icon}
                 </div>
                 <span className="text-base whitespace-nowrap overflow-hidden flex-1">
@@ -105,9 +110,12 @@ export default function HeaderDesktop() {
     const leftClass = 'md:left-64';
 
     // Navigation items configuration
+    const postHidden = getPostTestHidden();
+
     const navItems: NavItem[] = [
         { to: '/', text: 'Home', icon: <Home className="h-5 w-5" />, activePattern: /^\/$/ },
         { to: '/topics', text: 'Test', icon: <NotepadText className="h-5 w-5" />, activePattern: /^\/topics/ },
+        { to: '/institution-tests', text: 'Institution Tests', icon: <School className="h-5 w-5" />, activePattern: /^\/institution-tests/ },
         { to: '/dashboard', text: 'Analysis', icon: <FileChartPie className="h-5 w-5" />, activePattern: /^\/dashboard/ },
         {
             to: '/chatbot', text: 'Chatbot', icon: <MessageSquareMore className="h-5 w-5" />, activePattern: /^\/chatbot/, onClick: () => {
@@ -180,9 +188,12 @@ export default function HeaderDesktop() {
                         </div>
 
                         <ul className="space-y-2" role="menu">
-                            {navItems.map(item => (
-                                <SidebarItem key={item.to} item={item} currentPath={path} navigate={navigate} />
-                            ))}
+                            {navItems.map(item => {
+                                // compute disabled state for certain menu items when post-test flag is set
+                                const isDisabled = postHidden && ['Test', 'Analysis', 'Chatbot'].includes(item.text);
+                                const itemWithDisabled = { ...item, disabled: isDisabled } as NavItem;
+                                return <SidebarItem key={item.to} item={itemWithDisabled} currentPath={path} navigate={navigate} />
+                            })}
                         </ul>
                         {expandedItems.has('chatbot') && (
                             <div className="mt-2">

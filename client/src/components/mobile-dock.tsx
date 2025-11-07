@@ -1,6 +1,7 @@
 import React from "react";
-import { Home, NotepadText, FileChartPie, MessageSquareMore } from "lucide-react";
+import { Home, NotepadText, FileChartPie, MessageSquareMore, School } from "lucide-react";
 import { useLocation } from "wouter";
+import { getPostTestHidden } from '@/lib/postTestHidden';
 
 /**
  * Mobile dock shown on small screens with navigation shortcuts
@@ -20,9 +21,12 @@ export default function MobileDock() {
         }
     };
 
+    const postHidden = getPostTestHidden();
+
     const items = [
         { key: "home", href: "/", label: "Home", icon: <Home className="h-5 w-5" /> },
         { key: "test", href: "/topics", label: "Test", icon: <NotepadText className="h-5 w-5" /> },
+        { key: "institution", href: "/institution-tests", label: "Institution", icon: <School className="h-4 w-4" /> },
         { key: "analysis", href: "/dashboard", label: "Analysis", icon: <FileChartPie className="h-5 w-5" /> },
         { key: "chatbot", href: "/chatbot", label: "Chatbot", icon: <MessageSquareMore className="h-5 w-5" /> },
     ];
@@ -42,13 +46,16 @@ export default function MobileDock() {
                 <ul className="flex justify-between items-center h-16">
                     {items.map((it) => {
                         const active = isActive(it.href);
+                        const disabled = postHidden && ['Test', 'Analysis', 'Chatbot'].includes(it.label);
                         return (
                             <li key={it.key} className="flex-1">
                                 <button
-                                    onClick={() => navigate(it.href)}
+                                    onClick={() => { if (!disabled) navigate(it.href); }}
                                     aria-current={active ? "page" : undefined}
                                     aria-label={it.label}
-                                    className="w-full h-full flex flex-col items-center justify-center gap-0 transition-colors duration-200 focus:outline-none"
+                                    aria-disabled={disabled}
+                                    disabled={disabled}
+                                    className={`w-full h-full flex flex-col items-center justify-center gap-0 transition-colors duration-200 focus:outline-none ${disabled ? 'filter blur-sm opacity-60 cursor-not-allowed' : ''}`}
                                 >
                                     <div
                                         className={`mb-1 p-2 rounded-full transition-transform duration-200 ease-in-out ${active

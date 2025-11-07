@@ -31,6 +31,7 @@ class Question(models.Model):
     """
     Replicates the 'questions' table from the Drizzle ORM schema.
     Contains multiple-choice questions linked to topics.
+    Supports both global questions and institution-specific questions.
     """
     id = models.AutoField(primary_key=True) # serial("id").primaryKey()
     # Foreign key to Topic, db_column matches Drizzle's 'topic_id'
@@ -46,6 +47,19 @@ class Question(models.Model):
     # Additional fields for question metadata
     difficulty = models.TextField(null=True, blank=True) # text("difficulty") - stores difficulty level
     question_type = models.TextField(null=True, blank=True) # text("question_type") - stores type of question
+    # Optional base64-encoded images for question and options (additive, nullable)
+    question_image = models.TextField(null=True, blank=True)
+    option_a_image = models.TextField(null=True, blank=True)
+    option_b_image = models.TextField(null=True, blank=True)
+    option_c_image = models.TextField(null=True, blank=True)
+    option_d_image = models.TextField(null=True, blank=True)
+    # Optional image for explanation (kept separate from explanation text)
+    explanation_image = models.TextField(null=True, blank=True)
+    
+    # Institution-specific fields (nullable for backward compatibility)
+    institution = models.ForeignKey('Institution', on_delete=models.SET_NULL, null=True, blank=True, db_index=True, related_name='questions')
+    institution_test_name = models.TextField(null=True, blank=True, db_index=True)  # Test name from Excel upload
+    exam_type = models.CharField(max_length=20, null=True, blank=True, db_index=True)  # e.g., 'neet', 'jee'
 
     class Meta:
         db_table = 'questions' # Ensures the table name in DB is 'questions'
@@ -53,6 +67,10 @@ class Question(models.Model):
         verbose_name_plural = 'Questions'
         # Add unique constraint to prevent duplicate questions based on content and topic
         unique_together = [['question', 'topic', 'option_a', 'option_b', 'option_c', 'option_d']]
+        indexes = [
+            models.Index(fields=['institution', 'institution_test_name']),
+            models.Index(fields=['institution', 'exam_type']),
+        ]
 
     def __str__(self):
         return f"Q{self.id}: {self.question[:50]}..."
@@ -61,6 +79,7 @@ class PlatformTest(models.Model):
     """
     Represents standardized tests provided by the platform (e.g., NEET 2024 Official Paper).
     These are pre-configured tests with specific question sets and configurations.
+    Now also supports institution-specific tests created by institution admins.
     """
     id = models.AutoField(primary_key=True)
     # Test identification
@@ -68,6 +87,11 @@ class PlatformTest(models.Model):
     test_code = models.CharField(max_length=50, unique=True, null=False)  # e.g., "NEET_2024_OFFICIAL"
     test_year = models.IntegerField(null=True, blank=True)  # e.g., 2024
     test_type = models.TextField(null=True, blank=True)  # e.g., "Official", "Practice", "Mock"
+    
+    # Institution-specific fields (nullable for backward compatibility)
+    institution = models.ForeignKey('Institution', on_delete=models.CASCADE, null=True, blank=True, db_index=True, related_name='tests')
+    is_institution_test = models.BooleanField(default=False)  # True if created by institution admin
+    exam_type = models.CharField(max_length=20, null=True, blank=True, db_index=True)  # e.g., 'neet', 'jee'
     
     # Test configuration
     description = models.TextField(null=True, blank=True)  # Test description
@@ -100,6 +124,8 @@ class PlatformTest(models.Model):
             models.Index(fields=['is_active', 'created_at']),
             models.Index(fields=['scheduled_date_time']),
             models.Index(fields=['is_active', 'scheduled_date_time']),
+            models.Index(fields=['institution', 'is_institution_test']),
+            models.Index(fields=['institution', 'exam_type', 'is_active']),
         ]
     
     def __str__(self):
@@ -107,7 +133,19 @@ class PlatformTest(models.Model):
     
     def get_questions(self):
         """Get all questions for this platform test based on selected topics"""
-        return Question.objects.filter(topic_id__in=self.selected_topics)
+        if self.is_institution_test and self.institution:
+            # For institution tests, get questions from institution + test_name
+            return Question.objects.filter(
+                institution=self.institution,
+                institution_test_name=self.test_name,
+                topic_id__in=self.selected_topics
+            )
+        else:
+            # For global platform tests, use standard topic filter
+            return Question.objects.filter(
+                topic_id__in=self.selected_topics,
+                institution__isnull=True  # Ensure we only get global questions
+            )
     
     def get_total_questions_count(self):
         """Get actual count of questions available for this test"""
@@ -544,6 +582,10 @@ class StudentProfile(models.Model):
     # Educational information
     school_name = models.TextField(null=True, blank=True)
     target_exam_year = models.IntegerField(null=True, blank=True)
+    
+    # Institution membership (optional - for institution test access)
+    institution = models.ForeignKey('Institution', on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
+    
     # Account status
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)  # Email/phone verification
@@ -568,6 +610,7 @@ class StudentProfile(models.Model):
             models.Index(fields=['google_email']),
             models.Index(fields=['date_of_birth']),
             models.Index(fields=['is_active', 'created_at']),
+            models.Index(fields=['institution']),
         ]
 
     def __str__(self):
@@ -991,6 +1034,65 @@ class PlatformAdmin(models.Model):
 
     def __str__(self):
         return self.username
+
+    def set_password(self, raw_password):
+        from django.contrib.auth.hashers import make_password
+        self.password_hash = make_password(raw_password)
+
+    def check_password(self, raw_password):
+        from django.contrib.auth.hashers import check_password
+        return check_password(raw_password, self.password_hash)
+
+
+class Institution(models.Model):
+    """
+    Represents coaching centers, schools, or other institutions that can create
+    their own tests for their students.
+    """
+    id = models.AutoField(primary_key=True)
+    name = models.TextField(null=False)
+    code = models.CharField(max_length=50, unique=True, null=False, db_index=True)  # Institution code for student verification
+    exam_types = models.JSONField(default=list, blank=True)  # List of supported exam types (e.g., ['neet', 'jee'])
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=False)
+    updated_at = models.DateTimeField(auto_now=True, null=False)
+
+    class Meta:
+        db_table = 'institutions'
+        verbose_name = 'Institution'
+        verbose_name_plural = 'Institutions'
+        indexes = [
+            models.Index(fields=['code']),
+            models.Index(fields=['is_active', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+class InstitutionAdmin(models.Model):
+    """
+    Institution admin credentials for managing institution-specific tests.
+    Separate from platform admins and Django admins.
+    """
+    id = models.AutoField(primary_key=True)
+    username = models.CharField(max_length=150, unique=True)
+    password_hash = models.CharField(max_length=255)
+    institution = models.ForeignKey(Institution, on_delete=models.CASCADE, related_name='admins')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'institution_admins'
+        verbose_name = 'Institution Admin'
+        verbose_name_plural = 'Institution Admins'
+        indexes = [
+            models.Index(fields=['username']),
+            models.Index(fields=['institution', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.username} ({self.institution.name})"
 
     def set_password(self, raw_password):
         from django.contrib.auth.hashers import make_password

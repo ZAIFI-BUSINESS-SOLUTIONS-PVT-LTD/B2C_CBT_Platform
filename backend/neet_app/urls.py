@@ -34,6 +34,15 @@ from .views.platform_admin_views import (
 from .views.platform_admin_views import (
     platform_login, platform_logout, tests_list, tests_create, tests_edit, tests_delete
 )
+from .views.institution_admin_views import (
+    institution_admin_login, get_exam_types, upload_test, 
+    list_institution_tests as admin_list_institution_tests,
+    toggle_test_status, get_test_details
+)
+from .views.institution_student_views import (
+    verify_institution_code, list_institution_tests, link_student_to_institution
+)
+from .views.institution_registration import register_institution
 from .authentication import StudentTokenObtainPairView
 from .views.password_reset_views import forgot_password, verify_reset_token, reset_password
 from .views.payment_views import create_order_view, verify_payment_view, subscription_status_view
@@ -131,6 +140,20 @@ urlpatterns = [
     path('platform-admin/tests/create/', tests_create, name='platform-admin-tests-create'),
     path('platform-admin/tests/<int:pk>/edit/', tests_edit, name='platform-admin-tests-edit'),
     path('platform-admin/tests/<int:pk>/delete/', tests_delete, name='platform-admin-tests-delete'),
+    
+    # Institution Admin endpoints
+    path('institution-admin/register/', register_institution, name='institution-admin-register'),
+    path('institution-admin/login/', institution_admin_login, name='institution-admin-login'),
+    path('institution-admin/exam-types/', get_exam_types, name='institution-admin-exam-types'),
+    path('institution-admin/upload/', upload_test, name='institution-admin-upload'),
+    path('institution-admin/tests/', admin_list_institution_tests, name='institution-admin-list-tests'),
+    path('institution-admin/tests/<int:test_id>/', get_test_details, name='institution-admin-test-details'),
+    path('institution-admin/tests/<int:test_id>/toggle/', toggle_test_status, name='institution-admin-toggle-test'),
+    
+    # Institution Student endpoints
+    path('institutions/verify-code/', verify_institution_code, name='verify-institution-code'),
+    path('institutions/<int:institution_id>/tests/', list_institution_tests, name='list-institution-tests'),
+    path('student/link-institution/', link_student_to_institution, name='link-student-to-institution'),
     
     # Payment endpoints
     path('payments/create-order/', create_order_view, name='create-order'),

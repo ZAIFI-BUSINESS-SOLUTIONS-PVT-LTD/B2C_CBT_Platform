@@ -51,7 +51,11 @@ class QuestionForTestSerializer(serializers.ModelSerializer):
     class Meta:
         model = Question
         # Only include safe fields for test-taking (exclude sensitive fields)
-        fields = ['id', 'topic', 'question', 'option_a', 'option_b', 'option_c', 'option_d']
+        fields = [
+            'id', 'topic', 'question', 'option_a', 'option_b', 'option_c', 'option_d',
+            # Optional base64 image fields (nullable) - additive and safe to include
+            'question_image', 'option_a_image', 'option_b_image', 'option_c_image', 'option_d_image'
+        ]
 
 
 # This serializer is for returning full question details (e.g., in results/analytics)
@@ -299,6 +303,7 @@ class TestAnswerCreateSerializer(serializers.Serializer):
 class StudentProfileSerializer(serializers.ModelSerializer):
     total_tests = serializers.SerializerMethodField()
     recent_tests = serializers.SerializerMethodField()
+    institution = serializers.SerializerMethodField()
     
     class Meta:
         model = StudentProfile
@@ -306,7 +311,8 @@ class StudentProfileSerializer(serializers.ModelSerializer):
             'student_id', 'full_name', 'email', 'phone_number', 'date_of_birth',
             'school_name', 'target_exam_year', 'is_active', 'is_verified', 'last_login',
             'created_at', 'updated_at', 'total_tests', 'recent_tests',
-            'google_sub', 'google_email', 'email_verified', 'google_picture', 'auth_provider'
+            'google_sub', 'google_email', 'email_verified', 'google_picture', 'auth_provider',
+            'institution'
         ]
         read_only_fields = [
             'student_id', 'created_at', 'updated_at', 'last_login', 'google_sub', 'google_email', 'auth_provider'
@@ -322,6 +328,17 @@ class StudentProfileSerializer(serializers.ModelSerializer):
     def get_recent_tests(self, obj):
         recent_sessions = obj.get_test_sessions()[:5]  # Last 5 tests
         return TestSessionSerializer(recent_sessions, many=True).data
+    
+    def get_institution(self, obj):
+        """Return institution details if student is linked to an institution"""
+        if obj.institution:
+            return {
+                'id': obj.institution.id,
+                'name': obj.institution.name,
+                'code': obj.institution.code,
+                'exam_types': obj.institution.exam_types or ['neet', 'jee']
+            }
+        return None
 
 
 class StudentProfileCreateSerializer(serializers.ModelSerializer):

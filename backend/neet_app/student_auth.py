@@ -7,6 +7,8 @@ from django.contrib.auth.models import AnonymousUser
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
 from .models import StudentProfile
+from django.http import JsonResponse
+from functools import wraps
 
 
 class StudentAuthenticationBackend(BaseBackend):
@@ -155,3 +157,51 @@ class StudentJWTAuthentication(JWTAuthentication):
                 "user_id": user_id
             })
             raise InvalidToken('Authentication error')
+
+
+def student_jwt_required(view_func):
+    """
+    Decorator for views that require a student JWT in the Authorization header.
+    Sets `request.student` to the authenticated StudentProfile on success.
+    Returns 401 JSON response on authentication failure.
+    """
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        auth = StudentJWTAuthentication()
+        try:
+            # Extract header and raw token
+            header = auth.get_header(request)
+            if header is None:
+                return JsonResponse({
+                    'error': 'UNAUTHORIZED',
+                    'message': 'Authentication credentials were not provided.'
+                }, status=401)
+
+            raw_token = auth.get_raw_token(header)
+            if raw_token is None:
+                return JsonResponse({
+                    'error': 'UNAUTHORIZED',
+                    'message': 'Invalid authentication header.'
+                }, status=401)
+
+            validated_token = auth.get_validated_token(raw_token)
+            user = auth.get_user(validated_token)
+
+            # Attach student to request to be used in views
+            request.student = user
+            return view_func(request, *args, **kwargs)
+
+        except InvalidToken as e:
+            sentry_sdk.capture_exception(e)
+            return JsonResponse({
+                'error': 'UNAUTHORIZED',
+                'message': 'Invalid or expired token'
+            }, status=401)
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            return JsonResponse({
+                'error': 'SERVER_ERROR',
+                'message': 'Authentication error'
+            }, status=500)
+
+    return _wrapped

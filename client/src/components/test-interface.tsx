@@ -29,8 +29,9 @@ import TestHeader from "./test-interface/TestHeader";
 import SecurityBanner from "./test-interface/SecurityBanner";
 import { API_CONFIG } from "@/config/api";
 import { apiRequest } from "@/lib/queryClient";
+import { setPostTestHidden } from "@/lib/postTestHidden";
 import { authenticatedFetch } from "@/lib/auth";
-import { debugAuthentication, testAuthenticatedRequest } from "@/lib/debug-auth";
+import normalizeImageSrc from "@/lib/media";
 import { ChevronLeft, ChevronRight, Bookmark, AlertTriangle, Info } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, } from "@/components/ui/alert-dialog";
 import SubmitDialog from "./test-interface/dialogs/SubmitDialog";
@@ -55,6 +56,12 @@ interface Question {
   optionB: string;
   optionC: string;
   optionD: string;
+  // Optional base64 image fields (camelCase for frontend usage)
+  questionImage?: string | null;
+  optionAImage?: string | null;
+  optionBImage?: string | null;
+  optionCImage?: string | null;
+  optionDImage?: string | null;
 }
 
 /**
@@ -143,9 +150,6 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const { data: testData, isLoading } = useQuery<TestSessionData>({
     queryKey: [`testSession-${sessionId}`], // Changed key for clarity, but old one also works if no clash
     queryFn: async () => {
-      // Debug authentication before making request
-      debugAuthentication();
-
       // CORRECTED: Use authenticatedFetch for authenticated requests
       const url = `/api/test-sessions/${sessionId}/`;
       console.log('🔄 Fetching test session:', url);
@@ -260,8 +264,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         }
       });
 
-      // Navigate to results
-      navigate(`/results/${sessionId}`);
+      // Set frontend-only flag to hide tabs and redirect to the Thank You page
+      try {
+        setPostTestHidden(true);
+      } catch (e) {
+        console.warn('Could not set post test hidden flag', e);
+      }
+      navigate(`/thank-you`);
       // Clean up state after navigation
       setIsSubmitting(false);
       setSuppressFullscreenExitDialog(false);
@@ -334,14 +343,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   // Current question derived from fetched data and current index
   const currentQuestion = testData?.questions[currentQuestionIndex];
 
-  // Debug logging for troubleshooting
-  console.log('🐛 Debug TestInterface:');
-  console.log('  - sessionId:', sessionId);
-  console.log('  - isLoading:', isLoading);
-  console.log('  - testData:', testData);
-  console.log('  - currentQuestionIndex:', currentQuestionIndex);
-  console.log('  - currentQuestion:', currentQuestion);
-  console.log('  - questions count:', testData?.questions?.length || 'undefined');
+  // (debug logs removed)
   const totalQuestions = testData?.questions.length || 0;
   const progressPercentage = totalQuestions > 0 ? ((currentQuestionIndex + 1) / totalQuestions) * 100 : 0;
 
@@ -1181,6 +1183,28 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
               <h3 className="text-lg font-semibold text-gray-900 leading-relaxed">
                 {currentQuestion.question}
               </h3>
+              {/* Render question image if provided (base64 PNG/JPEG) */}
+              {currentQuestion.questionImage && (
+                <div className="my-3">
+                  <img
+                    src={normalizeImageSrc(currentQuestion.questionImage)}
+                    alt="question"
+                    className="block max-w-full h-auto rounded-md border border-gray-200"
+                    style={{ maxHeight: '400px', objectFit: 'contain' }}
+                    onError={(e) => {
+                      console.error('[Image Error] Failed to load question image');
+                      console.error('Image data length:', currentQuestion.questionImage?.length);
+                      console.error('First 100 chars:', currentQuestion.questionImage?.substring(0, 100));
+                      console.error('Normalized src length:', normalizeImageSrc(currentQuestion.questionImage)?.length);
+                      e.currentTarget.style.display = 'none';
+                    }}
+                    onLoad={(e) => {
+                      console.log('[Image Success] Question image loaded successfully');
+                      console.log('Image dimensions:', e.currentTarget.naturalWidth, 'x', e.currentTarget.naturalHeight);
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Answer Options */}
@@ -1213,6 +1237,25 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                         {currentQuestion[`option${option}` as keyof Question]}
                       </span>
                     </div>
+                    {/* Option image (if present) */}
+                    {/** Use `any` index access to read dynamic option image field names like optionAImage */}
+                    {(currentQuestion as any)[`option${option}Image`] && (
+                      <div className="ml-8 mt-2">
+                        <img
+                          src={normalizeImageSrc((currentQuestion as any)[`option${option}Image`])}
+                          alt={`option ${option}`}
+                          className="block max-w-xs h-auto rounded-md border border-gray-200"
+                          style={{ maxHeight: '200px', objectFit: 'contain' }}
+                          onError={(e) => {
+                            console.error(`[Image Error] Failed to load option ${option} image`);
+                            e.currentTarget.style.display = 'none';
+                          }}
+                          onLoad={() => {
+                            console.log(`[Image Success] Option ${option} image loaded`);
+                          }}
+                        />
+                      </div>
+                    )}
                   </Label>
                 ))}
               </div>
@@ -1352,6 +1395,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
       {/* Add bottom padding to prevent content from being hidden behind footer */}
       <div className="h-20"></div>
+
+  {/* Debug panel removed in production build */}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { GraduationCap, User, LogOut, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
+import { getPostTestHidden } from '@/lib/postTestHidden';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +15,7 @@ import {
 export function Header() {
   const { isAuthenticated, student, logout } = useAuth();
   const [, navigate] = useLocation();
+  const postHidden = getPostTestHidden();
 
   const handleLogout = async () => {
     try {
@@ -50,8 +52,9 @@ export function Header() {
                 </span>
                 <Button 
                   variant="outline" 
-                  className="shadow-sm"
-                  onClick={() => navigate('/chatbot')}
+                  className={`shadow-sm ${postHidden ? 'filter blur-sm opacity-60 cursor-not-allowed' : ''}`}
+                  onClick={() => { if (!postHidden) navigate('/chatbot'); }}
+                  disabled={postHidden}
                 >
                   <MessageCircle className="h-4 w-4 mr-2" />
                   AI Tutor

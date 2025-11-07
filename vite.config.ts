@@ -66,6 +66,14 @@ export default defineConfig({
   server: {
   // listen on all addresses so other devices on the network can reach the dev server
   host: "0.0.0.0",
+    // Proxy API requests to Django backend running on localhost:8000
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

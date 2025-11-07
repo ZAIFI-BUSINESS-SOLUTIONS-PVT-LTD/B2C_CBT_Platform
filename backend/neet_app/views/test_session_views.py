@@ -439,10 +439,17 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 'correctAnswer': question.correct_answer,
                 'isCorrect': is_correct,
                 'explanation': question.explanation,
+                # Include explanation image (nullable) for results display
+                'explanation_image': getattr(question, 'explanation_image', None),
                 'optionA': question.option_a,
                 'optionB': question.option_b,
                 'optionC': question.option_c,
                 'optionD': question.option_d,
+                # Include option images (nullable) so results page can show them
+                'option_a_image': getattr(question, 'option_a_image', None),
+                'option_b_image': getattr(question, 'option_b_image', None),
+                'option_c_image': getattr(question, 'option_c_image', None),
+                'option_d_image': getattr(question, 'option_d_image', None),
                 'markedForReview': answer.marked_for_review,
                 'timeTaken': answer.time_taken
             })
@@ -616,10 +623,17 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 'correct_answer': question.correct_answer,
                 'is_correct': is_correct,
                 'explanation': question.explanation,
+                # Include explanation image (nullable)
+                'explanation_image': getattr(question, 'explanation_image', None),
                 'option_a': question.option_a,
                 'option_b': question.option_b,
                 'option_c': question.option_c,
                 'option_d': question.option_d,
+                # Include option images (nullable)
+                'option_a_image': getattr(question, 'option_a_image', None),
+                'option_b_image': getattr(question, 'option_b_image', None),
+                'option_c_image': getattr(question, 'option_c_image', None),
+                'option_d_image': getattr(question, 'option_d_image', None),
                 'marked_for_review': answer.marked_for_review,
                 'time_taken': answer.time_taken
             })

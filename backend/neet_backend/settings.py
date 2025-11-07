@@ -403,3 +403,8 @@ CELERY_BEAT_SCHEDULE = {
     #     'args': (),
     # },
 }
+
+# ----------------------
+# Institution Tests Feature Flag
+# ----------------------
+FEATURE_INSTITUTION_TESTS = os.environ.get('FEATURE_INSTITUTION_TESTS', 'True') == 'True'

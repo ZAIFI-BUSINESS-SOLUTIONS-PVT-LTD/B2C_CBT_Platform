@@ -4,6 +4,7 @@ from django.contrib.admin.widgets import FilteredSelectMultiple
 from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, StudentInsight, PasswordReset, PlatformTest
 from .models import UserActivity, PlatformTestAudit
 from .models import PlatformAdmin, RazorpayOrder
+from .models import Institution, InstitutionAdmin
 
 @admin.register(PlatformTest)
 class PlatformTestAdmin(admin.ModelAdmin):
@@ -113,6 +114,23 @@ class PlatformTestAdmin(admin.ModelAdmin):
     def get_availability_status(self, obj):
         return obj.get_availability_status()
     get_availability_status.short_description = 'Current Status'
+
+
+@admin.register(Institution)
+class InstitutionAdminModel(admin.ModelAdmin):
+    list_display = ['id', 'name', 'code', 'is_active', 'created_at']
+    list_filter = ['is_active']
+    search_fields = ['name', 'code']
+    ordering = ['-created_at']
+
+
+@admin.register(InstitutionAdmin)
+class InstitutionAdminUserAdmin(admin.ModelAdmin):
+    list_display = ['username', 'institution', 'is_active', 'created_at']
+    list_filter = ['is_active', 'institution']
+    search_fields = ['username', 'institution__name']
+    ordering = ['-created_at']
+    readonly_fields = ['created_at']
 
 @admin.register(Topic)
 class TopicAdmin(admin.ModelAdmin):

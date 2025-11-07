@@ -82,11 +82,34 @@ def start_platform_test(request, test_id):
     """
     Start a platform test attempt.
     Creates a new TestSession linked to the PlatformTest.
+    Includes institution membership checks for institution tests.
     """
     try:
-        platform_test = PlatformTest.objects.get(id=test_id, is_active=True)
+        platform_test = PlatformTest.objects.select_related('institution').get(id=test_id, is_active=True)
     except PlatformTest.DoesNotExist:
         raise AppError(code=ErrorCodes.NOT_FOUND, message='Platform test not found or inactive.')
+    
+    # Check if this is an institution test and verify student has access
+    if platform_test.is_institution_test and platform_test.institution:
+        # Get student profile to check institution membership
+        from ..models import StudentProfile
+        try:
+            student_profile = StudentProfile.objects.get(student_id=request.user.student_id)
+            
+            # Check if student is linked to this institution
+            if student_profile.institution != platform_test.institution:
+                # Student is not linked to the institution - deny access
+                # Use standardized auth error code from ErrorCodes
+                raise AppError(
+                    code=ErrorCodes.AUTH_FORBIDDEN,
+                    message='You do not have access to this institution test. Please verify your institution code first.',
+                    details={
+                        'required_institution': platform_test.institution.name,
+                        'institution_code_required': True
+                    }
+                )
+        except StudentProfile.DoesNotExist:
+            raise AppError(code=ErrorCodes.AUTH_REQUIRED, message='Student profile not found')
     
     # Check if test is available now
     if not platform_test.is_available_now():
@@ -139,17 +162,30 @@ def start_platform_test(request, test_id):
     try:
         # Import selection utilities here
         from .utils import generate_questions_for_topics
+        from ..models import Question
 
-        # Determine available questions for the selected topics (do NOT exclude recent questions)
-        # We convert to a list so we can randomly sample from it.
-        available_questions_qs = generate_questions_for_topics(
-            test_session.selected_topics,
-            test_session.question_count,  # request per-difficulty selection for this many questions
-            None,
-            platform_test.difficulty_distribution
-        )
-        available_questions_list = list(available_questions_qs)
-        available_count = len(available_questions_list)
+        # For institution tests, filter questions by institution
+        if platform_test.is_institution_test and platform_test.institution:
+            # Get institution-specific questions for this test
+            available_questions_qs = Question.objects.filter(
+                institution=platform_test.institution,
+                institution_test_name=platform_test.test_name,
+                exam_type=platform_test.exam_type
+            )
+            available_questions_list = list(available_questions_qs)
+            available_count = len(available_questions_list)
+        else:
+            # For regular platform tests, use the existing selection logic
+            # Determine available questions for the selected topics (do NOT exclude recent questions)
+            # We convert to a list so we can randomly sample from it.
+            available_questions_qs = generate_questions_for_topics(
+                test_session.selected_topics,
+                test_session.question_count,  # request per-difficulty selection for this many questions
+                None,
+                platform_test.difficulty_distribution
+            )
+            available_questions_list = list(available_questions_qs)
+            available_count = len(available_questions_list)
 
         if available_count == 0:
             # No questions available for this platform test; mark session and return error

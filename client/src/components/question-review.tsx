@@ -10,6 +10,7 @@ import {
     BookOpen,
     SlidersHorizontal
 } from "lucide-react";
+import normalizeImageSrc from "@/lib/media";
 
 export interface QuestionReviewProps {
     detailedAnswers: Array<{
@@ -23,6 +24,13 @@ export interface QuestionReviewProps {
         optionB: string;
         optionC: string;
         optionD: string;
+        // optional base64 image data URIs (camelCase keys from API)
+        questionImage?: string | null;
+        optionAImage?: string | null;
+        optionBImage?: string | null;
+        optionCImage?: string | null;
+        optionDImage?: string | null;
+        explanationImage?: string | null;
         markedForReview: boolean;
     }>;
     correctAnswers: number;
@@ -140,9 +148,7 @@ export function QuestionReview({
                                                         {answer.isCorrect ? (
                                                             <>
                                                                 <CheckCircle className="h-4 w-4 text-green-600 mr-1" />
-                                                                <span className="text-xs text-green-600 font-medium">
-                                                                    Correct
-                                                                </span>
+                                                                <span className="text-xs text-green-600 font-medium">Correct</span>
                                                             </>
                                                         ) : (
                                                             <>
@@ -159,6 +165,14 @@ export function QuestionReview({
                                                     {answer.question}
                                                 </h5>
 
+                                                {/* Question image (if any) */}
+                                                {normalizeImageSrc((answer as any).questionImage) && (
+                                                    <img
+                                                        src={normalizeImageSrc((answer as any).questionImage)}
+                                                        alt={`Question ${originalIndex + 1} image`}
+                                                        className="w-full max-w-full rounded-md mt-2 object-contain max-h-48"
+                                                    />
+                                                )}
                                                 <div className="grid grid-cols-1 gap-4">
                                                     <div className="space-y-2">
                                                         <h6 className="text-sm font-medium text-slate-700 mb-2">Answer Options</h6>
@@ -182,6 +196,9 @@ export function QuestionReview({
 
                                                             const optionKey = `option${option}`;
                                                             const optionText = (answer as any)[optionKey];
+                                                            const optionImageKey = `${optionKey}Image`;
+                                                            const optionImage = (answer as any)[optionImageKey];
+                                                            const optionImageSrc = normalizeImageSrc(optionImage);
 
                                                             return (
                                                                 <div key={option} className={`flex items-center text-sm p-2 rounded-lg border ${bgColor} ${borderColor}`}>
@@ -189,6 +206,14 @@ export function QuestionReview({
                                                                         {option}
                                                                     </span>
                                                                     <span className={`${textColor} flex-1`}>{optionText}</span>
+                                                                    {/* Option image (if any) */}
+                                                                    {optionImageSrc && (
+                                                                        <img
+                                                                            src={optionImageSrc}
+                                                                            alt={`Option ${option} image`}
+                                                                            className="ml-3 rounded-md max-h-36 object-contain"
+                                                                        />
+                                                                    )}
                                                                     {isCorrect && <Badge variant="outline" className="ml-2 text-xs text-green-600 border-green-300">Correct Answer</Badge>}
                                                                     {isSelected && !isCorrect && <Badge variant="outline" className="ml-2 text-xs text-red-600 border-red-300">Your Answer</Badge>}
                                                                 </div>
@@ -201,7 +226,15 @@ export function QuestionReview({
                                                             <BookOpen className="h-4 w-4 mr-2" />
                                                             Explanation
                                                         </h6>
-                                                        <p className="text-xs text-blue-800 leading-relaxed">{answer.explanation}</p>
+                                                            {/* Explanation image (if any) */}
+                                                            {normalizeImageSrc((answer as any).explanationImage) && (
+                                                                <img
+                                                                    src={normalizeImageSrc((answer as any).explanationImage)}
+                                                                    alt={`Explanation for Question ${originalIndex + 1}`}
+                                                                    className="w-full rounded-md mb-3 object-contain max-h-48"
+                                                                />
+                                                            )}
+                                                            <p className="text-xs text-blue-800 leading-relaxed">{answer.explanation}</p>
                                                     </div>
                                                 </div>
                                             </div>

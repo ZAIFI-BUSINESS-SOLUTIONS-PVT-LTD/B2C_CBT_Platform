@@ -174,6 +174,7 @@ export function LoginForm() {
               )}
             </Button>
             {/* Google Sign-In Button */}
+            {/*
             <GoogleSignIn
               onSuccess={(data) => {
                 console.log("Google sign-in successful:", data);
@@ -184,7 +185,7 @@ export function LoginForm() {
               }}
               disabled={loading}
             />
-            {/* Mobile OTP Login Button */}
+            {/* Mobile OTP Login Button 
             <Button
               type="button"
               variant="outline"
@@ -196,7 +197,7 @@ export function LoginForm() {
               <Smartphone className="h-5 w-5 mr-2" />
               Login with Mobile OTP
             </Button>
-
+            */}
           </div>
 
           {/* OR Divider */}
@@ -206,11 +207,18 @@ export function LoginForm() {
             </div>
             <div className="relative bg-white px-4 text-sm text-gray-500 font-medium">OR</div>
           </div>
-          <Button asChild type="button" size={"lg"} variant="outline" className="w-full rounded-xl h-12">
-            <Link href="/register" className="w-full text-center">
-              Create Profile
-            </Link>
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button asChild type="button" size={"lg"} variant="outline" className="w-full rounded-xl h-12">
+              <Link href="/register" className="w-full text-center">
+                Create Profile
+              </Link>
+            </Button>
+            <Button asChild type="button" size={"lg"} variant="outline" className="w-full rounded-xl h-12 border-blue-300 hover:bg-blue-50 hover:border-blue-400 text-blue-700 hover:text-blue-800">
+              <Link href="/institution-register" className="w-full text-center">
+                Institution Profile
+              </Link>
+            </Button>
+          </div>
         </form>
         {/* Mobile OTP Login Dialog */}
         <Dialog open={showOtpLogin} onOpenChange={setShowOtpLogin}>
