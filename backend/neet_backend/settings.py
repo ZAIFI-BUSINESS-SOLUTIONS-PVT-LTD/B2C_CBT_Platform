@@ -39,7 +39,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-key-change-in-pro
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver,c954e41aebd0.ngrok-free.app').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver,c954e41aebd0.ngrok-free.app,neet.inzighted.com,testapi.inzighted.com').split(',')
 
 # Application definition
 INSTALLED_APPS = [
@@ -196,7 +196,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://cbt.inzighted.com"
+    "https://neet.inzighted.com"
     
 ]
 
@@ -306,7 +306,8 @@ RAZORPAY_WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '')
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://neet.inzighted.com",  # for production
+    "https://neet.inzighted.com", # for production
+    "https://testapi.inzighted.com",
 ]
 # NEET App specific settings
 NEET_SETTINGS = {

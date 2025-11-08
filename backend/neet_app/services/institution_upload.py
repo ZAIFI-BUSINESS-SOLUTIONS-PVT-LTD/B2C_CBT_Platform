@@ -11,6 +11,8 @@ from neet_app.models import Institution, Question, Topic, PlatformTest
 import logging
 import base64
 import binascii
+# reuse existing cleaning utilities
+from neet_app.views.utils import clean_mathematical_text
 
 logger = logging.getLogger(__name__)
 
@@ -433,17 +435,39 @@ def create_institution_test(
     topic_ids = set()
     
     for q_data in questions_data:
+        # Clean mathematical/LaTeX-like content before saving.
+        try:
+            cleaned_question = clean_mathematical_text(q_data.get('question'))
+            cleaned_option_a = clean_mathematical_text(q_data.get('option_a'))
+            cleaned_option_b = clean_mathematical_text(q_data.get('option_b'))
+            cleaned_option_c = clean_mathematical_text(q_data.get('option_c'))
+            cleaned_option_d = clean_mathematical_text(q_data.get('option_d'))
+            cleaned_explanation = clean_mathematical_text(q_data.get('explanation'))
+            cleaned_difficulty = clean_mathematical_text(q_data.get('difficulty')) if q_data.get('difficulty') else None
+            cleaned_qtype = clean_mathematical_text(q_data.get('question_type')) if q_data.get('question_type') else None
+        except Exception:
+            # If cleaning fails for some reason, fall back to original values but continue
+            logger.exception('Error cleaning question text during institution upload; saving raw values')
+            cleaned_question = q_data.get('question')
+            cleaned_option_a = q_data.get('option_a')
+            cleaned_option_b = q_data.get('option_b')
+            cleaned_option_c = q_data.get('option_c')
+            cleaned_option_d = q_data.get('option_d')
+            cleaned_explanation = q_data.get('explanation')
+            cleaned_difficulty = q_data.get('difficulty')
+            cleaned_qtype = q_data.get('question_type')
+
         question = Question.objects.create(
             topic=q_data['topic'],
-            question=q_data['question'],
-            option_a=q_data['option_a'],
-            option_b=q_data['option_b'],
-            option_c=q_data['option_c'],
-            option_d=q_data['option_d'],
+            question=cleaned_question,
+            option_a=cleaned_option_a,
+            option_b=cleaned_option_b,
+            option_c=cleaned_option_c,
+            option_d=cleaned_option_d,
             correct_answer=q_data['correct_answer'],
-            explanation=q_data['explanation'],
-            difficulty=q_data['difficulty'],
-            question_type=q_data['question_type'],
+            explanation=cleaned_explanation,
+            difficulty=cleaned_difficulty,
+            question_type=cleaned_qtype,
             # Optional image fields (may be None)
             question_image=q_data.get('question_image'),
             option_a_image=q_data.get('option_a_image'),

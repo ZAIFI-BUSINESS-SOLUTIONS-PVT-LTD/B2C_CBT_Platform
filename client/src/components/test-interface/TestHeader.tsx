@@ -12,6 +12,7 @@ interface TestHeaderProps {
   showTimeOverDialog: boolean;
   isSubmitting: boolean;
   onQuit: () => void;
+  showPause?: boolean; // optional flag to hide/show pause button
 }
 
 export default function TestHeader({
@@ -23,7 +24,8 @@ export default function TestHeader({
   onSubmitTest,
   showTimeOverDialog,
   isSubmitting,
-  onQuit
+  onQuit, 
+  showPause = true
 }: TestHeaderProps) {
   return (
     <header className="w-full bg-white backdrop-blur-sm border-b border-blue-100 sticky top-0 z-40 shadow-sm mb-2">
@@ -38,17 +40,20 @@ export default function TestHeader({
                   className="bg-red-500 hover:bg-red-600 aspect-square"
                   title="Quit Exam"
                 >
-                  {/* You can use an icon here, e.g., AlertTriangle from lucide-react */}
                   <X className="h-5 w-5 text-white" />
                 </Button>
-                <Button
-                  onClick={onTogglePause}
-                  size="icon"
-                  className="bg-green-500 hover:bg-green-600 aspect-square"
-                  title={paused ? 'Resume Test' : 'Pause Test'}
-                >
-                  {paused ? <Play /> : <Pause />}
-                </Button>
+
+                {/* Pause button is optional and can be hidden via `showPause` prop */}
+                {showPause && (
+                  <Button
+                    onClick={onTogglePause}
+                    size="icon"
+                    className="bg-green-500 hover:bg-green-600 aspect-square"
+                    title={paused ? 'Resume Test' : 'Pause Test'}
+                  >
+                    {paused ? <Play /> : <Pause />}
+                  </Button>
+                )}
               </>
             )}
             {timeLimit ? (

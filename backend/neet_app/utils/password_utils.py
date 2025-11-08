@@ -126,29 +126,45 @@ def validate_password_confirmation(password: str, password_confirmation: str) ->
     return True, ""
 
 
-def validate_full_name_uniqueness(full_name: str, exclude_student_id: str = None) -> Tuple[bool, str]:
+def validate_full_name_uniqueness(full_name: str, email: str = None, exclude_student_id: str = None) -> Tuple[bool, str]:
     """
-    Validate full_name uniqueness (case-insensitive)
-    
+    Validate uniqueness of the (full_name, email) combination.
+
+    Historically the code enforced full_name as globally unique which caused
+    collisions when different students share the same name. Change the policy
+    to allow duplicate full names as long as the email differs. If `email` is
+    provided this will check for an existing record with the same name and
+    email. If `email` is not provided it will only check for the presence of
+    any users with that full_name and return a helpful message advising the
+    frontend to also check availability by email.
+
     Args:
-        full_name (str): Full name to check
-        exclude_student_id (str): Student ID to exclude from check (for updates)
-        
+        full_name: Full name to check (case-insensitive)
+        email: Optional email to pair with the name when testing uniqueness
+        exclude_student_id: Optional student_id to exclude (for updates)
+
     Returns:
         Tuple[bool, str]: (is_unique, error_message)
     """
     from ..models import StudentProfile
-    
-    # Case-insensitive check
+
+    # Base queryset for the full_name (case-insensitive)
     query = StudentProfile.objects.filter(full_name__iexact=full_name)
-    
-    # Exclude current student if updating
     if exclude_student_id:
         query = query.exclude(student_id=exclude_student_id)
-    
+
+    if email:
+        # If email provided, check for existing record with same full_name and email
+        exists = query.filter(email__iexact=email).exists()
+        if exists:
+            return False, "A user with this name and email already exists. Please use different credentials or login."
+        # If no exact match, name+email combination is available
+        return True, ""
+
+    # No email provided: inform the caller that name alone is not a reliable uniqueness check
     if query.exists():
-        return False, "This username is already taken. Please choose a different name."
-    
+        return False, "This name is already used by another user. Provide an email to check full availability or choose a distinguishing name."
+
     return True, ""
 
 

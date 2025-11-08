@@ -25,32 +25,74 @@ function protect(Component: any) {
   };
 }
 
+// Wrapper to blur a component when post-test hidden flag is set.
+// Uses a full-screen fixed overlay with `backdrop-filter` so elements
+// that are positioned above the overlay (like the sidebar/header with
+// higher z-index) remain visible and unblurred.
+function blurIfPostTest(Component: any) {
+  return function BlurWrapper(props: any) {
+    const hidden = getPostTestHidden();
+    return (
+      <div style={{ position: 'relative' }}>
+        {/* Render component normally (no parent filter) */}
+        <Component {...props} />
+
+        {/* If hidden, place a full-viewport overlay that blurs everything behind it
+            while allowing header/sidebar (which have higher z-index) to remain on top */}
+        {hidden && (
+          <div
+            aria-hidden
+            style={{
+              position: 'fixed',
+              inset: 0,
+              // Place overlay below sidebar (sidebar z-40) and header (z-50)
+              zIndex: 30,
+              // Slight translucent white + backdrop blur for modern effect
+              backgroundColor: 'rgba(255,255,255,0.5)',
+              backdropFilter: 'blur(6px) saturate(120%)',
+              WebkitBackdropFilter: 'blur(6px) saturate(120%)',
+              // Block clicks to underlying content
+              pointerEvents: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+              textAlign: 'center',
+            }}
+          >
+          </div>
+        )}
+      </div>
+    );
+  };
+}
+
 function ErrorPageRoute() {
   return <ErrorPage />;
 }
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Home} />                           {/* Home page with topic selection */}
+  <Switch>
+      <Route path="/" component={blurIfPostTest(Home)} />                           {/* Home page with topic selection */}
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/institution-register" component={InstitutionRegisterPage} />
       <Route path="/institution-admin/dashboard" component={InstitutionAdminDashboard} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
-  <Route path="/topics" component={Topics} />                  {/* Topics overview page */}
+      <Route path="/topics" component={Topics} />                  {/* Topics overview page */}
       <Route path="/profile" component={StudentProfile} />        {/* Student profile page */}
       <Route path="/scheduled-tests" component={ScheduledTests} /> {/* Platform tests page */}
       <Route path="/institution-tests" component={InstitutionTesterPage} /> {/* Institution tests page */}
-  <Route path="/dashboard" component={protect(LandingDashboard)} />  {/* Comprehensive landing dashboard */}
-  <Route path="/chatbot" component={protect(Chatbot)} />               {/* AI Chatbot tutor page */}
+      <Route path="/dashboard" component={protect(LandingDashboard)} />  {/* Comprehensive landing dashboard */}
+      <Route path="/chatbot" component={protect(Chatbot)} />               {/* AI Chatbot tutor page */}
       <Route path="/auth/callback" component={GoogleAuthCallback} /> {/* Google OAuth callback */}
       <Route path="/auth/google/callback" component={GoogleCallback} /> {/* Google OAuth popup callback */}
-  <Route path="/test/:sessionId" component={Test} />           {/* Test taking interface */}
-  <Route path="/results/:sessionId" component={protect(Results)} />     {/* Test results and analytics */}
-  <Route path="/test-history" component={protect(TestHistory)} />
-  <Route path="/thank-you" component={ThankYou} />
+      <Route path="/test/:sessionId" component={Test} />           {/* Test taking interface */}
+      <Route path="/results/:sessionId" component={protect(Results)} />     {/* Test results and analytics */}
+      <Route path="/test-history" component={protect(TestHistory)} />
+      <Route path="/thank-you" component={ThankYou} />
       <Route path="/error" component={ErrorPageRoute} />               {/* Error page for critical errors */}
       <Route path="/payment" component={PaymentPage} />            {/* Payment processing page */}
       <Route component={NotFound} />                               {/* 404 page for undefined routes */}

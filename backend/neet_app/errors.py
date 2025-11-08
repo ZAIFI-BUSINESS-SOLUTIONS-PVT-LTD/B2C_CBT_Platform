@@ -80,17 +80,33 @@ class AppError(Exception):
 
 
 class ValidationError(AppError):
-    """Specific error for input validation failures."""
-    
-    def __init__(self, message: str, field: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+    """Specific error for input validation failures.
+
+    This class is a thin wrapper over AppError that defaults to
+    ErrorCodes.INVALID_INPUT but also allows callers to override
+    the `code` and `status_code` when needed (some callsites pass
+    a different code).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        field: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+        code: Optional[str] = None,
+        status_code: Optional[int] = None,
+    ):
         error_details = details or {}
         if field:
             error_details["field"] = field
-            
+
+        final_code = code or ErrorCodes.INVALID_INPUT
+
         super().__init__(
-            code=ErrorCodes.INVALID_INPUT,
+            code=final_code,
             message=message,
-            details=error_details
+            status_code=status_code,
+            details=error_details,
         )
 
 

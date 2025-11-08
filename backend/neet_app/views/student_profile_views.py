@@ -171,22 +171,25 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
                 return Response(response_data, status=status.HTTP_201_CREATED)
             
             # Log validation errors
-            sentry_sdk.capture_message(
-                "Student registration validation failed",
-                level="warning",
-                extra={
-                    "validation_errors": serializer.errors,
-                    "request_data": request.data
-                }
+            # Attach validation details to a temporary Sentry scope and capture message
+            with sentry_sdk.push_scope() as scope:
+                scope.set_extra("validation_errors", serializer.errors)
+                scope.set_extra("request_data", request.data)
+                sentry_sdk.capture_message("Student registration validation failed", level="warning")
+            # Include structured validation errors so frontend can show field-level messages
+            raise AppValidationError(
+                code=ErrorCodes.INVALID_INPUT,
+                message='Invalid input for registration',
+                details={'validation_errors': serializer.errors}
             )
-            raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid input for registration', details=serializer.errors)
             
         except Exception as e:
             # Capture any unexpected errors in Sentry
-            sentry_sdk.capture_exception(e, extra={
-                "action": "student_registration",
-                "request_data": request.data
-            })
+            # Attach context to Sentry before capturing the exception
+            with sentry_sdk.push_scope() as scope:
+                scope.set_extra("action", "student_registration")
+                scope.set_extra("request_data", request.data)
+                sentry_sdk.capture_exception(e)
             raise
 
     @action(detail=False, methods=['post'])
@@ -235,26 +238,26 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_200_OK)
             
             # Log validation errors
-            sentry_sdk.capture_message(
-                "Student login validation failed",
-                level="warning",
-                extra={
-                    "validation_errors": serializer.errors,
-                    "username": request.data.get('username', 'unknown')
-                }
+            with sentry_sdk.push_scope() as scope:
+                scope.set_extra("validation_errors", serializer.errors)
+                scope.set_extra("username", request.data.get('username', 'unknown'))
+                sentry_sdk.capture_message("Student login validation failed", level="warning")
+            raise AppValidationError(
+                code=ErrorCodes.INVALID_INPUT,
+                message='Invalid credentials provided',
+                details={'validation_errors': serializer.errors}
             )
-            raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid credentials provided', details=serializer.errors)
             
         except AppValidationError:
             # Re-raise validation errors without additional Sentry capture
             raise
         except Exception as e:
             # Capture any unexpected errors in Sentry
-            sentry_sdk.capture_exception(e, extra={
-                "action": "student_login",
-                "username": request.data.get('username', 'unknown'),
-                "ip_address": request.META.get('REMOTE_ADDR', 'unknown')
-            })
+            with sentry_sdk.push_scope() as scope:
+                scope.set_extra("action", "student_login")
+                scope.set_extra("username", request.data.get('username', 'unknown'))
+                scope.set_extra("ip_address", request.META.get('REMOTE_ADDR', 'unknown'))
+                sentry_sdk.capture_exception(e)
             raise
 
     @action(detail=False, methods=['get'])
@@ -329,16 +332,26 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         GET /api/student-profile/check-username/?full_name=John%20Doe
         """
         full_name = request.query_params.get('full_name')
-        
+        email = request.query_params.get('email')  # optional - if provided we'll check name+email combo
+
         if not full_name:
             raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='full_name parameter is required')
-        
+
         from ..utils.password_utils import validate_full_name_uniqueness
-        is_available, error_message = validate_full_name_uniqueness(full_name)
-        
+        is_available, error_message = validate_full_name_uniqueness(full_name, email)
+
+        # Provide a helpful message when email was not provided
+        if not email and not is_available:
+            # The name exists; suggest checking availability with an email or choosing a distinguishing name
+            message = error_message
+        elif is_available:
+            message = 'Username is available'
+        else:
+            message = error_message
+
         return Response({
             'available': is_available,
-            'message': error_message if not is_available else 'Username is available'
+            'message': message
         })
 
     @action(detail=False, methods=['get'], url_path='email/(?P<email>.+)')

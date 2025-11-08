@@ -68,7 +68,11 @@ def create_test_student(request):
             level="warning",
             extra={"validation_errors": serializer.errors}
         )
-        raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid input while creating test student', details=serializer.errors)
+        raise AppValidationError(
+            code=ErrorCodes.INVALID_INPUT,
+            message='Invalid input while creating test student',
+            details={'validation_errors': serializer.errors}
+        )
         
     except AppValidationError:
         # Re-raise known errors
@@ -100,7 +104,11 @@ def test_login(request):
             'student': student_data
         }, status=status.HTTP_200_OK)
     
-    raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid credentials provided', details=serializer.errors)
+    raise AppValidationError(
+        code=ErrorCodes.INVALID_INPUT,
+        message='Invalid credentials provided',
+        details={'validation_errors': serializer.errors}
+    )
 
 
 @api_view(['GET'])
@@ -171,7 +179,11 @@ def create_test_session(request):
             'zoology_topics': len(session.zoology_topics)
         }, status=status.HTTP_201_CREATED)
     
-    raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Invalid input while creating test session', details=serializer.errors)
+    raise AppValidationError(
+        code=ErrorCodes.INVALID_INPUT,
+        message='Invalid input while creating test session',
+        details={'validation_errors': serializer.errors}
+    )
 
 
 @api_view(['GET'])

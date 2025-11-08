@@ -357,14 +357,30 @@ class StudentProfileCreateSerializer(serializers.ModelSerializer):
         if StudentProfile.objects.filter(email=value).exists():
             raise serializers.ValidationError("Student with this email already exists.")
         return value
+
+    def validate_phone_number(self, value):
+        """Normalize and validate Indian mobile numbers and enforce uniqueness."""
+        if not value:
+            return value
+
+        from .utils.otp import normalize_mobile, validate_mobile
+        from .models import StudentProfile
+
+        normalized = normalize_mobile(value)
+        if not normalized or not validate_mobile(normalized):
+            raise serializers.ValidationError("Invalid mobile number. Please provide a valid Indian mobile number.")
+
+        # Ensure uniqueness (do not allow two accounts with same phone)
+        if StudentProfile.objects.filter(phone_number=normalized).exists():
+            raise serializers.ValidationError("A user with this phone number already exists.")
+
+        return normalized
     
     def validate_full_name(self, value):
         """Ensure full_name uniqueness (case-insensitive) - acts as username"""
-        from .utils.password_utils import validate_full_name_uniqueness
-        
-        is_unique, error_message = validate_full_name_uniqueness(value)
-        if not is_unique:
-            raise serializers.ValidationError(error_message)
+        # Allow duplicate full names across different emails. The combined
+        # (full_name, email) uniqueness is validated in `validate()` where
+        # both fields are available.
         return value
     
     def validate_password(self, value):
@@ -379,6 +395,7 @@ class StudentProfileCreateSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """Validate password confirmation matches"""
         from .utils.password_utils import validate_password_confirmation
+        from .utils.password_utils import validate_full_name_uniqueness
         
         password = data.get('password')
         password_confirmation = data.get('password_confirmation')
@@ -387,7 +404,15 @@ class StudentProfileCreateSerializer(serializers.ModelSerializer):
             is_valid, error_message = validate_password_confirmation(password, password_confirmation)
             if not is_valid:
                 raise serializers.ValidationError({'password_confirmation': error_message})
-        
+        # Enforce combined uniqueness of (full_name, email)
+        full_name = data.get('full_name')
+        email = data.get('email')
+        if full_name and email:
+            is_unique, message = validate_full_name_uniqueness(full_name, email)
+            if not is_unique:
+                # Attach error to the full_name field for front-end display
+                raise serializers.ValidationError({'full_name': message})
+
         return data
     
     def create(self, validated_data):

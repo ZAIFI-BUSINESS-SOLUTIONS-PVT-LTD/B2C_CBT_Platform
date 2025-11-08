@@ -1141,6 +1141,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         showTimeOverDialog={showTimeOverDialog}
         isSubmitting={isSubmitting}
         onQuit={() => setShowQuitDialog(true)}
+        showPause={false} // hide pause button in the test interface
       />
 
       {/* Quit Exam Dialog */}
