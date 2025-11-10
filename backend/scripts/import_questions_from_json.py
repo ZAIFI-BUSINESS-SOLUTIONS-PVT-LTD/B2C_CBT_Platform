@@ -65,6 +65,10 @@ ALLOWED_COLUMNS = {
     'institution_test_name'
 } | IMAGE_COLUMNS
 
+# Constant offset to compute real DB primary key from JSON question_id
+# Final target PK = QUESTION_ID_OFFSET + int(question_id_from_json)
+QUESTION_ID_OFFSET = 908
+
 
 def normalize_base64_field(val: Optional[str], field_name: str = 'image') -> Optional[str]:
     """Normalize Excel/JSON value into a raw base64 payload or None.
@@ -188,16 +192,24 @@ def update_questions_from_json(json_path: str):
             skipped += 1
             continue
 
-        # Find question by question text (we use the `question` field from JSON)
-        question_text = rec.get('question')
-        if not question_text:
-            logger.warning(f"No 'question' field provided in JSON for record {idx}. Skipping.")
+        # Find question by computed primary key using question_id + offset
+        if question_id is None:
+            logger.warning(f"No 'question_id' provided in JSON for record {idx}. Skipping.")
             skipped += 1
             continue
 
-        qs = Question.objects.filter(question=str(question_text).strip(), institution=inst, institution_test_name=institution_test_name)
+        try:
+            qid_int = int(question_id)
+        except Exception:
+            logger.warning(f"Invalid 'question_id' value '{question_id}' for record {idx}. Skipping.")
+            skipped += 1
+            continue
+
+        target_pk = QUESTION_ID_OFFSET + qid_int
+        logger.info(f"Looking up Question by computed pk={target_pk} (offset {QUESTION_ID_OFFSET} + {qid_int})")
+        qs = Question.objects.filter(pk=target_pk, institution=inst, institution_test_name=institution_test_name)
         if not qs.exists():
-            logger.warning(f"Question not found: question=\"{question_text}\", institution={inst}, institution_test_name={institution_test_name}. Skipping.")
+            logger.warning(f"Question not found: computed_id={target_pk}, institution={inst}, institution_test_name={institution_test_name}. Skipping.")
             skipped += 1
             continue
 

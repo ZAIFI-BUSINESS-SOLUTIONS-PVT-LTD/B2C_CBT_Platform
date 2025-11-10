@@ -500,8 +500,10 @@ class TestAnswer(models.Model):
     session = models.ForeignKey(TestSession, on_delete=models.CASCADE, null=False, db_column='session_id') # integer("session_id").notNull()
     # Foreign key to Question, db_column matches Drizzle's 'question_id'
     question = models.ForeignKey(Question, on_delete=models.CASCADE, null=False, db_column='question_id') # integer("question_id").notNull()
-    # Student's choice: "A", "B", "C", "D", or null if unanswered
+    # Student's choice: "A", "B", "C", "D", or null if unanswered (for MCQ questions)
     selected_answer = models.CharField(max_length=1, null=True, blank=True) # text("selected_answer")
+    # Student's descriptive text answer (for NVT/descriptive questions) - stored for future reference
+    text_answer = models.TextField(null=True, blank=True, help_text='Descriptive answer for NVT questions (numeric, string, or decimal)')
     # Whether the selected answer matches the correct answer (nullable as it's calculated later)
     is_correct = models.BooleanField(null=True, blank=True) # boolean("is_correct")
     # Whether student marked this question for later review
@@ -521,7 +523,8 @@ class TestAnswer(models.Model):
         unique_together = ('session', 'question')
 
     def __str__(self):
-        return f"Session {self.session.id} - Q{self.question.id}: {self.selected_answer or 'Unanswered'}"
+        answer_display = self.selected_answer if self.selected_answer else (f"Text: {self.text_answer[:20]}..." if self.text_answer else 'Unanswered')
+        return f"Session {self.session.id} - Q{self.question.id}: {answer_display}"
 
 class ReviewComment(models.Model):
     """

@@ -52,6 +52,7 @@ interface Question {
   id: number;
   topicId: number;
   question: string;
+  questionType?: string | null;  // Question type: 'NVT' for descriptive, 'Blank'/null for MCQ
   optionA: string;
   optionB: string;
   optionC: string;
@@ -90,7 +91,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
   // === TEST STATE MANAGEMENT ===
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);        // Current question index
-  const [answers, setAnswers] = useState<Record<number, string>>({});         // User's answers by question ID
+  const [answers, setAnswers] = useState<Record<number, string>>({});         // User's MCQ answers by question ID (A/B/C/D)
+  const [textAnswers, setTextAnswers] = useState<Record<number, string>>({});  // User's text answers for NVT questions
   const [markedForReview, setMarkedForReview] = useState<Set<number>>(new Set()); // Questions marked for review
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);            // Submit confirmation dialog visibility
   const [showTimeOverDialog, setShowTimeOverDialog] = useState(false);        // Time over dialog visibility
@@ -193,7 +195,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     mutationFn: async (data: {
       sessionId: number;       // Which test session this answer belongs to
       questionId: number;      // Which question is being answered
-      selectedAnswer: string | null;  // The student's choice (A, B, C, D) or null
+      selectedAnswer?: string | null;  // The student's MCQ choice (A, B, C, D) or null
+      textAnswer?: string | null;      // The student's text answer for NVT questions
       markedForReview?: boolean;      // Whether student marked question for review
       timeSpent?: number;             // Time spent on this question in seconds
     }) => {
@@ -488,6 +491,40 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     });
   };
 
+  // Handler for NVT (descriptive) text answer changes
+  const handleTextAnswerChange = (questionId: number, textValue: string) => {
+    // Prevent answering if time is over or fullscreen is not active
+    if (showTimeOverDialog || !isFullscreenActive || !started || paused) {
+      if ((!isFullscreenActive || !started) && !showQuitDialog) setShowQuitDialog(true);
+      return;
+    }
+
+    // Update local state
+    setTextAnswers(prev => ({
+      ...prev,
+      [questionId]: textValue
+    }));
+  };
+
+  // Handler to submit NVT text answer (called on blur or explicit submit)
+  const submitTextAnswer = (questionId: number) => {
+    const textValue = textAnswers[questionId] || '';
+    const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
+    
+    setQuestionTimes(prevTimes => ({
+      ...prevTimes,
+      [questionId]: (prevTimes[questionId] || 0) + timeSpent
+    }));
+
+    // Submit text answer to backend
+    submitAnswerMutation.mutate({
+      sessionId,
+      questionId,
+      textAnswer: textValue || null,
+      timeSpent: questionTimes[questionId] || timeSpent,
+    });
+  };
+
   const handleMarkForReview = () => {
     if (!currentQuestion || showTimeOverDialog || !isFullscreenActive || !started || paused) {
       if ((!isFullscreenActive || !started) && !showQuitDialog) setShowQuitDialog(true);
@@ -509,11 +546,15 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       [currentQuestion.id]: (prev[currentQuestion.id] || 0) + timeSpent
     }));
 
+    // Determine if this is NVT or MCQ question
+    const isNVT = currentQuestion.questionType === 'NVT';
+
     // Submit mark for review status with time tracking
     submitAnswerMutation.mutate({
       sessionId,
       questionId: currentQuestion.id,
-      selectedAnswer: answers[currentQuestion.id] || null,
+      selectedAnswer: isNVT ? undefined : (answers[currentQuestion.id] || null),
+      textAnswer: isNVT ? (textAnswers[currentQuestion.id] || null) : undefined,
       markedForReview: newMarkedSet.has(currentQuestion.id),
       timeSpent: questionTimes[currentQuestion.id] || timeSpent,
     });
@@ -982,9 +1023,17 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   };
 
   // === UTILITY FUNCTIONS ===
+  // Count total answered questions (MCQ + NVT)
+  const getTotalAnsweredCount = () => {
+    const mcqCount = Object.keys(answers).length;
+    const nvtCount = Object.keys(textAnswers).filter(key => textAnswers[parseInt(key)]?.trim() !== '').length;
+    return mcqCount + nvtCount;
+  };
+
   // Get status for question number buttons (answered, marked, current, etc.)
   const getQuestionStatus = (index: number, questionId: number) => {
-    const isAnswered = answers[questionId] !== undefined;
+    // Check if question is answered (either MCQ or NVT)
+    const isAnswered = answers[questionId] !== undefined || (textAnswers[questionId] && textAnswers[questionId].trim() !== '');
     const isMarked = markedForReview.has(questionId);
     const isCurrent = index === currentQuestionIndex;
 
@@ -1147,7 +1196,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       {/* Quit Exam Dialog */}
       <QuitDialog
         isOpen={showQuitDialog}
-        answersCount={Object.keys(answers).length}
+        answersCount={getTotalAnsweredCount()}
         totalQuestions={testData?.questions?.length || 0}
         isPending={isSubmitting}
         onConfirm={handleQuitConfirm}
@@ -1208,7 +1257,41 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
               )}
             </div>
 
-            {/* Answer Options */}
+            {/* Answer Options - Conditional rendering based on question type */}
+            {/* DEBUG: Log question type (log as side-effect, return null so JSX child is valid) */}
+            {(() => {
+              console.log('🔍 Question Type Debug:', {
+                questionId: currentQuestion.id,
+                questionType: currentQuestion.questionType,
+                hasQuestionType: 'questionType' in currentQuestion,
+                questionKeys: Object.keys(currentQuestion),
+                isNVT: currentQuestion.questionType === 'NVT'
+              });
+              return null;
+            })()}
+            {currentQuestion.questionType === 'NVT' ? (
+              /* NVT (Descriptive) Question - Text Input */
+              <div className="space-y-3">
+                <Label htmlFor="nvt-answer" className="text-sm font-medium text-gray-700">
+                  Enter your answer (can be numeric, decimal, or text):
+                </Label>
+                <input
+                  id="nvt-answer"
+                  type="text"
+                  value={textAnswers[currentQuestion.id] || ''}
+                  onChange={(e) => handleTextAnswerChange(currentQuestion.id, e.target.value)}
+                  onBlur={() => submitTextAnswer(currentQuestion.id)}
+                  disabled={showTimeOverDialog}
+                  placeholder="Type your answer here..."
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-100 disabled:cursor-not-allowed text-base"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Your answer will be auto-saved when you move to another question or submit the test.
+                </p>
+              </div>
+            ) : (
+              /* MCQ Question - Radio Options */
+              <>
             <RadioGroup
               value={answers[currentQuestion.id] || ""}
               onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
@@ -1275,6 +1358,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                 </Button>
               </div>
             )}
+              </>
+            )}
           </CardContent>
 
           {/* Question Navigation Panel */}
@@ -1333,7 +1418,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       {/* Submit Confirmation Dialog */}
       <SubmitDialog
         isOpen={showSubmitDialog}
-        answersCount={Object.keys(answers).length}
+        answersCount={getTotalAnsweredCount()}
         totalQuestions={totalQuestions}
         onConfirm={confirmSubmit}
         onCancel={() => setShowSubmitDialog(false)}
@@ -1342,7 +1427,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       {/* Time Over Dialog */}
       <TimeOverDialog
         isOpen={showTimeOverDialog && !timeOverHandled}
-        answersCount={Object.keys(answers).length}
+        answersCount={getTotalAnsweredCount()}
         totalQuestions={totalQuestions}
         onSubmit={handleTimeOverSubmit}
       />
@@ -1350,7 +1435,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       {/* Quit Exam Confirmation Dialog */}
       <QuitDialog
         isOpen={showQuitDialog}
-        answersCount={Object.keys(answers).length}
+        answersCount={getTotalAnsweredCount()}
         totalQuestions={totalQuestions}
         isPending={quitTestMutation.isPending}
         onConfirm={handleQuitConfirm}

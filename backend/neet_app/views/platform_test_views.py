@@ -167,11 +167,13 @@ def start_platform_test(request, test_id):
         # For institution tests, filter questions by institution
         if platform_test.is_institution_test and platform_test.institution:
             # Get institution-specific questions for this test
+            # Preserve upload/creation order for institution tests by ordering by primary key (id)
+            # Questions are created in upload order, so ordering by 'id' will reflect that sequence.
             available_questions_qs = Question.objects.filter(
                 institution=platform_test.institution,
                 institution_test_name=platform_test.test_name,
                 exam_type=platform_test.exam_type
-            )
+            ).order_by('id')
             available_questions_list = list(available_questions_qs)
             available_count = len(available_questions_list)
         else:
@@ -198,12 +200,21 @@ def start_platform_test(request, test_id):
             test_session.total_questions = available_count
             test_session.save(update_fields=['question_count', 'total_questions'])
 
-        # Select the final set of questions randomly from the available pool
-        if available_count <= test_session.question_count:
-            selected_questions = available_questions_list
+        # Select the final set of questions from the available pool.
+        # For institution tests, preserve upload order (questions already ordered by 'id')
+        if platform_test.is_institution_test and platform_test.institution:
+            if available_count <= test_session.question_count:
+                selected_questions = available_questions_list
+            else:
+                # Take the first N questions in the original upload order
+                selected_questions = available_questions_list[:test_session.question_count]
         else:
-            # random.sample returns a list of unique items of length question_count
-            selected_questions = random.sample(available_questions_list, test_session.question_count)
+            # For regular platform tests, keep existing behavior (random sampling for diversity)
+            if available_count <= test_session.question_count:
+                selected_questions = available_questions_list
+            else:
+                # random.sample returns a list of unique items of length question_count
+                selected_questions = random.sample(available_questions_list, test_session.question_count)
 
         # Create TestAnswer records for the assigned questions (initially unanswered)
         test_answer_objs = []

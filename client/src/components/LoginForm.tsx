@@ -101,11 +101,10 @@ export function LoginForm() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className={`transition-all duration-200 text-base h-12 rounded-xl ${
-                hasAuthError
+              className={`transition-all duration-200 text-base h-12 rounded-xl ${hasAuthError
                   ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
                   : "focus:border-blue-500 focus:ring-blue-500"
-              }`}
+                }`}
               aria-invalid={hasAuthError ? "true" : "false"}
               aria-describedby={hasAuthError ? "login-error" : undefined}
             />
@@ -118,11 +117,10 @@ export function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className={`transition-all duration-200 pr-10 text-base h-12 rounded-xl ${
-                hasAuthError
+              className={`transition-all duration-200 pr-10 text-base h-12 rounded-xl ${hasAuthError
                   ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
                   : "focus:border-blue-500 focus:ring-blue-500"
-              }`}
+                }`}
               aria-invalid={hasAuthError ? "true" : "false"}
               aria-describedby={hasAuthError ? "login-error" : undefined}
             />
@@ -212,7 +210,7 @@ export function LoginForm() {
               <Link href="/register" className="w-full text-center">
                 Create Profile
               </Link>
-            </Button>
+            </Button> 
             <Button asChild type="button" size={"lg"} variant="outline" className="w-full rounded-xl h-12 border-blue-300 hover:bg-blue-50 hover:border-blue-400 text-blue-700 hover:text-blue-800">
               <Link href="/institution-register" className="w-full text-center">
                 Institution Profile

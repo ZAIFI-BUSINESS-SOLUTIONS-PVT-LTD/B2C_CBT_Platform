@@ -354,6 +354,12 @@ NEET_SETTINGS = {
     'DIFFICULTY_EASY_RATIO': 30,         # Percentage for easy questions
     'DIFFICULTY_MODERATE_RATIO': 40,     # Percentage for moderate questions
     'DIFFICULTY_HARD_RATIO': 30,         # Percentage for hard questions
+    
+    # NVT (Descriptive/Numerical Value Type) question settings
+    'NVT_AUTO_EVALUATE': True,           # Enable automatic evaluation of NVT answers
+    'NVT_NUMERIC_TOLERANCE': 0.01,       # Tolerance for numeric answer comparison (e.g., 3.14 vs 3.1415)
+    'NVT_MAX_ANSWER_LENGTH': 2000,       # Maximum character length for text answers
+    'NVT_CASE_SENSITIVE': False,         # Case-sensitive text comparison for string answers
 }
 
 # Logging configuration

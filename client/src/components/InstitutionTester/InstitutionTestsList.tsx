@@ -25,6 +25,7 @@ interface InstitutionTest {
   instructions: string;
   description: string;
   created_at: string;
+  scheduled_date_time?: string | null; // optional - fetch from platform test details when available
 }
 
 interface InstitutionTestsListProps {
@@ -45,6 +46,125 @@ export function InstitutionTestsList({ institution, onBack }: InstitutionTestsLi
     fetchTests();
   }, [selectedExamType, institution.id]);
 
+  // After loading tests, fetch per-test details to obtain scheduled_date_time when present
+  useEffect(() => {
+    if (!tests || tests.length === 0) return;
+
+    let mounted = true;
+
+    const fetchDetailsForTests = async () => {
+      const toFetch = tests.filter((t) => !t.scheduled_date_time).map((t) => t.id);
+      if (toFetch.length === 0) return;
+
+      try {
+        const promises = toFetch.map((id) =>
+          authenticatedFetch(`/api/platform-tests/${id}/`).then(async (res) => {
+            if (!res.ok) return null;
+            return res.json();
+          }).catch(() => null)
+        );
+
+        const results = await Promise.allSettled(promises);
+
+        if (!mounted) return;
+
+        const updated = [...tests];
+        results.forEach((r, idx) => {
+          if (r.status === 'fulfilled' && r.value && typeof r.value.scheduled_date_time === 'string') {
+            const testId = toFetch[idx];
+            const i = updated.findIndex((x) => x.id === testId);
+            if (i >= 0) {
+              updated[i] = { ...updated[i], scheduled_date_time: r.value.scheduled_date_time };
+            }
+          }
+        });
+
+        setTests(updated);
+      } catch (e) {
+        // Non-fatal; scheduled time is optional
+        console.debug('Failed to fetch platform test details for scheduled times', e);
+      }
+    };
+
+    fetchDetailsForTests();
+    return () => { mounted = false; };
+  }, [tests]);
+
+  // Helper: determine test status from scheduled_date_time and time_limit
+  const getTestStatus = (test: InstitutionTest) => {
+    if (!test.scheduled_date_time) return 'open';
+
+    const scheduledMs = Date.parse(test.scheduled_date_time as string);
+    if (isNaN(scheduledMs)) return 'open';
+
+    const nowMs = Date.now();
+    const timeLimitMin = typeof test.time_limit === 'number' ? test.time_limit : Number(test.time_limit) || 0;
+    const testEndMs = scheduledMs + (timeLimitMin * 60 * 1000);
+
+    if (nowMs < scheduledMs) return 'upcoming';
+    if (nowMs >= scheduledMs && (timeLimitMin <= 0 || nowMs <= testEndMs)) return 'active';
+    return 'expired';
+  };
+
+  const isTestAvailable = (test: InstitutionTest) => {
+    // If no scheduled time, treat as open
+    if (!test.scheduled_date_time) return true;
+
+    const scheduledMs = Date.parse(test.scheduled_date_time as string);
+    if (isNaN(scheduledMs)) return true;
+
+    const nowMs = Date.now();
+    // if scheduled time has arrived or passed, allow start (but respect expiry)
+    const timeLimitMin = typeof test.time_limit === 'number' ? test.time_limit : Number(test.time_limit) || 0;
+    const testEndMs = scheduledMs + (timeLimitMin * 60 * 1000);
+
+    if (nowMs < scheduledMs) return false; // not started yet
+    if (timeLimitMin > 0 && nowMs > testEndMs) return false; // expired
+    return true; // active or no expiry configured
+  };
+
+  // Countdown timer component (same behavior as ScheduledTests page)
+  const Countdown = ({ scheduledDateTime }: { scheduledDateTime: string }) => {
+    const [remainingMs, setRemainingMs] = useState<number>(() => {
+      const now = new Date().getTime();
+      const target = new Date(scheduledDateTime).getTime();
+      return Math.max(0, target - now);
+    });
+
+    useEffect(() => {
+      const tick = () => {
+        const now = new Date().getTime();
+        const target = new Date(scheduledDateTime).getTime();
+        setRemainingMs(Math.max(0, target - now));
+      };
+
+      tick();
+      const id = setInterval(tick, 1000);
+      return () => clearInterval(id);
+    }, [scheduledDateTime]);
+
+    if (remainingMs <= 0) return <span className="text-sm text-green-600">Available now</span>;
+
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const days = Math.floor(totalSeconds / (24 * 3600));
+    const hours = Math.floor((totalSeconds % (24 * 3600)) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    const pad = (n: number) => n.toString().padStart(2, '0');
+
+    let label = '';
+    if (days > 0) {
+      label = `${days}d ${pad(hours)}:${pad(minutes)}`;
+    } else if (hours > 0) {
+      label = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    } else {
+      label = `${pad(minutes)}:${pad(seconds)}`;
+    }
+
+    return <span className="text-sm text-gray-700">Test will be available in {label}</span>;
+  };
+
   const fetchTests = async () => {
     setLoading(true);
     setError(null);
@@ -58,7 +178,11 @@ export function InstitutionTestsList({ institution, onBack }: InstitutionTestsLi
         throw new Error(data.message || 'Failed to fetch tests');
       }
 
-      setTests(data.tests || []);
+  // Hard-code scheduled datetime to Nov 09, 2:00 PM IST for display/countdown as requested.
+  // Use explicit ISO with +05:30 offset so browser parses it as IST.
+  const HARD_CODED_SCHEDULE = '2025-11-09T13:15:00+05:30';
+  const mapped = (data.tests || []).map((t: any) => ({ ...t, scheduled_date_time: HARD_CODED_SCHEDULE }));
+  setTests(mapped);
     } catch (err: any) {
       setError(err.message || 'An error occurred while fetching tests');
     } finally {
@@ -186,13 +310,25 @@ export function InstitutionTestsList({ institution, onBack }: InstitutionTestsLi
                 </div>
               </CardContent>
 
+              {test.scheduled_date_time && (
+                <div className="px-4">
+                  <div className="text-sm text-gray-600">{new Date(test.scheduled_date_time).toLocaleString()}</div>
+                  {getTestStatus(test) === 'upcoming' && (
+                    <div className="mt-1">
+                      <Countdown scheduledDateTime={test.scheduled_date_time} />
+                    </div>
+                  )}
+                </div>
+              )}
+
               <CardFooter>
                 <Button
                   className="w-full"
                   onClick={() => handleStartTest(test.id)}
+                  disabled={!isTestAvailable(test)}
                 >
                   <Play className="mr-2 h-4 w-4" />
-                  Start Test
+                  {isTestAvailable(test) ? 'Start Test' : (getTestStatus(test) === 'upcoming' ? 'Not Started Yet' : 'Test Expired')}
                 </Button>
               </CardFooter>
             </Card>

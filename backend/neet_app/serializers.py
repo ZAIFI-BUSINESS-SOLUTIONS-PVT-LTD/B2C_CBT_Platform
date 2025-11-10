@@ -52,7 +52,7 @@ class QuestionForTestSerializer(serializers.ModelSerializer):
         model = Question
         # Only include safe fields for test-taking (exclude sensitive fields)
         fields = [
-            'id', 'topic', 'question', 'option_a', 'option_b', 'option_c', 'option_d',
+            'id', 'topic', 'question', 'question_type', 'option_a', 'option_b', 'option_c', 'option_d',
             # Optional base64 image fields (nullable) - additive and safe to include
             'question_image', 'option_a_image', 'option_b_image', 'option_c_image', 'option_d_image'
         ]
@@ -235,7 +235,7 @@ class TestAnswerSerializer(serializers.ModelSerializer):
     class Meta:
         model = TestAnswer
         fields = [
-            'id', 'session', 'question', 'question_details', 'selected_answer', 
+            'id', 'session', 'question', 'question_details', 'selected_answer', 'text_answer',
             'is_correct', 'marked_for_review', 'time_taken', 'visit_count', 'answered_at'
         ]
         read_only_fields = ['is_correct']
@@ -244,7 +244,8 @@ class TestAnswerSerializer(serializers.ModelSerializer):
 class TestAnswerCreateSerializer(serializers.Serializer):
     session_id = serializers.IntegerField()
     question_id = serializers.IntegerField()
-    selected_answer = serializers.CharField(max_length=1, allow_null=True, required=False) # 'A', 'B', 'C', 'D' or null
+    selected_answer = serializers.CharField(max_length=1, allow_null=True, required=False) # 'A', 'B', 'C', 'D' or null (for MCQ)
+    text_answer = serializers.CharField(max_length=2000, allow_null=True, allow_blank=True, required=False) # Text answer for NVT questions
     marked_for_review = serializers.BooleanField(default=False, required=False)
     time_taken = serializers.IntegerField(default=0, required=False) # Time spent on question in seconds
     visit_count = serializers.IntegerField(default=1, required=False) # Number of times question was visited
@@ -289,10 +290,26 @@ class TestAnswerCreateSerializer(serializers.Serializer):
             if session.student_id != request.user.student_id:
                 raise serializers.ValidationError({"session_id": "You can only submit answers to your own test sessions."})
 
-        # Validate selected_answer if provided
+        # Validate answer based on question type
+        question_type = getattr(question, 'question_type', None) or 'Blank'  # Default to MCQ if not set
         selected_answer = data.get('selected_answer')
-        if selected_answer and selected_answer not in ['A', 'B', 'C', 'D']:
-            raise serializers.ValidationError({"selected_answer": "Must be 'A', 'B', 'C', or 'D'."})
+        text_answer = data.get('text_answer')
+        
+        if question_type == 'NVT':
+            # NVT questions require text_answer
+            if text_answer:
+                # Sanitize and validate length
+                text_answer = text_answer.strip()
+                from django.conf import settings
+                max_length = settings.NEET_SETTINGS.get('NVT_MAX_ANSWER_LENGTH', 2000)
+                if len(text_answer) > max_length:
+                    raise serializers.ValidationError({"text_answer": f"Answer must not exceed {max_length} characters."})
+                data['text_answer'] = text_answer  # Store sanitized version
+            # NVT can be unanswered (empty text_answer is allowed)
+        else:
+            # MCQ questions (question_type is 'Blank' or empty)
+            if selected_answer and selected_answer not in ['A', 'B', 'C', 'D']:
+                raise serializers.ValidationError({"selected_answer": "Must be 'A', 'B', 'C', or 'D'."})
 
         data['session'] = session # Attach objects for view logic
         data['question'] = question
