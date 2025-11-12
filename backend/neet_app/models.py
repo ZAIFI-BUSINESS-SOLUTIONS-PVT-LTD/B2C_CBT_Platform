@@ -66,7 +66,7 @@ class Question(models.Model):
         verbose_name = 'Question'
         verbose_name_plural = 'Questions'
         # Add unique constraint to prevent duplicate questions based on content and topic
-        unique_together = [['question', 'topic', 'option_a', 'option_b', 'option_c', 'option_d']]
+        unique_together = [['question', 'topic', 'option_a', 'option_b', 'option_c', 'option_d','institution', 'institution_test_name']]
         indexes = [
             models.Index(fields=['institution', 'institution_test_name']),
             models.Index(fields=['institution', 'exam_type']),
@@ -232,6 +232,7 @@ class TestSession(models.Model):
     chemistry_topics = models.JSONField(default=list, blank=True)  # Topics classified as Chemistry
     botany_topics = models.JSONField(default=list, blank=True)  # Topics classified as Botany
     zoology_topics = models.JSONField(default=list, blank=True)  # Topics classified as Zoology
+    math_topics = models.JSONField(default=list, blank=True)  # Topics classified as Math
     # Test configuration
     time_limit = models.IntegerField(null=True, blank=True)  # Time limit in minutes
     question_count = models.IntegerField(null=True, blank=True)  # Number of questions
@@ -250,6 +251,7 @@ class TestSession(models.Model):
     chemistry_score = models.FloatField(null=True, blank=True)  # Chemistry percentage
     botany_score = models.FloatField(null=True, blank=True)  # Botany percentage
     zoology_score = models.FloatField(null=True, blank=True)  # Zoology percentage
+    math_score = models.FloatField(null=True, blank=True)  # Math percentage
     # Activity tracking for admin metrics
     last_heartbeat = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=False)
@@ -323,11 +325,12 @@ class TestSession(models.Model):
         if not topics_to_classify:
             return
         
-        # Reset subject topic lists
+    # Reset subject topic lists
         self.physics_topics = []
         self.chemistry_topics = []
         self.botany_topics = []
         self.zoology_topics = []
+        self.math_topics = []
         
         # Get topic objects for selected topic IDs with their subjects
         selected_topic_objects = Topic.objects.filter(id__in=topics_to_classify)
@@ -371,7 +374,8 @@ class TestSession(models.Model):
             'Physics': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0},
             'Chemistry': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0},
             'Botany': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0},
-            'Zoology': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0}
+            'Zoology': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0},
+            'Math': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0}
         }
         
         # Get all test answers for this session with related data
@@ -392,6 +396,8 @@ class TestSession(models.Model):
                 subject_key = 'Botany'
             elif subject.lower() in ['zoology', 'animal biology']:
                 subject_key = 'Zoology'
+            elif subject.lower() in ['math', 'mathematics', 'maths']:
+                subject_key = 'Math'
             else:
                 # Handle edge cases - try to map based on common patterns
                 if 'physics' in subject.lower():
@@ -402,6 +408,8 @@ class TestSession(models.Model):
                     subject_key = 'Botany'
                 elif 'animal' in subject.lower() or 'zoology' in subject.lower():
                     subject_key = 'Zoology'
+                elif 'math' in subject.lower() or 'algebra' in subject.lower() or 'geometry' in subject.lower():
+                    subject_key = 'Math'
                 else:
                     continue  # Skip if subject cannot be classified
             
@@ -439,6 +447,8 @@ class TestSession(models.Model):
                     self.botany_score = round(percentage, 2)
                 elif subject == 'Zoology':
                     self.zoology_score = round(percentage, 2)
+                elif subject == 'Math':
+                    self.math_score = round(percentage, 2)
             else:
                 # No questions for this subject
                 if subject == 'Physics':
@@ -449,9 +459,12 @@ class TestSession(models.Model):
                     self.botany_score = None
                 elif subject == 'Zoology':
                     self.zoology_score = None
+                elif subject == 'Math':
+                    self.math_score = None
         
-        # Save the updated scores
-        self.save(update_fields=['physics_score', 'chemistry_score', 'botany_score', 'zoology_score'])
+        # Save the updated scores (include math)
+        update_fields = ['physics_score', 'chemistry_score', 'botany_score', 'zoology_score', 'math_score']
+        self.save(update_fields=update_fields)
         
         return subject_scores  # Return for debugging/logging purposes
 
@@ -885,6 +898,64 @@ class StudentInsight(models.Model):
     def get_student_profile(self):
         """Get the associated StudentProfile"""
         return self.student
+
+
+class TestSubjectZoneInsight(models.Model):
+    """
+    Stores test-specific, subject-wise zone insights (Steady, Edge, Focus).
+    Generated after each test completion alongside overall insights.
+    Provides granular per-test, per-subject analysis with 3 zones (2 points each).
+    """
+    id = models.AutoField(primary_key=True)
+    
+    # Foreign keys
+    student = models.ForeignKey(
+        StudentProfile, 
+        on_delete=models.CASCADE, 
+        to_field='student_id', 
+        db_column='student_id',
+        related_name='zone_insights'
+    )
+    test_session = models.ForeignKey(
+        TestSession, 
+        on_delete=models.CASCADE, 
+        db_column='test_session_id',
+        related_name='zone_insights'
+    )
+    
+    # Subject identification
+    subject = models.CharField(max_length=20)  # Physics, Chemistry, Botany, Zoology
+    
+    # Zone insights (each is a list of 2 strings)
+    steady_zone = models.JSONField(default=list, blank=True)  # 2 actionable points - consistent strengths
+    edge_zone = models.JSONField(default=list, blank=True)    # 2 actionable points - borderline concepts
+    focus_zone = models.JSONField(default=list, blank=True)   # 2 actionable points - critical weak areas
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Question data used for generation (for debugging/audit)
+    questions_analyzed = models.JSONField(default=list, blank=True)
+    
+    class Meta:
+        db_table = 'test_subject_zone_insights'
+        verbose_name = 'Test Subject Zone Insight'
+        verbose_name_plural = 'Test Subject Zone Insights'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['student', 'test_session']),
+            models.Index(fields=['test_session', 'subject']),
+            models.Index(fields=['created_at']),
+        ]
+        # One insight record per test per subject
+        unique_together = [['test_session', 'subject']]
+    
+    def __str__(self):
+        return f"{self.subject} zones for Test {self.test_session.id} - {self.student.student_id}"
+    
+    def get_total_insights(self):
+        """Get total number of insights across all zones"""
+        return len(self.steady_zone) + len(self.edge_zone) + len(self.focus_zone)
 
 
 class Notification(models.Model):

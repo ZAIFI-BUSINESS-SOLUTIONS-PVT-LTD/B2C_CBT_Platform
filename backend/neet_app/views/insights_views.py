@@ -271,7 +271,8 @@ if AVAILABLE_API_KEYS:
 # LLM Prompts for different insight types
 INSIGHT_PROMPTS = {
     'strengths': """
-Act as a highly personalized NEET exam tutor. Carefully analyze the provided student data and deliver feedback with a warm, supportive, and individualized touch. For each metric or insight:
+Act as a highly personalized NEET and JEE exam tutor. Carefully analyze the provided student data and deliver feedback with a warm, supportive, and individualized touch. Use the topic metadata: if a topic's `subject` is "Math" treat it with JEE framing (math problem-solving strategies and higher quantitative standards); for all other subjects use NEET framing.
+For each metric or insight:
 - Avoid using raw formatting like asterisks (**).
 - Each point must be concise, specific, and limited to 18–20 words.
 - Ensure every suggestion or observation is actionable, encouraging, and tailored to the student’s unique strengths and areas for improvement.
@@ -282,11 +283,14 @@ Provide exactly 2 encouraging points in a supportive teacher tone that:
 2. Motivate them to maintain this excellence
 Keep each point to 1-2 sentences. Be specific about their achievements.
 
+Important — use the topic metadata and the `questions` array included in each topic (each question has: question_id, options, correct_answer, selected_answer, is_correct, time_taken). Analyze question-by-question to generate candidate insights, rank them by impact and actionability, and return exactly 2 actionable insights ordered most-actionable-first.
+
 Topics data: {data}
 """,
     
     'weaknesses': """
-Act as a highly personalized NEET exam tutor. Carefully analyze the provided student data and deliver feedback with a warm, supportive, and individualized touch. For each metric or insight:
+Act as a highly personalized NEET and JEE exam tutor. Carefully analyze the provided student data and deliver feedback with a warm, supportive, and individualized touch. Use the topic metadata: if a topic's `subject` is "Math" treat it with JEE framing (math problem-solving strategies and higher quantitative standards); for all other subjects use NEET framing.
+For each metric or insight:
 - Avoid using raw formatting like asterisks (**).
 - Each point must be concise, specific, and limited to 18–20 words.
 - Ensure every suggestion or observation is actionable, encouraging, and tailored to the student’s unique strengths and areas for improvement.
@@ -297,11 +301,14 @@ Provide exactly 2 constructive points in a positive, encouraging teacher tone th
 2. Give a motivational push with specific improvement suggestions
 Keep each point to 1-2 sentences. Focus on growth, not shortcomings.
 
+Important — use the topic metadata and the `questions` array included in each topic (each question has: question_id, options, correct_answer, selected_answer, is_correct, time_taken). Analyze question-by-question to generate candidate insights, rank them by impact and actionability, and return exactly 2 actionable insights ordered most-actionable-first.
+
 Topics data: {data}
 """,
     
     'study_plan': """
-Act as a highly personalized NEET exam tutor. Carefully analyze the provided student data and deliver feedback with a warm, supportive, and individualized touch. For each metric or insight:
+Act as a highly personalized NEET and JEE exam tutor. Carefully analyze the provided student data and deliver feedback with a warm, supportive, and individualized touch. Use the topic metadata: if a topic's `subject` is "Math" treat it with JEE framing (math problem-solving strategies and higher quantitative standards); for all other subjects use NEET framing.
+For each metric or insight:
 - Avoid using raw formatting like asterisks (**).
 - Each point must be concise, specific, and limited to 18–20 words.
 - Ensure every suggestion or observation is actionable, encouraging, and tailored to the student's unique strengths and areas for improvement.
@@ -311,11 +318,14 @@ You are a strategic NEET exam tutor creating a personalized study plan. Based on
 2. Include balanced revision to keep strong topics sharp while focusing on avoided or skipped topic areas
 Be specific and practical. Consider unattempted topics as areas needing confidence building. Keep each suggestion to 1-2 sentences.
 
+Important — use the topic metadata and the `questions` arrays provided (each question: question_id, options, correct_answer, selected_answer, is_correct, time_taken). Analyze question-level patterns, prepare candidate study interventions, rank them by likely impact, and return exactly 2 actionable, ranked study suggestions (most actionable first).
+
 Performance data: {data}
 """,
     
     'last_test_feedback': """
-Act as a highly personalized NEET exam tutor. Carefully analyze the provided student data and deliver feedback with a warm, supportive, and individualized touch. For each metric or insight:
+Act as a highly personalized NEET and JEE exam tutor. Carefully analyze the provided student data and deliver feedback with a warm, supportive, and individualized touch. Use the topic metadata: if a topic's `subject` is "Math" treat it with JEE framing (math problem-solving strategies and higher quantitative standards); for all other subjects use NEET framing.
+For each metric or insight:
 - Avoid using raw formatting like asterisks (**).
 - Each point must be concise, specific, and limited to 18–20 words.
 - Ensure every suggestion or observation is actionable, encouraging, and tailored to the student’s unique strengths and areas for improvement.
@@ -325,6 +335,8 @@ Provide exactly 2 points in a warm, encouraging teacher tone that:
 1. Notice improvements or strong performances from this latest session
 2. Gently highlight areas that need attention from this test only
 Keep each point to 1-2 sentences. Focus on recent progress and specific next steps.
+
+Important — use the topic metadata and the `questions` list for the latest test (each question includes question_id, options, correct_answer, selected_answer, is_correct, time_taken). Analyze each question, generate candidate observations, rank them by importance, and return exactly 2 actionable feedback points ordered most-actionable-first.
 
 Latest test data: {data}
 """
@@ -369,14 +381,7 @@ def generate_llm_insights(insight_type, data):
         dict: LLM-generated insights or fallback message
     """
     try:
-        if not AVAILABLE_API_KEYS:
-            print(f"❌ No Gemini API keys configured for {insight_type}")
-            return {
-                'status': 'warning',
-                'message': 'Gemini API keys not configured',
-                'insights': ['API configuration needed for AI insights', 'Using basic analysis for now']
-            }
-        
+        # Build prompt
         if not data:
             print(f"⚠️ No data available for {insight_type} analysis")
             return {
@@ -384,103 +389,82 @@ def generate_llm_insights(insight_type, data):
                 'message': 'No data available for analysis',
                 'insights': ['No test data available yet', 'Take some tests to get personalized insights']
             }
-        
-        print(f"🚀 Generating LLM insights for {insight_type} with data: {type(data)} items")
-        
-        # Get the appropriate prompt
+
         prompt_template = INSIGHT_PROMPTS.get(insight_type, INSIGHT_PROMPTS['strengths'])
+        # If DEBUG is True, print the exact payload being sent to the LLM for easier inspection.
+        try:
+            if getattr(settings, 'DEBUG', False):
+                print(f"🔎 LLM_PAYLOAD ({insight_type}):\n{json.dumps(data, indent=2)[:20000]}")
+        except Exception:
+            # Non-fatal: do not prevent LLM generation if logging fails
+            pass
+
         prompt = prompt_template.format(data=json.dumps(data, indent=2))
-        
-        print(f"📝 Using prompt template for {insight_type}")
-        
-        # Try each API key until one works (simple rotation)
-        last_error = None
-        for i, api_key in enumerate(AVAILABLE_API_KEYS):
-            try:
-                print(f"🤖 Trying Gemini API with key ending in ...{api_key[-6:]} (attempt {i+1}/{len(AVAILABLE_API_KEYS)})")
-                
-                # Configure with current API key
-                genai.configure(api_key=api_key)
-                
-                # Configure Gemini model
-                model = genai.GenerativeModel('gemini-2.0-flash-exp')
-                
-                print(f"🤖 Calling Gemini API...")
-                
-                # Generate response with simpler configuration and safety settings
-                response = model.generate_content(
-                    prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        temperature=0.7,
-                        max_output_tokens=200,  # Reduced to prevent recursion
-                        top_p=0.8,
-                    ),
-                    safety_settings=[
-                        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-                    ]
-                )
-                
-                print(f"✅ Gemini API responded successfully")
-                
-                # Parse response into individual points
-                insights_text = response.text.strip()
-                print(f"📖 Raw response: {insights_text[:100]}...")
-                
-                # Split into points (assuming numbered points or bullet points)
-                insights = []
-                lines = insights_text.split('\n')
-                
-                for line in lines:
-                    line = line.strip()
-                    if line and (line[0].isdigit() or line.startswith('•') or line.startswith('-') or line.startswith('*')):
-                        # Remove numbering/bullets and clean up
-                        clean_line = line.lstrip('0123456789.• -*').strip()
-                        if clean_line:
-                            insights.append(clean_line)
-                
-                # Fallback if parsing failed - just take first 2 sentences
-                if len(insights) < 2:
-                    sentences = insights_text.replace('\n', ' ').split('.')
-                    insights = [s.strip() + '.' for s in sentences[:2] if s.strip()]
-                
-                print(f"📋 Parsed {len(insights)} insights for {insight_type}")
-                
-                return {
-                    'status': 'success',
-                    'message': 'AI insights generated successfully',
-                    'insights': insights[:2]  # Ensure exactly 2 points
-                }
-                
-            except RecursionError as e:
-                print(f"❌ Recursion error with API key {i+1}, stopping attempts: {str(e)}")
-                last_error = e
-                break  # Stop trying other keys on recursion error
-            except Exception as e:
-                last_error = e
-                error_msg = str(e)
-                print(f"⚠️ API key {i+1} failed: {error_msg}")
-                
-                # Stop on certain critical errors
-                if "recursion" in error_msg.lower() or "depth" in error_msg.lower():
-                    print(f"❌ Recursion-related error detected, stopping retries")
-                    break
-                
-                # Continue to next key for other errors
-                if i >= len(AVAILABLE_API_KEYS) - 1:
-                    break
+
+        # Prefer centralized GeminiClient which uses model 'gemini-2.5-flash' and handles key rotation/safety
+        try:
+            from .services.ai.gemini_client import GeminiClient
+        except Exception:
+            # Fallback import path if module resolution differs
+            from neet_app.services.ai.gemini_client import GeminiClient
+
+        client = GeminiClient()
+
+        if not client.is_available():
+            print(f"❌ Gemini client not available for {insight_type}")
+            return {
+                'status': 'warning',
+                'message': 'Gemini client not available',
+                'insights': ['AI unavailable: configure GEMINI_API_KEYS', 'Using basic analysis for now']
+            }
+
+        print(f"🚀 Generating LLM insights for {insight_type} using model {client.model_name}")
+        llm_response = client.generate_response(prompt)
+
+        insights_text = (llm_response or '').strip()
+        print(f"📖 Raw response: {insights_text[:200]}...")
+
+        # Parse response into individual points (bullets or numbered lines)
+        insights = []
+        lines = insights_text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line:
                 continue
-        
-        # If all API keys failed
-        raise last_error if last_error else Exception("No API keys available")
-        
+            if line[0].isdigit() or line.startswith('•') or line.startswith('-') or line.startswith('*'):
+                clean_line = line.lstrip('0123456789.• -*').strip()
+                if clean_line:
+                    insights.append(clean_line)
+
+        # Fallback: split into sentences and take first 2
+        if len(insights) < 2 and insights_text:
+            sentences = [s.strip() for s in insights_text.replace('\n', ' ').split('.') if s.strip()]
+            insights = [s + '.' for s in sentences[:2]]
+
+        if not insights:
+            # Final fallback messages
+            fallback_map = {
+                'strengths': ["No AI strengths available yet."],
+                'weaknesses': ["No AI weaknesses available yet."],
+                'study_plan': ["No AI study plan available yet."],
+                'last_test_feedback': ["No AI feedback available yet."]
+            }
+            return {
+                'status': 'info',
+                'message': 'No insights parsed from LLM response',
+                'insights': fallback_map.get(insight_type, ["No AI insights available."])
+            }
+
+        return {
+            'status': 'success',
+            'message': 'AI insights generated successfully',
+            'insights': insights[:2]
+        }
+
     except Exception as e:
         print(f"❌ Error generating LLM insights for {insight_type}: {str(e)}")
         logger.error(f"Error generating LLM insights for {insight_type}: {str(e)}")
-        
-        # Provide fallback insights based on type
+
         fallback_insights = {
             'strengths': [
                 "I couldn’t identify your strong areas yet, but with consistent practice and effort, your strengths will surely become visible soon."
@@ -499,7 +483,6 @@ def generate_llm_insights(insight_type, data):
             ]
         }
 
-        
         return {
             'status': 'error',
             'message': f'AI generation failed: {str(e)}',
@@ -534,6 +517,8 @@ def calculate_topic_metrics(student_id, session_ids=None):
             return {}
         
         # Group answers by topic
+        # Include question-level details to send to LLM (question text, options, correct answer, selected answer)
+        MAX_QUESTIONS_PER_TOPIC = 20
         topic_data = defaultdict(lambda: {
             'attempted': 0,
             'correct': 0,
@@ -541,7 +526,8 @@ def calculate_topic_metrics(student_id, session_ids=None):
             'topic_name': '',
             'subject': '',
             'chapter': '',
-            'total_questions': 0
+            'total_questions': 0,
+            'questions': []  # list of question-level dicts
         })
         
         total_attempted = 0
@@ -570,6 +556,33 @@ def calculate_topic_metrics(student_id, session_ids=None):
                 # Count correct answers
                 if answer.is_correct:
                     topic_data[topic_key]['correct'] += 1
+
+                # Append question-level details (limit per topic)
+                try:
+                    q = answer.question
+                    # Prepare options dict
+                    options = {
+                        'A': q.option_a,
+                        'B': q.option_b,
+                        'C': q.option_c,
+                        'D': q.option_d,
+                    }
+                    # Include only necessary fields to keep prompts compact
+                    question_entry = {
+                        'question_id': q.id,
+                        'question': q.question,
+                        'options': options,
+                        'correct_answer': (q.correct_answer if q.correct_answer else None),
+                        'selected_answer': (answer.selected_answer if answer.selected_answer else None),
+                        'is_correct': True if answer.is_correct is True else (False if answer.is_correct is False else None),
+                        'time_taken': time_taken,
+                    }
+
+                    if len(topic_data[topic_key]['questions']) < MAX_QUESTIONS_PER_TOPIC:
+                        topic_data[topic_key]['questions'].append(question_entry)
+                except Exception:
+                    # Non-fatal: if any question fields missing or error occurs, skip question details
+                    pass
         
         # Get total questions per topic for unattempted calculation
         from django.db.models import Count
@@ -605,6 +618,9 @@ def calculate_topic_metrics(student_id, session_ids=None):
                     'total_time': data['total_time'],
                     'total_questions': total_questions,
                     'unattempted': unattempted
+                    ,
+                    # Include question-level samples so downstream LLM prompts can analyze specific questions
+                    'questions': data.get('questions', [])
                 }
         
         return {
@@ -655,6 +671,8 @@ def classify_topics(topic_metrics, overall_avg_time, thresholds):
                 'avg_time_sec': metrics['avg_time_sec'],
                 'subject': metrics['subject'],
                 'chapter': metrics['chapter']
+                ,
+                'questions': metrics.get('questions', [])
             })
         elif accuracy < weakness_accuracy or (accuracy < weakness_accuracy and avg_time > time_threshold):
             # Weakness: Low accuracy OR low accuracy with high time
@@ -664,6 +682,8 @@ def classify_topics(topic_metrics, overall_avg_time, thresholds):
                 'avg_time_sec': metrics['avg_time_sec'],
                 'subject': metrics['subject'],
                 'chapter': metrics['chapter']
+                ,
+                'questions': metrics.get('questions', [])
             })
         else:
             # Area for improvement: Moderate accuracy OR high accuracy but slow
@@ -673,6 +693,8 @@ def classify_topics(topic_metrics, overall_avg_time, thresholds):
                 'avg_time_sec': metrics['avg_time_sec'],
                 'subject': metrics['subject'],
                 'chapter': metrics['chapter']
+                ,
+                'questions': metrics.get('questions', [])
             })
     
     return {
@@ -752,6 +774,8 @@ def get_last_test_metrics(student_id, thresholds):
                     'subject': metrics['subject'],
                     'chapter': metrics['chapter'],
                     'attempted': metrics['attempted']
+                    ,
+                    'questions': metrics.get('questions', [])
                 })
         
         return {'last_test_topics': last_test_topics}

@@ -54,6 +54,14 @@ def update_subject_scores_on_completion(sender, instance, created, **kwargs):
                                 generate_insights_task.delay(instance.student_id, request_data, True)
                                 print(f"🔄 Enqueued generate_insights_task for student {instance.student_id} after test {instance.id}")
                                 
+                                # Generate zone insights (new feature - independent of existing 4 cards)
+                                try:
+                                    from .tasks import generate_zone_insights_task
+                                    generate_zone_insights_task.delay(instance.id)
+                                    print(f"🎯 Enqueued zone insights task for test {instance.id}")
+                                except Exception as zone_e:
+                                    print(f"⚠️ Failed to enqueue zone insights (non-critical): {zone_e}")
+                                
                         except (ImportError, RuntimeError, Exception) as e:
                             # Celery not installed/available in this environment or no workers, fall back to background thread
                             if isinstance(e, ImportError):

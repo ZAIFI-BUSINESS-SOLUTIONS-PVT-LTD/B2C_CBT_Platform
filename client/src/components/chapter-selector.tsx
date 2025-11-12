@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, BookOpen } from "lucide-react";
+import { ChevronDown, ChevronRight, BookOpen, Atom, FlaskConical, Dna, Leaf, ListCheck } from "lucide-react";
 import { Topic, CreateTestSessionRequest, CreateTestSessionResponse } from '../types/api'; 
 
 interface ChapterSelectorProps {
@@ -165,7 +165,30 @@ export function ChapterSelector({
                           className="flex-1 text-sm text-gray-700 cursor-pointer"
                         >
                           <div className="flex items-center">
-                            <span className="mr-2">{topic.icon}</span>
+                            {topic.icon ? (
+                              <span className="mr-2">{topic.icon}</span>
+                            ) : (
+                              <span className="mr-2">
+                                {(() => {
+                                  switch (topic.subject) {
+                                    case 'Physics':
+                                      return <Atom className="h-4 w-4 text-blue-600" />;
+                                    case 'Chemistry':
+                                      return <FlaskConical className="h-4 w-4 text-green-600" />;
+                                    case 'Botany':
+                                      return <Leaf className="h-4 w-4 text-emerald-600" />;
+                                    case 'Zoology':
+                                      return <Dna className="h-4 w-4 text-purple-600" />;
+                                    case 'Math':
+                                    case 'Mathematics':
+                                    case 'Maths':
+                                      return <BookOpen className="h-4 w-4 text-indigo-600" />;
+                                    default:
+                                      return <ListCheck className="h-4 w-4 text-gray-600" />;
+                                  }
+                                })()}
+                              </span>
+                            )}
                             {topic.name}
                           </div>
                         </Label>

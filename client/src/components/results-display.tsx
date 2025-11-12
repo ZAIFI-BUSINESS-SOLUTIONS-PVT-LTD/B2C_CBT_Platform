@@ -60,6 +60,10 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
         return <FlaskConical className="h-5 w-5 text-green-600" />;
       case "Biology":
         return <Dna className="h-5 w-5 text-emerald-600" />;
+      case "Math":
+      case "Mathematics":
+      case "Maths":
+        return <BookOpen className="h-5 w-5 text-indigo-600" />;
       default:
         return null;
     }
@@ -73,6 +77,10 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
         return "bg-gradient-to-r from-blue-400 to-blue-500";
       case "Biology":
         return "bg-gradient-to-r from-blue-400 to-blue-500";
+      case "Math":
+      case "Mathematics":
+      case "Maths":
+        return "bg-gradient-to-r from-indigo-400 to-indigo-500";
       default:
         return "bg-gradient-to-r from-blue-400 to-blue-500";
     }

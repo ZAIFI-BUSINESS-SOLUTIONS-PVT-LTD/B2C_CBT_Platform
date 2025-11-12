@@ -14,7 +14,7 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (!loading && isAuthenticated) {
-            navigate("/");
+            navigate("/dashboard");
         }
     }, [loading, isAuthenticated, navigate]);
 

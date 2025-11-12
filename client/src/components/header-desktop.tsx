@@ -189,8 +189,8 @@ export default function HeaderDesktop() {
 
                         <ul className="space-y-2" role="menu">
                             {navItems.map(item => {
-                                // compute disabled state for certain menu items when post-test flag is set
-                                const isDisabled = postHidden && ['Test', 'Analysis', 'Chatbot'].includes(item.text);
+                                // Always keep menu items enabled (do not hide/disable by post-test flag)
+                                const isDisabled = false;
                                 const itemWithDisabled = { ...item, disabled: isDisabled } as NavItem;
                                 return <SidebarItem key={item.to} item={itemWithDisabled} currentPath={path} navigate={navigate} />
                             })}

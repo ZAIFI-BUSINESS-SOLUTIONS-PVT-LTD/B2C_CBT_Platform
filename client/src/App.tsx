@@ -74,7 +74,7 @@ function ErrorPageRoute() {
 function Router() {
   return (
   <Switch>
-      <Route path="/" component={blurIfPostTest(Home)} />                           {/* Home page with topic selection */}
+      <Route path="/" component={Home} />                           {/* Home page with topic selection */}
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/institution-register" component={InstitutionRegisterPage} />
@@ -85,13 +85,13 @@ function Router() {
       <Route path="/profile" component={StudentProfile} />        {/* Student profile page */}
       <Route path="/scheduled-tests" component={ScheduledTests} /> {/* Platform tests page */}
       <Route path="/institution-tests" component={InstitutionTesterPage} /> {/* Institution tests page */}
-      <Route path="/dashboard" component={protect(LandingDashboard)} />  {/* Comprehensive landing dashboard */}
-      <Route path="/chatbot" component={protect(Chatbot)} />               {/* AI Chatbot tutor page */}
+      <Route path="/dashboard" component={LandingDashboard} />  {/* Comprehensive landing dashboard */}
+      <Route path="/chatbot" component={Chatbot} />               {/* AI Chatbot tutor page */}
       <Route path="/auth/callback" component={GoogleAuthCallback} /> {/* Google OAuth callback */}
       <Route path="/auth/google/callback" component={GoogleCallback} /> {/* Google OAuth popup callback */}
       <Route path="/test/:sessionId" component={Test} />           {/* Test taking interface */}
-      <Route path="/results/:sessionId" component={protect(Results)} />     {/* Test results and analytics */}
-      <Route path="/test-history" component={protect(TestHistory)} />
+      <Route path="/results/:sessionId" component={Results} />     {/* Test results and analytics */}
+      <Route path="/test-history" component={TestHistory} />
       <Route path="/thank-you" component={ThankYou} />
       <Route path="/error" component={ErrorPageRoute} />               {/* Error page for critical errors */}
       <Route path="/payment" component={PaymentPage} />            {/* Payment processing page */}

@@ -3,11 +3,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Label, LabelList } from 'recharts';
-import { Activity, GraduationCap, Timer, HelpCircle, Filter, SlidersHorizontal, LogOut } from "lucide-react";
+import { Activity, GraduationCap, Timer, HelpCircle, Filter, SlidersHorizontal, LogOut, Target, TrendingUp } from "lucide-react";
 import { AnalyticsData } from "./insight-card";
 import { InsightsData } from "@/types/dashboard";
 import { useAuth } from "@/contexts/AuthContext";
 import FilterTopicPerformance from './filter-topic-performance';
+import TestZoneInsights from './test-zone-insights';
 
 const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'];
 
@@ -329,9 +330,16 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
 
     return (
         <>
-            {/* Performance Overview - Full Width (existing content) */}
+            {/* NEW: Test-Specific Zone Insights - Replaces old charts */}
+            <TestZoneInsights />
+
+            {/* 
+            ============================================
+            HASHED/HIDDEN: Old Performance Analytics
+            Can be restored by uncommenting this block
+            ============================================
+            
             <div className="w-full space-y-4">
-                {/* Performance Overview */}
                 <div>
                     <div className="pb-3">
                         <h2 className="flex items-center gap-2 text-xl font-bold">
@@ -339,10 +347,8 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                         </h2>
                     </div>
                     <div className="space-y-4">
-                        {/* Replaced subject grid + time distribution with performance circle + metrics card */}
                         <div className="w-full mb-4">
                             <div className="flex flex-col items-center space-y-4">
-                                {/* Subject selection buttons */}
                                 <div className="w-full flex items-center justify-center">
                                     <div className="flex gap-3 overflow-x-auto max-w-full hide-scrollbar">
                                         {subjects.map((s) => (
@@ -357,11 +363,8 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                                     </div>
                                 </div>
 
-                                {/* Manipulatable Data Container */}
                                 <div className="bg-white w-full rounded-2xl pt-5 pb-4 px-3 space-y-6">
-                                    {/* Charts Row */}
                                     <div className="flex items-center justify-center gap-10">
-                                        {/* Performance circle */}
                                         <div className="flex flex-col items-center">
                                             <svg width="120" height="120" viewBox="0 0 160 160" className="sm:w-44 sm:h-44">
                                                 <defs>
@@ -390,7 +393,6 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                                             </div>
                                         </div>
 
-                                        {/* Question Distribution Donut Chart */}
                                         <div className="flex flex-col items-center">
                                             <QuestionDistributionChart
                                                 correct={getTotalCorrect()}
@@ -403,10 +405,8 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                                         </div>
                                     </div>
 
-                                    {/* Metrics cards */}
                                     <div className="w-full max-w-4xl">
                                         <div className="grid grid-cols-1 gap-4">
-                                            {/* Correct Answers Card */}
                                             <div className="bg-white text-gray-800 rounded-xl p-2 shadow-md border border-green-500">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex-1">
@@ -419,7 +419,6 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                                                 </div>
                                             </div>
 
-                                            {/* Incorrect Answers Card */}
                                             <div className="bg-white text-gray-800 rounded-xl p-2 shadow-md border border-orange-500">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex-1">
@@ -432,7 +431,6 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                                                 </div>
                                             </div>
 
-                                            {/* Skipped Questions Card */}
                                             <div className="bg-white text-gray-800 rounded-xl p-2 shadow-md border border-purple-500">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex-1">
@@ -450,7 +448,6 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                             </div>
                         </div>
 
-                        {/* Performance Score chart */}
                         <div className="w-full space-y-4">
                             <h2 className="flex items-center gap-2 text-xl font-bold">
                                 Performance Score <Badge variant="outline" className='bg-blue-100 text-blue-600 border border-blue-600'>Past 7 tests</Badge>
@@ -458,14 +455,11 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                             <div className='bg-white rounded-2xl px-2 py-4'>
                                 <PerformanceTrendsChart data={analytics.timeBasedTrends} />
                             </div>
-                            {/* New metric and Topic-Accuracy table */}
                             <div className="flex items-center gap-2 text-xl font-bold">
                                 Topic Performance Score<Badge variant="outline" className='bg-blue-100 text-blue-600 border border-blue-600'>All tests</Badge>
                             </div>
-                            {/* Filter Section */}
                             <div className="sticky top-14 z-40 -mx-3 px-3 py-3 border-b border-gray-200 bg-gray-50">
                                 <div className="flex items-center gap-2">
-                                    {/* Main Filter Button */}
                                     <Button
                                         variant="outline"
                                         size="lg"
@@ -476,16 +470,12 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                                         Filter
                                     </Button>
 
-                                    {/* Horizontal Scroll Container for Filter Options */}
                                     <div className="flex-1 overflow-x-auto hide-scrollbar">
                                         <div className="flex items-center gap-2 min-w-max">
-                                            {/* Combined Filter Options - Selected first */}
                                             <div className="flex items-center gap-1">
                                                 {[
-                                                    // Sort options
                                                     { type: 'sort', key: 'accuracy-high-low', label: 'High to low Performance', isSelected: sortOption === 'accuracy-high-low' },
                                                     { type: 'sort', key: 'accuracy-low-high', label: 'Low to high Performance', isSelected: sortOption === 'accuracy-low-high' },
-                                                    // Subject options
                                                     ...filterSubjects.map(subject => ({
                                                         type: 'subject',
                                                         key: subject,
@@ -553,7 +543,6 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                                 </div>
                             </div>
 
-                            {/* Filter Modal */}
                             <FilterTopicPerformance
                                 isOpen={showFilter}
                                 onClose={() => setShowFilter(false)}
@@ -606,8 +595,12 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                     </div>
                 </div>
             </div>
+            
+            END OF HASHED CODE - Uncomment above to restore old analytics 
+            */}
 
-            {/* Logout Button */}
+
+            {/* Logout Button - Kept active */}
             <div className="w-full flex justify-center mt-6">
                 <Button
                     onClick={logout}

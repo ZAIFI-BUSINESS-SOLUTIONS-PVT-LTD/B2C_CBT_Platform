@@ -193,13 +193,21 @@ def upload_test(request):
         
         # Process upload
         try:
+            # Optional scheduled datetime (ISO string expected)
+            from django.utils.dateparse import parse_datetime
+            scheduled_dt_raw = request.POST.get('scheduled_date_time')
+            scheduled_dt = None
+            if scheduled_dt_raw:
+                scheduled_dt = parse_datetime(scheduled_dt_raw)
+
             result = process_upload(
                 file_obj=file_obj,
                 institution=institution,
                 test_name=test_name,
                 exam_type=exam_type,
                 time_limit=time_limit,
-                instructions=instructions or None
+                instructions=instructions or None,
+                scheduled_date_time=scheduled_dt
             )
             
             logger.info(f"Institution {institution.name} (admin: {admin.username}) uploaded test: {result['test_code']}")
@@ -281,6 +289,7 @@ def list_institution_tests(request):
                 'exam_type': test.exam_type,
                 'total_questions': test.total_questions,
                 'time_limit': test.time_limit,
+                'scheduled_date_time': test.scheduled_date_time.isoformat() if test.scheduled_date_time else None,
                 'is_active': test.is_active,
                 'created_at': test.created_at.isoformat(),
                 'attempts_count': attempts_count
@@ -424,6 +433,7 @@ def get_test_details(request, test_id):
                 'description': test.description,
                 'instructions': test.instructions,
                 'time_limit': test.time_limit,
+                'scheduled_date_time': test.scheduled_date_time.isoformat() if test.scheduled_date_time else None,
                 'total_questions': test.total_questions,
                 'is_active': test.is_active,
                 'created_at': test.created_at.isoformat()

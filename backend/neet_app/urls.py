@@ -21,6 +21,9 @@ from .views.test_views import (
 from .views.insights_views import (
     get_student_insights, get_topic_details, get_insights_config, get_insights_cache
 )
+from .views.zone_insights_views import (
+    get_student_tests, get_test_zone_insights, get_zone_insights_status, get_test_zone_insights_raw
+)
 from .views.task_status_view import task_status
 from .views.google_auth_views import (
     google_auth, link_google_account, unlink_google_account
@@ -122,6 +125,13 @@ urlpatterns = [
     path('insights/cache/', get_insights_cache, name='insights-cache'),
     path('insights/topics/', get_topic_details, name='topic-details'),
     path('insights/config/', get_insights_config, name='insights-config'),
+    
+    # Zone insights endpoints (test-specific, subject-wise insights)
+    path('zone-insights/tests/', get_student_tests, name='zone-insights-tests'),
+    path('zone-insights/test/<int:test_id>/', get_test_zone_insights, name='zone-insights-test'),
+    path('zone-insights/raw/<int:test_id>/', get_test_zone_insights_raw, name='zone-insights-raw'),
+    path('zone-insights/status/<int:test_id>/', get_zone_insights_status, name='zone-insights-status'),
+    
     # Celery task status endpoint
     path('tasks/status/<str:task_id>/', task_status, name='task-status'),
     

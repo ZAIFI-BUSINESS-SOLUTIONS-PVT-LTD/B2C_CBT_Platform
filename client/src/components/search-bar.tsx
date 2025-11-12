@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, X, Atom, FlaskConical, Dna, Leaf, BookOpen, ListCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -74,7 +74,30 @@ export function SearchBar({
                           />
                           <div>
                             <div className="flex items-center space-x-2">
-                              <span className="text-sm">{topic.icon}</span>
+                                        {topic.icon ? (
+                                          <span className="text-sm">{topic.icon}</span>
+                                        ) : (
+                                          <span className="text-sm">
+                                            {(() => {
+                                              switch (topic.subject) {
+                                                case 'Physics':
+                                                  return <Atom className="h-4 w-4 text-blue-600" />;
+                                                case 'Chemistry':
+                                                  return <FlaskConical className="h-4 w-4 text-green-600" />;
+                                                case 'Botany':
+                                                  return <Leaf className="h-4 w-4 text-emerald-600" />;
+                                                case 'Zoology':
+                                                  return <Dna className="h-4 w-4 text-purple-600" />;
+                                                case 'Math':
+                                                case 'Mathematics':
+                                                case 'Maths':
+                                                  return <BookOpen className="h-4 w-4 text-indigo-600" />;
+                                                default:
+                                                  return <ListCheck className="h-4 w-4 text-gray-500" />;
+                                              }
+                                            })()}
+                                          </span>
+                                        )}
                               <span className="font-medium text-gray-900">{topic.name}</span>
                             </div>
                             <div className="text-xs text-gray-500">

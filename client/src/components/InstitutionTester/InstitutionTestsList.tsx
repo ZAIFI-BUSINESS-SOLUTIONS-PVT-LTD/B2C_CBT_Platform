@@ -70,11 +70,15 @@ export function InstitutionTestsList({ institution, onBack }: InstitutionTestsLi
 
         const updated = [...tests];
         results.forEach((r, idx) => {
-          if (r.status === 'fulfilled' && r.value && typeof r.value.scheduled_date_time === 'string') {
-            const testId = toFetch[idx];
-            const i = updated.findIndex((x) => x.id === testId);
-            if (i >= 0) {
-              updated[i] = { ...updated[i], scheduled_date_time: r.value.scheduled_date_time };
+          if (r.status === 'fulfilled' && r.value) {
+            // Support both snake_case and camelCase keys from backend
+            const remoteScheduled = r.value.scheduled_date_time ?? r.value.scheduledDateTime ?? null;
+            if (typeof remoteScheduled === 'string' && remoteScheduled) {
+              const testId = toFetch[idx];
+              const i = updated.findIndex((x) => x.id === testId);
+              if (i >= 0) {
+                updated[i] = { ...updated[i], scheduled_date_time: remoteScheduled };
+              }
             }
           }
         });
@@ -178,10 +182,26 @@ export function InstitutionTestsList({ institution, onBack }: InstitutionTestsLi
         throw new Error(data.message || 'Failed to fetch tests');
       }
 
-  // Hard-code scheduled datetime to Nov 09, 2:00 PM IST for display/countdown as requested.
-  // Use explicit ISO with +05:30 offset so browser parses it as IST.
-  const HARD_CODED_SCHEDULE = '2025-11-09T13:15:00+05:30';
-  const mapped = (data.tests || []).map((t: any) => ({ ...t, scheduled_date_time: HARD_CODED_SCHEDULE }));
+  // Use scheduled_date_time from API when provided. Do not overwrite with a hard-coded value.
+  // The backend may return scheduled_date_time as an ISO string (or null).
+  // Normalize response keys to snake_case used throughout this component.
+  const normalize = (t: any) => ({
+    id: t.id,
+    test_name: t.test_name ?? t.testName ?? t.testName ?? t.test_name ?? '',
+    test_code: t.test_code ?? t.testCode ?? '',
+    exam_type: t.exam_type ?? t.examType ?? t.exam_type ?? selectedExamType,
+    total_questions: t.total_questions ?? t.totalQuestions ?? t.total_questions ?? 0,
+    time_limit: t.time_limit ?? t.timeLimit ?? t.time_limit ?? 0,
+    instructions: t.instructions ?? t.instructions ?? '',
+    description: t.description ?? t.description ?? '',
+    created_at: t.created_at ?? t.createdAt ?? t.created_at ?? null,
+    // scheduled_date_time may come as camelCase (scheduledDateTime) from DRF camel-case renderer
+    scheduled_date_time: t.scheduled_date_time ?? t.scheduledDateTime ?? null,
+    // preserve any other keys so we don't drop unexpected data
+    ...t
+  });
+
+  const mapped = (data.tests || []).map((t: any) => normalize(t));
   setTests(mapped);
     } catch (err: any) {
       setError(err.message || 'An error occurred while fetching tests');

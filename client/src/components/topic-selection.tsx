@@ -246,7 +246,11 @@ export function TopicSelection() {
                                 className="flex-1 text-sm font-medium text-gray-700 cursor-pointer"
                               >
                                 <div className="flex items-center">
-                                  <span className="mr-2 text-lg">{topic.icon}</span>
+                                  {topic.icon ? (
+                                    <span className="mr-2 text-lg">{topic.icon}</span>
+                                  ) : (
+                                    <span className="mr-2">{getSubjectIcon(topic.subject)}</span>
+                                  )}
                                   {topic.name}
                                 </div>
                               </Label>
@@ -320,7 +324,11 @@ export function TopicSelection() {
                                 className="flex-1 text-sm font-medium text-gray-700 cursor-pointer"
                               >
                                 <div className="flex items-center">
-                                  <span className="mr-2 text-lg">{topic.icon}</span>
+                                  {topic.icon ? (
+                                    <span className="mr-2 text-lg">{topic.icon}</span>
+                                  ) : (
+                                    <span className="mr-2">{getSubjectIcon(topic.subject)}</span>
+                                  )}
                                   {topic.name}
                                 </div>
                               </Label>

@@ -287,7 +287,7 @@ export default function BattleArena({
         </div>
       )}
 
-      {/* Placeholder when no test selected */}
+      {/* Placeholder when no test selected - hidden per request */}
       {!selectedPlatformTestId && (
         <Card>
           <CardContent className="p-8 text-center">

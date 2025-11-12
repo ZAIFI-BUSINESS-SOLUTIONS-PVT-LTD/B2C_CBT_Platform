@@ -12,7 +12,7 @@ import logging
 import base64
 import binascii
 # reuse existing cleaning utilities
-from neet_app.views.utils import clean_mathematical_text
+from neet_app.views.utils import clean_mathematical_text, normalize_subject
 
 logger = logging.getLogger(__name__)
 
@@ -153,12 +153,11 @@ def get_or_create_topic(
     Raises:
         UploadValidationError: If subject is invalid
     """
-    # Validate subject
-    valid_subjects = ['Physics', 'Chemistry', 'Botany', 'Zoology']
-    if subject not in valid_subjects:
-        raise UploadValidationError(
-            f"Invalid subject: '{subject}'. Must be one of: {', '.join(valid_subjects)}"
-        )
+    # Normalize subject using canonical mapping
+    normalized = normalize_subject(subject)
+    if not normalized:
+        raise UploadValidationError(f"Invalid subject: '{subject}'. Must be one of: Physics, Chemistry, Botany, Zoology, Math")
+    subject = normalized
     
     # Normalize topic name
     topic_name = topic_name.strip()
@@ -231,33 +230,11 @@ def parse_excel_rows(sheet, headers: Dict[str, int], institution: Institution, e
             if not subject or str(subject).strip() == '':
                 raise UploadValidationError(f"Row {row_idx}: Subject is required and cannot be empty")
             
-            # Normalize and validate subject
-            subject = str(subject).strip()
-            
-            # Handle common subject variations (case-insensitive mapping)
-            subject_map = {
-                'physics': 'Physics',
-                'chemistry': 'Chemistry',
-                'botany': 'Botany',
-                'biology': 'Botany',  # Map 'Biology' to 'Botany' by default
-                'plant biology': 'Botany',
-                'zoology': 'Zoology',
-                'animal biology': 'Zoology',
-            }
-            subject_lower = subject.lower()
-            if subject_lower in subject_map:
-                subject = subject_map[subject_lower]
-            else:
-                # Try capitalizing first letter for direct match
-                subject = subject.capitalize()
-            
-            # Validate against allowed subjects
-            valid_subjects = ['Physics', 'Chemistry', 'Botany', 'Zoology']
-            if subject not in valid_subjects:
-                raise UploadValidationError(
-                    f"Row {row_idx}: Invalid subject '{subject}'. "
-                    f"Must be one of: {', '.join(valid_subjects)}"
-                )
+            # Normalize and validate subject using central helper
+            normalized_subject = normalize_subject(subject)
+            if not normalized_subject:
+                raise UploadValidationError(f"Row {row_idx}: Invalid subject '{subject}'. Must be one of: Physics, Chemistry, Botany, Zoology, Math")
+            subject = normalized_subject
             
             # Extract optional fields
             chapter = None
@@ -413,7 +390,8 @@ def create_institution_test(
     exam_type: str,
     questions_data: List[Dict[str, Any]],
     time_limit: int = 180,  # Default 3 hours
-    instructions: str = None
+    instructions: str = None,
+    scheduled_date_time=None
 ) -> Tuple[PlatformTest, List[Question]]:
     """
     Create a PlatformTest and associated Question records for an institution.
@@ -498,6 +476,13 @@ def create_institution_test(
         institution=institution,
         exam_type=exam_type
     )
+    # If a scheduled datetime was provided, set it so the test becomes scheduled
+    if scheduled_date_time:
+        try:
+            platform_test.scheduled_date_time = scheduled_date_time
+            platform_test.save(update_fields=['scheduled_date_time'])
+        except Exception:
+            logger.exception('Failed to set scheduled_date_time on PlatformTest')
     
     logger.info(f"Created institution test: {test_code} with {len(created_questions)} questions")
     
@@ -510,7 +495,8 @@ def process_upload(
     test_name: str,
     exam_type: str,
     time_limit: int = 180,
-    instructions: str = None
+    instructions: str = None,
+    scheduled_date_time=None
 ) -> Dict[str, Any]:
     """
     Main entry point for processing an uploaded Excel file.
@@ -558,7 +544,8 @@ def process_upload(
             exam_type=exam_type,
             questions_data=questions_data,
             time_limit=time_limit,
-            instructions=instructions
+            instructions=instructions,
+            scheduled_date_time=scheduled_date_time
         )
         
         # Get unique topics
@@ -571,7 +558,8 @@ def process_upload(
             'test_name': platform_test.test_name,
             'questions_created': len(created_questions),
             'topics_used': topics_used,
-            'exam_type': exam_type
+            'exam_type': exam_type,
+            'scheduled_date_time': platform_test.scheduled_date_time.isoformat() if platform_test.scheduled_date_time else None
         }
         
     except UploadValidationError:

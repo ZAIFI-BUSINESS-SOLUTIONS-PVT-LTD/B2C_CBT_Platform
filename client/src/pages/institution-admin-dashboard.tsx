@@ -32,6 +32,7 @@ export default function InstitutionAdminDashboard() {
   const [testName, setTestName] = useState("");
   const [timeLimit, setTimeLimit] = useState("180");
   const [instructions, setInstructions] = useState("");
+  const [scheduledDateTime, setScheduledDateTime] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
 
   useEffect(() => {
@@ -123,6 +124,15 @@ export default function InstitutionAdminDashboard() {
       if (instructions.trim()) {
         formData.append("instructions", instructions.trim());
       }
+      if (scheduledDateTime) {
+        try {
+          // Convert local datetime-local value to ISO (UTC) so backend parses correctly
+          const iso = new Date(scheduledDateTime).toISOString();
+          formData.append("scheduled_date_time", iso);
+        } catch (err) {
+          console.warn("Failed to parse scheduledDateTime", err);
+        }
+      }
 
       const response = await fetch("/api/institution-admin/upload/", {
         method: "POST",
@@ -142,13 +152,15 @@ export default function InstitutionAdminDashboard() {
 
       // Success
       setSuccess(
-        `Test created successfully! ${data.questions_created} questions uploaded. Test Code: ${data.test_code}`
+        `Test created successfully! ${data.questions_created} questions uploaded. Test Code: ${data.test_code}` +
+        (data.scheduled_date_time ? ` Scheduled for: ${new Date(data.scheduled_date_time).toLocaleString()}` : '')
       );
       
       // Reset form
       setTestName("");
       setTimeLimit("180");
       setInstructions("");
+  setScheduledDateTime(null);
       setFile(null);
       
       // Reset file input
@@ -282,6 +294,19 @@ export default function InstitutionAdminDashboard() {
                   disabled={loading}
                   rows={3}
                 />
+              </div>
+
+              {/* Scheduled Date & Time (Optional) */}
+              <div className="space-y-2">
+                <Label htmlFor="scheduledDateTime">Schedule Test (Optional)</Label>
+                <Input
+                  id="scheduledDateTime"
+                  type="datetime-local"
+                  value={scheduledDateTime ?? ""}
+                  onChange={(e) => setScheduledDateTime(e.target.value || null)}
+                  disabled={loading}
+                />
+                <p className="text-xs text-gray-600">Optional: set a future date & time when this test should become available. Leave empty to make the test available immediately after creation.</p>
               </div>
 
               {/* File Upload */}

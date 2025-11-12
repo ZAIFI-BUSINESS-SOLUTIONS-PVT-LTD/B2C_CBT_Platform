@@ -45,6 +45,57 @@ class PlatformTestSerializer(serializers.ModelSerializer):
         return obj.time_limit
 
 
+class PlatformTestCreateSerializer(serializers.Serializer):
+    """Serializer for admin/institution creation of PlatformTest entries.
+
+    Note: For institution-created tests via Excel upload, the upload flow will
+    generate questions and a unique test_code. This serializer supports creating
+    standalone platform tests (optionally scheduled) via API.
+    """
+    test_name = serializers.CharField(max_length=255)
+    exam_type = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    time_limit = serializers.IntegerField(required=False, default=180)
+    instructions = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    scheduled_date_time = serializers.DateTimeField(required=False, allow_null=True)
+
+    def validate_test_name(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Test name cannot be empty")
+        return value.strip()
+
+    def create(self, validated_data):
+        import uuid
+        from datetime import datetime
+
+        test_name = validated_data.get('test_name')
+        time_limit = validated_data.get('time_limit', 180)
+        instructions = validated_data.get('instructions')
+        scheduled_date_time = validated_data.get('scheduled_date_time')
+        exam_type = validated_data.get('exam_type', None)
+
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        unique_suffix = str(uuid.uuid4())[:8]
+        test_code = f"PLAT_{timestamp}_{unique_suffix}"
+
+        platform_test = PlatformTest.objects.create(
+            test_name=test_name,
+            test_code=test_code,
+            test_type='Platform',
+            instructions=instructions,
+            time_limit=time_limit,
+            total_questions=0,
+            selected_topics=[],
+            is_active=True,
+            exam_type=exam_type
+        )
+
+        if scheduled_date_time:
+            platform_test.scheduled_date_time = scheduled_date_time
+            platform_test.save(update_fields=['scheduled_date_time'])
+
+        return platform_test
+
+
 # --- SECURITY CRITICAL ---
 # This serializer is used when creating a test session to hide correct answers and explanations.
 class QuestionForTestSerializer(serializers.ModelSerializer):
@@ -79,12 +130,12 @@ class TestSessionSerializer(serializers.ModelSerializer):
             'time_limit', 'question_count', 'start_time', 'end_time', 'is_completed',
             'total_questions', 'correct_answers', 'incorrect_answers', 'unanswered',
             'total_time_taken', 'physics_score', 'chemistry_score', 'botany_score',
-            'zoology_score', 'overall_score'
+            'zoology_score', 'math_score', 'math_topics', 'overall_score'
         ]
         read_only_fields = [
-            'physics_topics', 'chemistry_topics', 'botany_topics', 'zoology_topics',
+            'physics_topics', 'chemistry_topics', 'botany_topics', 'zoology_topics', 'math_topics',
             'correct_answers', 'incorrect_answers', 'unanswered', 'total_time_taken',
-            'physics_score', 'chemistry_score', 'botany_score', 'zoology_score'
+            'physics_score', 'chemistry_score', 'botany_score', 'zoology_score', 'math_score'
         ]
     
     def get_student_name(self, obj):

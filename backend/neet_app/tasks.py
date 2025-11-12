@@ -682,3 +682,56 @@ def _extract_fallback_insights(messages, message_count):
         except Exception as e:
             logger.error(f'Fallback insight extraction failed: {e}')
             return []
+
+
+@shared_task(bind=True, name='neet_app.tasks.generate_zone_insights_task')
+def generate_zone_insights_task(self, test_session_id: int):
+    """
+    Generate zone insights for all subjects in a completed test.
+    Runs asynchronously after test submission.
+    
+    Args:
+        test_session_id: ID of the completed test session
+        
+    Returns:
+        Dict with status and processed subjects
+    """
+    try:
+        from .services.zone_insights_service import generate_all_subject_zones
+        from .models import TestSession
+        
+        # Verify test session exists
+        test_session = TestSession.objects.get(id=test_session_id)
+        
+        logger.info(f'🎯 Generating zone insights for test {test_session_id}')
+        print(f"🎯 Generating zone insights for test {test_session_id}")
+        
+        # Generate insights for all subjects
+        result = generate_all_subject_zones(test_session_id)
+        
+        logger.info(f'✅ Zone insights generated for {len(result)} subjects in test {test_session_id}')
+        print(f"✅ Zone insights generated for {len(result)} subjects")
+        
+        return {
+            'status': 'success',
+            'test_session_id': test_session_id,
+            'student_id': test_session.student_id,
+            'subjects_processed': list(result.keys()),
+            'total_subjects': len(result)
+        }
+        
+    except TestSession.DoesNotExist:
+        logger.error(f'Test session {test_session_id} not found')
+        return {
+            'status': 'error',
+            'error': 'Test session not found',
+            'test_session_id': test_session_id
+        }
+    except Exception as e:
+        logger.exception(f'generate_zone_insights_task failed for test {test_session_id}')
+        print(f"❌ Zone insights generation failed: {str(e)}")
+        return {
+            'status': 'error',
+            'error': str(e),
+            'test_session_id': test_session_id
+        }

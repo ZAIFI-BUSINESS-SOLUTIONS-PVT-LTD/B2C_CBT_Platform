@@ -8,6 +8,7 @@ import { AnalyticsData } from "./insight-card";
 import { InsightsData } from "@/types/dashboard";
 import { useAuth } from "@/contexts/AuthContext";
 import FilterTopicPerformance from './filter-topic-performance';
+import TestZoneInsights from './test-zone-insights';
 
 const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'];
 
@@ -360,7 +361,10 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
     return (
         <>
             <div className="w-full space-y-4">
-                {/* Performance Overview card */}
+            {/* NEW: Test-Specific Zone Insights - Replaces old charts */}
+                <TestZoneInsights />
+                {/*
+                {/* Performance Overview card 
                 <Card className="bg-white rounded-2xl p-6 border">
                     <CardContent className="p-0">
                         <div className="pb-3">
@@ -369,10 +373,10 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                             </h2>
                         </div>
                         <div className="space-y-4">
-                            {/* Subject selection + charts/metrics */}
+                            {/* Subject selection + charts/metrics }
                             <div className="w-full mb-4 ">
                                 <div className="flex flex-col items-center space-y-4">
-                                    {/* Subject selection buttons */}
+                                    {/* Subject selection buttons }
                                     <div className="w-full flex items-center justify-start">
                                         <div className="flex gap-3 overflow-x-auto max-w-full hide-scrollbar">
                                             {subjects.map((s) => (
@@ -387,11 +391,11 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                                         </div>
                                     </div>
 
-                                    {/* Manipulatable Data Container */}
+                                    {/* Manipulatable Data Container }
                                     <div className="bg-white w-full rounded-2xl pt-10 pb-4 px-3 space-y-6">
-                                        {/* Charts + Metrics Row: stack on small screens, row on sm+ */}
+                                        {/* Charts + Metrics Row: stack on small screens, row on sm+ }
                                         <div className="flex flex-col sm:flex-row items-start justify-center gap-20">
-                                            {/* Performance circle */}
+                                            {/* Performance circle }
                                             <div className="flex flex-col items-center mt-3">
                                                 <svg width="120" height="120" viewBox="0 0 160 160" className="sm:w-44 sm:h-44">
                                                     <defs>
@@ -420,7 +424,7 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                                                 </div>
                                             </div>
 
-                                            {/* Question Distribution Donut Chart */}
+                                            {/* Question Distribution Donut Chart }
                                             <div className="flex flex-col items-center mt-3">
                                                 <QuestionDistributionChart
                                                     correct={getTotalCorrect()}
@@ -432,10 +436,10 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                                                 </div>
                                             </div>
 
-                                            {/* Metrics cards placed to the right on larger screens, below on small screens */}
+                                            {/* Metrics cards placed to the right on larger screens, below on small screens }
                                             <div className="w-64 max-w-4xl">
                                                 <div className="grid grid-cols-1 gap-4">
-                                                    {/* Correct Answers Card */}
+                                                    {/* Correct Answers Card }
                                                     <div className="bg-white text-gray-800 rounded-xl p-2 shadow-md border border-green-500">
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex-1">
@@ -448,7 +452,7 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                                                         </div>
                                                     </div>
 
-                                                    {/* Incorrect Answers Card */}
+                                                    {/* Incorrect Answers Card }
                                                     <div className="bg-white text-gray-800 rounded-xl p-2 shadow-md border border-orange-500">
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex-1">
@@ -461,7 +465,7 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                                                         </div>
                                                     </div>
 
-                                                    {/* Skipped Questions Card */}
+                                                    {/* Skipped Questions Card }
                                                     <div className="bg-white text-gray-800 rounded-xl p-2 shadow-md border border-purple-500">
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex-1">
@@ -483,7 +487,7 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                     </CardContent>
                 </Card>
 
-                {/* Performance Score card */}
+                {/* Performance Score card }
                 <Card className="bg-white rounded-2xl p-6 border">
                     <CardContent className="p-0">
                         <div className="pb-2">
@@ -497,26 +501,26 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                     </CardContent>
                 </Card>
 
-                {/* Topic Performance Score card */}
+                {/* Topic Performance Score card }
                 <Card className="bg-white rounded-2xl p-4 border">
                     <CardContent className="p-0">
                         <div className="flex items-center gap-2 text-xl font-bold px-0 md:px-2">
                             Topic Performance Score<Badge variant="outline" className='bg-blue-100 text-blue-600 border border-blue-600'>All tests</Badge>
                         </div>
 
-                        {/* Filter Section */}
+                        {/* Filter Section }
                         <div className="sticky top-14 z-40 -mx-3 mt-5 px-3 py-3 border-b border-gray-200 ">
                             <div className="flex items-center gap-2">
-                                {/* Filter label (button removed) */}
+                                {/* Filter label (button removed) }
                                 <div className="flex items-center gap-2 text-sm font-medium rounded-xl px-3 py-1">
                                     <SlidersHorizontal className="w-4 h-4" />
                                     <span>Filter</span>
                                 </div>
 
-                                {/* Horizontal Scroll Container for Filter Options */}
+                                {/* Horizontal Scroll Container for Filter Options }
                                 <div className="flex-1 overflow-x-auto hide-scrollbar">
                                     <div className="flex items-center gap-2 min-w-max">
-                                        {/* Combined Filter Options - Selected first */}
+                                        {/* Combined Filter Options - Selected first }
                                         <div className="flex items-center gap-1">
                                             {[
                                                 // Sort options
@@ -590,7 +594,7 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                             </div>
                         </div>
 
-                        {/* Filter Modal */}
+                        {/* Filter Modal }
                         <FilterTopicPerformance
                             isOpen={showFilter}
                             onClose={() => setShowFilter(false)}
@@ -641,6 +645,7 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
                         </div>
                     </CardContent>
                 </Card>
+                */}
             </div>
         </>
     );

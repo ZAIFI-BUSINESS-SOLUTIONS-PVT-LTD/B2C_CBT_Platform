@@ -12,6 +12,52 @@ import re
 logger = logging.getLogger(__name__)
 
 
+def normalize_subject(subject_raw: str) -> str:
+    """
+    Normalize various subject name variants to canonical subject names used in Topic model.
+
+    Returns one of: 'Physics', 'Chemistry', 'Botany', 'Zoology', 'Math'
+    or None if the subject cannot be normalized.
+    """
+    if not subject_raw:
+        return None
+    s = str(subject_raw).strip().lower()
+    if not s:
+        return None
+
+    mapping = {
+        'physics': 'Physics', 'phys': 'Physics', 'phy': 'Physics',
+        'chemistry': 'Chemistry', 'chem': 'Chemistry',
+        'botany': 'Botany', 'biology': 'Botany', 'plant biology': 'Botany',
+        'zoology': 'Zoology', 'animal biology': 'Zoology', 'zoo': 'Zoology',
+        'math': 'Math', 'mathematics': 'Math', 'maths': 'Math'
+    }
+
+    # Normalize common punctuation and multiple spaces
+    s = re.sub(r'[\s\-_]+', ' ', s).strip()
+
+    # Direct mapping
+    if s in mapping:
+        return mapping[s]
+
+    # Try to match prefixes (e.g., 'physics - mechanics')
+    for key in mapping.keys():
+        if s.startswith(key):
+            return mapping[key]
+
+    # Try to match if the word appears anywhere
+    for key in mapping.keys():
+        if key in s:
+            return mapping[key]
+
+    # As a last resort, capitalize and accept if it matches allowed set
+    candidate = s.capitalize()
+    if candidate in ['Physics', 'Chemistry', 'Botany', 'Zoology', 'Math']:
+        return candidate
+
+    return None
+
+
 def clean_mathematical_text(text):
     """
     Clean mathematical expressions and LaTeX formatting from text.
@@ -659,10 +705,17 @@ def sync_topics_from_database_question(request=None):
                     continue
 
                 try:
-                    # Check if topic already exists with same name, subject, and chapter
+                    # Normalize subject before checks/creation
+                    normalized_subject = normalize_subject(subject_name)
+                    if not normalized_subject:
+                        errors.append(f"Skipping topic '{topic_name.strip()}' due to unrecognized subject '{subject_name}'")
+                        topics_failed_count += 1
+                        continue
+
+                    # Check if topic exists using normalized subject
                     existing_topic = Topic.objects.filter(
                         name=topic_name.strip(),
-                        subject=subject_name.strip(),
+                        subject=normalized_subject,
                         chapter=chapter_name.strip()
                     ).first()
                     
@@ -673,7 +726,7 @@ def sync_topics_from_database_question(request=None):
                     # Create new topic only if it doesn't exist
                     Topic.objects.create(
                         name=topic_name.strip(),
-                        subject=subject_name.strip(),
+                        subject=normalized_subject,
                         icon=DEFAULT_ICON,
                         chapter=chapter_name.strip()
                     )

@@ -267,13 +267,15 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         }
       });
 
-      // Set frontend-only flag to hide tabs and redirect to the Thank You page
+      // Redirect directly to the results page for this session
+      // (Previously redirected to a Thank You page; that behavior is disabled.)
       try {
-        setPostTestHidden(true);
+        // Clear any post-test UI flags rather than setting them so UI remains functional
+        setPostTestHidden(false);
       } catch (e) {
-        console.warn('Could not set post test hidden flag', e);
+        console.warn('Could not clear post test hidden flag', e);
       }
-      navigate(`/thank-you`);
+      navigate(`/results/${sessionId}`);
       // Clean up state after navigation
       setIsSubmitting(false);
       setSuppressFullscreenExitDialog(false);

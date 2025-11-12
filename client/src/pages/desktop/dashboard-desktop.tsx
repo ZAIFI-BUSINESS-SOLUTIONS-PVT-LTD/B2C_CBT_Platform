@@ -9,7 +9,6 @@ import { AlertCircle, ArrowRight, UserRound, Trophy, ChevronLeft } from "lucide-
 import { API_CONFIG } from "@/config/api";
 import { authenticatedFetch } from "@/lib/auth";
 import PracticeArena from "@/components/your-space-desktop";
-import BattleArena from "@/components/battle-arena-desktop";
 import HeaderDesktop from "@/components/header-desktop";
 import { AnalyticsData, InsightsData, PlatformTestAnalyticsData } from "@/types/dashboard";
 
@@ -132,7 +131,7 @@ export default function LandingDashboard() {
                             </div>
                         </div>
 
-                        {/* Right sidebar (desktop only) */}
+                        {/* Right sidebar (desktop only) - hidden per request
                         <aside className="hidden md:block w-80">
                             <div>
                                 <Card className="bg-white rounded-xl border mb-6">
@@ -148,6 +147,7 @@ export default function LandingDashboard() {
                                 </Card>
                             </div>
                         </aside>
+                        */}
                     </div>
                 </div>
             </main>
