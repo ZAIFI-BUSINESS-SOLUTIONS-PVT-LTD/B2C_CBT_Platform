@@ -114,16 +114,34 @@ def get_student_tests(request):
         # Format test data
         tests_data = []
         for test in tests:
-            # Calculate marks
-            total_marks = (test.correct_answers * 4) - (test.incorrect_answers * 1)
-            max_marks = test.total_questions * 4
-            
+            # Calculate marks. Use robust answer-driven logic so total matches
+            # per-subject calculations: treat any TestAnswer with selected_answer==None
+            # as unanswered regardless of is_correct field.
+            try:
+                ta = TestAnswer.objects.filter(session_id=test.id)
+                attempted = ta.filter(selected_answer__isnull=False).count()
+                correct = ta.filter(is_correct=True).count()
+                incorrect = attempted - correct
+                total_q = test.total_questions or ta.count()
+                unanswered = total_q - attempted
+                if unanswered < 0:
+                    unanswered = ta.filter(selected_answer__isnull=True).count()
+            except Exception:
+                # fallback to stored counters
+                correct = getattr(test, 'correct_answers', 0) or 0
+                incorrect = getattr(test, 'incorrect_answers', 0) or 0
+                total_q = test.total_questions or 0
+                unanswered = getattr(test, 'unanswered', 0) or 0
+
+            total_marks = (correct * 4) - (incorrect * 1)
+            max_marks = total_q * 4
+
             # Determine test name: platform test name or unique Practice Test label
             if test.test_type == 'platform' and test.platform_test:
                 test_name = test.platform_test.test_name
             else:
                 test_name = f"Practice Test #{test.id}"
-            
+
             tests_data.append({
                 'id': test.id,
                 'test_type': test.test_type,
@@ -226,25 +244,26 @@ def get_test_zone_insights(request, test_id):
         # Get student profile object for DB writes
         student_profile = test.get_student_profile()
 
-        # Calculate overall marks (existing logic). If TestSession counters
-        # are not populated, fall back to computing from TestAnswer rows.
-        total_correct = getattr(test, 'correct_answers', 0) or 0
-        total_incorrect = getattr(test, 'incorrect_answers', 0) or 0
-        total_unanswered = getattr(test, 'unanswered', 0) or 0
-
-        # If the session counters look empty, compute from TestAnswer table
-        if (total_correct + total_incorrect + total_unanswered) == 0:
-            try:
-                ta_qs = TestAnswer.objects.filter(session_id=test.id)
-                total_correct = ta_qs.filter(is_correct=True).count()
-                total_incorrect = ta_qs.filter(is_correct=False).count()
-                total_unanswered = ta_qs.filter(is_correct__isnull=True).count()
-            except Exception:
-                # keep the original zeros if anything fails
-                total_correct = total_incorrect = total_unanswered = 0
+        # Calculate overall marks using the same robust approach as per-subject
+        # Treat selected_answer==None as unanswered. Derive attempted and incorrect
+        # from selected_answer presence so counts match subject breakdowns.
+        try:
+            ta_qs = TestAnswer.objects.filter(session_id=test.id)
+            attempted = ta_qs.filter(selected_answer__isnull=False).count()
+            total_correct = ta_qs.filter(is_correct=True).count()
+            total_incorrect = attempted - total_correct
+            total_q = test.total_questions or ta_qs.count()
+            total_unanswered = total_q - attempted
+            if total_unanswered < 0:
+                total_unanswered = ta_qs.filter(selected_answer__isnull=True).count()
+        except Exception:
+            total_correct = getattr(test, 'correct_answers', 0) or 0
+            total_incorrect = getattr(test, 'incorrect_answers', 0) or 0
+            total_unanswered = getattr(test, 'unanswered', 0) or 0
+            total_q = test.total_questions or 0
 
         total_marks = (total_correct * 4) - (total_incorrect * 1)
-        max_marks = (test.total_questions or 0) * 4
+        max_marks = (total_q or 0) * 4
         percentage = (total_marks / max_marks * 100) if max_marks > 0 else 0
 
         # Test name: platform test name or Practice Test #<id>
@@ -383,14 +402,14 @@ def get_test_zone_insights(request, test_id):
         # Only generate insights for subjects that are not already stored.
         # This avoids re-calling the LLM every time the user clicks the test.
         insights_data = []
-    # Normalize existing subjects from DB so we compare case-insensitively
+        # Normalize existing subjects from DB so we compare case-insensitively
         raw_existing = TestSubjectZoneInsight.objects.filter(test_session=test).values_list('subject', flat=True)
         existing_subjects = set([normalize_subject_name(s) for s in raw_existing if s])
         logger.debug(f"Existing stored subjects for test {test_id}: {existing_subjects}")
         for subj, ans_list in grouped.items():
             # Build question payloads from answers
             questions_payload = []
-            for a in ans_list[:100]:  # limit to reasonable size
+            for a in ans_list:  # include all answers for the subject
                 q = a.question
                 topic = getattr(q, 'topic', None)
                 options = {
@@ -408,7 +427,7 @@ def get_test_zone_insights(request, test_id):
                     'selected_answer': a.selected_answer if a.selected_answer else None,
                     'is_correct': a.is_correct,
                     'time_taken': a.time_taken or 0,
-                    'topic': getattr(topic, 'name', None) if topic else None
+                    # 'topic' intentionally omitted from LLM payload
                 })
             # Normalize subject for storage/lookup
             subj_norm = normalize_subject_name(subj)

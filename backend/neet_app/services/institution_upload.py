@@ -109,25 +109,47 @@ def parse_excel_headers(sheet) -> Dict[str, int]:
 
 
 def normalize_correct_answer(answer: str) -> str:
-    """Normalize correct answer to single uppercase letter A/B/C/D"""
-    if not answer:
+    """
+    Normalize correct answer from upload.
+
+    Behavior:
+    - If the uploader provided an MCQ-style value (A/B/C/D, option_1, 1, etc.) this returns
+      the canonical uppercase letter 'A'|'B'|'C'|'D'.
+    - If the uploader provided a numeric answer (integer or float) it returns the numeric string
+      (trimmed) so NVT numeric answers like '3', '3.14' are preserved.
+    - Otherwise, returns the trimmed string value (useful for descriptive/text NVT answers).
+
+    This function is intentionally permissive to support mixed uploads where some questions
+    may be MCQ and others NVT.
+    """
+    if answer is None:
         raise UploadValidationError("Correct answer cannot be empty")
-    
-    answer_str = str(answer).strip().upper()
-    
-    # Handle various formats
-    if answer_str in ['A', 'B', 'C', 'D']:
-        return answer_str
-    elif answer_str in ['OPTION_A', 'OPTION A', '1', 'FIRST']:
+
+    raw = str(answer).strip()
+    if raw == "":
+        raise UploadValidationError("Correct answer cannot be empty")
+
+    low = raw.lower()
+
+    # Handle MCQ letter and common variants
+    if low in ['a', 'b', 'c', 'd']:
+        return low.upper()
+    if low in ['option_a', 'option a', '(a)', '(a)', '1', 'first', 'option_1', 'option 1', '1.0']:
         return 'A'
-    elif answer_str in ['OPTION_B', 'OPTION B', '2', 'SECOND']:
+    if low in ['option_b', 'option b', '(b)', '2', 'second', 'option_2', 'option 2', '2.0']:
         return 'B'
-    elif answer_str in ['OPTION_C', 'OPTION C', '3', 'THIRD']:
+    if low in ['option_c', 'option c', '(c)', '3', 'third', 'option_3', 'option 3', '3.0']:
         return 'C'
-    elif answer_str in ['OPTION_D', 'OPTION D', '4', 'FOURTH']:
+    if low in ['option_d', 'option d', '(d)', '4', 'fourth', 'option_4', 'option 4', '4.0']:
         return 'D'
-    else:
-        raise UploadValidationError(f"Invalid correct answer format: '{answer}'. Must be A, B, C, or D")
+
+    # If looks like a numeric value (integer or float), keep as-is (trimmed)
+    import re
+    if re.match(r'^-?\d+(\.\d+)?$', raw):
+        return raw
+
+    # Otherwise accept the trimmed string (text answer)
+    return raw
 
 
 def get_or_create_topic(

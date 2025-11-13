@@ -41,8 +41,11 @@ class Question(models.Model):
     option_b = models.TextField(null=False) # text("option_b").notNull()
     option_c = models.TextField(null=False) # text("option_c").notNull()
     option_d = models.TextField(null=False) # text("option_d").notNull()
-    # Stores "A", "B", "C", or "D"
-    correct_answer = models.CharField(max_length=1, null=False) # text("correct_answer").notNull()
+    # Stores the canonical correct answer for the question.
+    # For MCQ this will be 'A'|'B'|'C'|'D'. For NVT (numerical/text),
+    # this may be a number (e.g. '3.14') or a longer text string.
+    # Make it nullable/blankable to support questions that require manual grading.
+    correct_answer = models.TextField(null=True, blank=True, help_text='Correct answer: single-letter for MCQ or numeric/text for NVT')
     explanation = models.TextField(null=False) # text("explanation").notNull()
     # Additional fields for question metadata
     difficulty = models.TextField(null=True, blank=True) # text("difficulty") - stores difficulty level

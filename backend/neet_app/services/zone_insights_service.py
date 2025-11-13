@@ -13,56 +13,27 @@ logger = logging.getLogger(__name__)
 
 # LLM Prompt for zone-based insights
 ZONE_INSIGHT_PROMPT = """
-You are an expert NEET and JEE exam tutor analyzing a student's test performance for {subject}.
-
-Your goal is to generate the most specific and actionable insights possible from the student’s question-level performance data.
-
-Follow these steps carefully:
-
-### Step 1: Analyze Question Patterns
-Use the provided {questions_json} to identify detailed performance trends across:
-- Topic or subtopic patterns
-- Accuracy consistency (correct, partial, incorrect)
-- Time efficiency (fast, average, slow)
-- Conceptual depth (surface-level vs reasoning-based errors)
-- Repeated mistakes or hesitation zones
-
-For each question pattern, generate multiple raw insights across the 3 performance zones.
-
-### Step 2: Generate All Possible Insights
-List ALL potential insights (short, specific, data-driven) for:
-- 🟢 Steady Zone → high accuracy, fast timing, consistent logic  
-- 🟠 Edge Zone → moderate accuracy, timing or clarity fluctuations  
-- 🔴 Focus Zone → low accuracy, conceptual gaps, or repeated errors  
-
-Each insight must:
-- Be between 18–20 words
-- Be specific and actionable (e.g., mention topic, behavior, or correction approach)
-- Reflect patterns across multiple questions, not one
-- Maintain an encouraging, improvement-oriented tone
-
-### Step 3: Rank and Select
-From all generated insights in each zone, rank them by:
-1. Specificity (topic clarity, data grounding)
-2. Actionability (student can take a clear step)
-3. Impact (improves performance the most)
-
-Select and output only the **top 2** insights per zone.
-
-GUARDRAILS:
-- If no valid insights exist for any zone (e.g., all incorrect, or no consistent pattern found), 
-  return this motivational fallback phrase **for both points** in that zone:
-  "We couldn’t identify clear insights in this area for this test, but consistent practice will reveal them soon."
-- Do NOT remove or skip any zone. Always return exactly 6 insights (2 per zone) to preserve structure.
-
-### Step 4: Final Output Format
-Return exactly 6 insights in this JSON format:
-{{
-  "steady_zone": ["point 1", "point 2"],
-  "edge_zone": ["point 1", "point 2"],
-  "focus_zone": ["point 1", "point 2"]
+You are an expert NEET and JEE exam tutor analyzing a student's test performance for {subject}. 
+Analyze the following questions and their answers to generate exactly 6 insights grouped into 3 zones: 
+🟢 Steady Zone (2 points): Areas where the student is consistently performing well - high accuracy, good speed, solid conceptual understanding 
+🟠 Edge Zone (2 points): Borderline concepts needing mild improvement - moderate accuracy, timing issues, or inconsistent performance 
+🔴 Focus Zone (2 points): Critical weak areas requiring priority attention - low accuracy, conceptual gaps, or recurring mistakes 
+RULES: 
+- Each point must be 18-20 words maximum 
+- Be specific and actionable 
+- Avoid formatting markers like ** or asterisks 
+- Analyze question-by-question patterns (correctness, speed, topic consistency) 
+- Prioritize insights by impact and actionability 
+- Focus on patterns across multiple questions, not individual questions 
+- Be encouraging and constructive in tone 
+Questions Data ({total_questions} 
+questions analyzed): {questions_json} 
+Return EXACTLY 6 insights in this JSON format: 
+{{ 
+"steady_zone": ["point 1", "point 2"], 
+"edge_zone": ["point 1", "point 2"], 
+"focus_zone": ["point 1", "point 2"]
 }}
-
 """
 
 
@@ -103,9 +74,9 @@ def extract_subject_questions(test_session_id: int, subject: str) -> List[Dict]:
             question__topic_id__in=topic_ids
         ).select_related('question', 'question__topic')
         
-        # Format questions for LLM (limit to 30 questions to prevent token overflow)
-        questions_data = []
-        for answer in answers[:30]:
+    # Format questions for LLM (include all subject answers)
+    questions_data = []
+    for answer in answers:
             q = answer.question
             
             # Prepare options dict
@@ -125,12 +96,12 @@ def extract_subject_questions(test_session_id: int, subject: str) -> List[Dict]:
                 'selected_answer': answer.selected_answer if answer.selected_answer else None,
                 'is_correct': answer.is_correct,
                 'time_taken': answer.time_taken or 0,
-                'topic': q.topic.name if q.topic else 'Unknown'
+                # 'topic' intentionally omitted from LLM payload to avoid leaking explicit topic labels
             }
             
             questions_data.append(question_entry)
         
-        print(f"📊 Extracted {len(questions_data)} questions for {subject} from test {test_session_id}")
+    print(f"📊 Extracted {len(questions_data)} questions for {subject} from test {test_session_id}")
         return questions_data
         
     except Exception as e:

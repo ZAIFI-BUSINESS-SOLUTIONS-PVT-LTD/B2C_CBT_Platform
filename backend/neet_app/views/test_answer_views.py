@@ -80,7 +80,21 @@ class TestAnswerViewSet(viewsets.ModelViewSet):
             # Evaluate MCQ correctness if answer provided
             if selected_answer:
                 try:
-                    defaults['is_correct'] = (str(selected_answer) == str(question.correct_answer))
+                    # Normalize both sides and compare. For MCQ we expect letters A/B/C/D,
+                    # but question.correct_answer may be a text/number for NVT questions
+                    # if the data was authored inconsistently. Handle gracefully.
+                    sel = str(selected_answer).strip()
+                    corr = question.correct_answer
+                    if corr is None:
+                        defaults['is_correct'] = None
+                    else:
+                        corr_str = str(corr).strip()
+                        # If both look like single letters, compare case-insensitively
+                        if len(sel) == 1 and corr_str and len(corr_str) == 1:
+                            defaults['is_correct'] = sel.upper() == corr_str.upper()
+                        else:
+                            # Fallback to direct string equality (trimmed)
+                            defaults['is_correct'] = sel == corr_str
                 except Exception:
                     defaults['is_correct'] = False
             else:

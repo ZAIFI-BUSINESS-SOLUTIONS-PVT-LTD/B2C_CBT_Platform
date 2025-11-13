@@ -867,24 +867,34 @@ def sync_questions_from_database_question(request=None):
                         errors.append(f"Skipping question '{question_text[:50]}...' - missing correct_option")
                         continue
 
-                    # Normalize correct_option to A, B, C, D
-                    correct_letter = correct_option.strip().lower()
-                    
-                    # Handle various formats like "(a)", "a", "1", etc.
+                    # Normalize correct_option: prefer mapping to A/B/C/D when the value
+                    # clearly references an option; otherwise accept numeric or textual
+                    # correct answers (useful for NVT). This keeps the sync permissive.
+                    correct_answer = None
+                    correct_letter = str(correct_option).strip()
+                    # If value is like '(a)' or single-char, extract
                     if correct_letter.startswith('(') and ')' in correct_letter:
-                        correct_letter = correct_letter[1:correct_letter.index(')')].strip().lower()
-                    
-                    if correct_letter in ['a', '1', 'option_1']:
+                        correct_letter = correct_letter[1:correct_letter.index(')')].strip()
+                    low = correct_letter.lower()
+                    if low in ['a', 'b', 'c', 'd']:
+                        correct_answer = low.upper()
+                    elif low in ['option_1', 'option 1', 'option a', '1', '1.0', 'first']:
                         correct_answer = 'A'
-                    elif correct_letter in ['b', '2', 'option_2']:
+                    elif low in ['option_2', 'option 2', 'option b', '2', '2.0', 'second']:
                         correct_answer = 'B'
-                    elif correct_letter in ['c', '3', 'option_3']:
+                    elif low in ['option_3', 'option 3', 'option c', '3', '3.0', 'third']:
                         correct_answer = 'C'
-                    elif correct_letter in ['d', '4', 'option_4']:
+                    elif low in ['option_4', 'option 4', 'option d', '4', '4.0', 'fourth']:
                         correct_answer = 'D'
                     else:
-                        errors.append(f"Skipping question '{question_text[:50]}...' - invalid correct_option: {correct_option}")
-                        continue
+                        # If it's numeric (integer or float), preserve as-is
+                        import re
+                        raw = str(correct_option).strip()
+                        if re.match(r'^-?\d+(\.\d+)?$', raw):
+                            correct_answer = raw
+                        else:
+                            # Otherwise accept trimmed text (useful for descriptive answers)
+                            correct_answer = raw
 
                     # Look for existing topic
                     topic = Topic.objects.filter(name=topic_name.strip()).first()
