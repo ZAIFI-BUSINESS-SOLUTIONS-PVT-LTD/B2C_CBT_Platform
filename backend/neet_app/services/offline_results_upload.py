@@ -324,6 +324,37 @@ def parse_and_group_rows(
                 raise ValueError(f"Invalid subject: '{subject}'")
             
             # Build row data
+            # Clean mathematical expressions for question and options to normalize formatting
+            try:
+                cleaned_question = clean_mathematical_text(str(question_text).strip())
+            except Exception:
+                cleaned_question = str(question_text).strip()
+
+            try:
+                cleaned_option_a = clean_mathematical_text(str(option_a).strip())
+            except Exception:
+                cleaned_option_a = str(option_a).strip()
+
+            try:
+                cleaned_option_b = clean_mathematical_text(str(option_b).strip())
+            except Exception:
+                cleaned_option_b = str(option_b).strip()
+
+            try:
+                cleaned_option_c = clean_mathematical_text(str(option_c).strip())
+            except Exception:
+                cleaned_option_c = str(option_c).strip()
+
+            try:
+                cleaned_option_d = clean_mathematical_text(str(option_d).strip())
+            except Exception:
+                cleaned_option_d = str(option_d).strip()
+
+            try:
+                cleaned_explanation = clean_mathematical_text(str(explanation).strip()) if explanation else ''
+            except Exception:
+                cleaned_explanation = str(explanation).strip() if explanation else ''
+
             row_data = {
                 'row_number': row_idx,
                 'student_name': str(student_name).strip(),
@@ -331,12 +362,12 @@ def parse_and_group_rows(
                 'email': email,
                 'subject': normalized_subject,
                 'topic_name': str(topic_name).strip(),
-                'question_text': str(question_text).strip(),
-                'option_a': str(option_a).strip(),
-                'option_b': str(option_b).strip(),
-                'option_c': str(option_c).strip(),
-                'option_d': str(option_d).strip(),
-                'explanation': str(explanation).strip() if explanation else '',
+                'question_text': cleaned_question,
+                'option_a': cleaned_option_a,
+                'option_b': cleaned_option_b,
+                'option_c': cleaned_option_c,
+                'option_d': cleaned_option_d,
+                'explanation': cleaned_explanation,
                 'correct_answer': normalize_answer(correct_answer, question_type),
                 'opted_answer': normalize_answer(opted_answer, question_type),
                 'question_type': question_type,
