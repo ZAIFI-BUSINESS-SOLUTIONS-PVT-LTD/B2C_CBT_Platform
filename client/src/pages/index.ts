@@ -24,3 +24,4 @@ export { default as PaymentPage } from "./payment-page";
 export { default as InstitutionTesterPage } from "./institution-tester";
 export { default as InstitutionRegisterPage } from "./institution-register";
 export { default as InstitutionAdminDashboard } from "./institution-admin-dashboard";
+export { default as OfflineResultsUpload } from "./offline-results-upload";

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Upload, FileSpreadsheet, LogOut, Building2, CheckCircle } from "lucide-react";
+import { AlertCircle, Upload, FileSpreadsheet, LogOut, Building2, CheckCircle, FileText } from "lucide-react";
 
 interface InstitutionAdminData {
   id: number;
@@ -26,6 +26,9 @@ export default function InstitutionAdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [tests, setTests] = useState<Array<any>>([]);
+  const [testsLoading, setTestsLoading] = useState(false);
+  const [testsError, setTestsError] = useState<string | null>(null);
 
   // Form state
   const [examType, setExamType] = useState("");
@@ -57,6 +60,49 @@ export default function InstitutionAdminDashboard() {
       navigate("/login");
     }
   }, [navigate]);
+
+  // Fetch institution tests when adminData is ready
+  useEffect(() => {
+    if (!adminData) return;
+
+    const fetchTests = async () => {
+      setTestsLoading(true);
+      setTestsError(null);
+      try {
+        const token = localStorage.getItem('institutionAdminToken');
+        const resp = await fetch('/api/institution-admin/tests/', {
+          method: 'GET',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+
+        if (resp.status === 401) {
+          navigate('/login');
+          return;
+        }
+
+        let data: any = { tests: [] };
+        try {
+          data = await resp.json();
+        } catch (e) {
+          console.error('Failed to parse tests response', e);
+        }
+
+        if (!resp.ok) {
+          setTestsError(data.message || `Failed to load tests (status ${resp.status})`);
+          setTests([]);
+        } else {
+          setTests(data.tests || []);
+        }
+      } catch (err) {
+        console.error('Error fetching tests', err);
+        setTestsError('Failed to load tests');
+      } finally {
+        setTestsLoading(false);
+      }
+    };
+
+    fetchTests();
+  }, [adminData, navigate]);
 
   const handleLogout = () => {
     localStorage.removeItem("institutionAdminToken");
@@ -197,11 +243,61 @@ export default function InstitutionAdminDashboard() {
               <p className="text-sm text-gray-600">Code: {adminData.institution.code}</p>
             </div>
           </div>
-          <Button variant="outline" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/offline-results-upload')}>
+              <FileText className="h-4 w-4 mr-2" />
+              Upload Offline Results
+            </Button>
+            <Button variant="outline" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
+      </div>
+
+      {/* Institution Tests list (shows tests created by this institution) */}
+      <div className="max-w-4xl mx-auto mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Institution Tests</CardTitle>
+            <CardDescription>Tests created by your institution. Click a test to prefill the upload form below.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {testsLoading ? (
+              <p className="text-sm text-gray-600">Loading tests...</p>
+            ) : testsError ? (
+              <p className="text-sm text-red-600">{testsError}</p>
+            ) : tests.length === 0 ? (
+              <p className="text-sm text-gray-600">No tests found. Create a test using the Upload Test form below.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {tests.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      // Prefill the upload form
+                      // Ensure the fields exist
+                      setTestName(t.test_name || '');
+                      setTimeLimit(String(t.time_limit || 180));
+                      setExamType(t.exam_type || '');
+                    }}
+                    className="text-left p-3 bg-white rounded-lg shadow-sm hover:shadow-md border"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-sm text-gray-900">{t.test_name}</div>
+                        <div className="text-xs text-gray-500">Code: {t.test_code}</div>
+                      </div>
+                      <div className="text-right text-xs text-gray-600">{t.total_questions} Qs</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Content */}

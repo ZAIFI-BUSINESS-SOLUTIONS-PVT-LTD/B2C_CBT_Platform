@@ -19,13 +19,14 @@ Analyze the following questions and their answers to generate exactly 6 insights
 🟠 Edge Zone (2 points): Borderline concepts needing mild improvement - moderate accuracy, timing issues, or inconsistent performance 
 🔴 Focus Zone (2 points): Critical weak areas requiring priority attention - low accuracy, conceptual gaps, or recurring mistakes 
 RULES: 
-- Each point must be 18-20 words maximum 
+- Each point must be 15-25 words maximum 
 - Be specific and actionable 
 - Avoid formatting markers like ** or asterisks 
 - Analyze question-by-question patterns (correctness, speed, topic consistency) 
 - Prioritize insights by impact and actionability 
 - Focus on patterns across multiple questions, not individual questions 
 - Be encouraging and constructive in tone 
+- All insights must strictly reference academic concepts, test-taking strategy, or subject-specific topics. Avoid personal or emotional analysis.
 Questions Data ({total_questions} 
 questions analyzed): {questions_json} 
 Return EXACTLY 6 insights in this JSON format: 
@@ -72,11 +73,11 @@ def extract_subject_questions(test_session_id: int, subject: str) -> List[Dict]:
         answers = TestAnswer.objects.filter(
             session_id=test_session_id,
             question__topic_id__in=topic_ids
-        ).select_related('question', 'question__topic')
+        ).select_related('question', 'question__topic').order_by('id')
         
     # Format questions for LLM (include all subject answers)
-    questions_data = []
-    for answer in answers:
+        questions_data = []
+        for answer in answers:
             q = answer.question
             
             # Prepare options dict
@@ -101,7 +102,18 @@ def extract_subject_questions(test_session_id: int, subject: str) -> List[Dict]:
             
             questions_data.append(question_entry)
         
-    print(f"📊 Extracted {len(questions_data)} questions for {subject} from test {test_session_id}")
+        total_questions = len(questions_data)
+        # Enforce maximum of 45 questions to keep LLM prompt size bounded
+        if total_questions > 45:
+            logger.info(
+                "Truncating %d questions to first 45 for subject %s in test %d",
+                total_questions,
+                subject,
+                test_session_id
+            )
+            questions_data = questions_data[:45]
+
+        print(f"📊 Extracted {len(questions_data)} questions for {subject} from test {test_session_id}")
         return questions_data
         
     except Exception as e:
@@ -124,6 +136,30 @@ def generate_zone_insights_for_subject(subject: str, questions: List[Dict]) -> D
         if not questions:
             print(f"⚠️ No questions provided for {subject}")
             return get_fallback_zones(subject, "No questions available")
+
+        # Ensure we send at most 45 questions and truncate overly long question text
+        def _truncate_questions_for_prompt(qs: List[Dict], max_questions: int = 45, max_text_len: int = 1000) -> List[Dict]:
+            total = len(qs)
+            if total > max_questions:
+                logger.info(
+                    "Truncating questions payload from %d to %d for subject %s",
+                    total,
+                    max_questions,
+                    subject,
+                )
+                qs = qs[:max_questions]
+
+            # Truncate long text fields to avoid extremely large prompts
+            for q in qs:
+                if 'question' in q and isinstance(q['question'], str) and len(q['question']) > max_text_len:
+                    q['question'] = q['question'][:max_text_len] + '...'
+                if 'options' in q and isinstance(q['options'], dict):
+                    for k, v in list(q['options'].items()):
+                        if isinstance(v, str) and len(v) > max_text_len:
+                            q['options'][k] = v[:max_text_len] + '...'
+            return qs
+
+        questions = _truncate_questions_for_prompt(questions)
         
         # Import GeminiClient
         try:
@@ -145,10 +181,19 @@ def generate_zone_insights_for_subject(subject: str, questions: List[Dict]) -> D
             questions_json=questions_json
         )
         
-        print(f"🚀 Generating zone insights for {subject} using {client.model_name}")
+        logger.info(f"🚀 Generating zone insights for {subject} using {client.model_name}")
         
-        # Call LLM
-        llm_response = client.generate_response(prompt)
+        # Call LLM (guard against lower-level errors from gRPC / client libraries)
+        try:
+            llm_response = client.generate_response(prompt)
+        except BaseException as e:
+            # Catch BaseException to handle fatal errors originating from gRPC C extensions
+            logger.error(
+                "LLM client raised a fatal error for subject %s: %s",
+                subject,
+                str(e)
+            )
+            return get_fallback_zones(subject, f"LLM call failed: {str(e)}")
         
         if not llm_response:
             print(f"❌ Empty response from LLM for {subject}")

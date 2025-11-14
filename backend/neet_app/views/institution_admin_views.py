@@ -13,6 +13,7 @@ from neet_app.institution_auth import (
     institution_admin_required
 )
 from neet_app.services.institution_upload import process_upload, UploadValidationError
+from neet_app.services.offline_results_upload import process_offline_upload
 import json
 import logging
 
@@ -447,4 +448,117 @@ def get_test_details(request, test_id):
         return JsonResponse({
             'error': 'SERVER_ERROR',
             'message': 'An unexpected error occurred'
+        }, status=500)
+
+
+@csrf_exempt
+@institution_admin_required
+@require_http_methods(["POST"])
+def upload_offline_results(request):
+    """
+    Upload Excel file with offline test results (questions + student responses).
+    
+    POST /api/institution-admin/upload-results
+    Content-Type: multipart/form-data
+    Fields:
+        - file: Excel file (.xlsx) with student names, questions, and responses
+        - test_name: Name of the test (optional, can be in Excel)
+        - exam_type: Exam type (optional, defaults to first institution exam type)
+    
+    Returns: {
+        "success": true,
+        "processed_rows": 100,
+        "created_sessions": 10,
+        "created_students": 5,
+        "questions_created": 50,
+        "test_id": 123,
+        "test_code": "OFFLINE_...",
+        "test_name": "...",
+        "errors_count": 0,
+        "errors_csv": null  // or CSV content if errors exist
+    }
+    """
+    try:
+        institution = request.institution
+        admin = request.institution_admin
+        
+        # Get form data
+        test_name = request.POST.get('test_name', '').strip() or None
+        exam_type = request.POST.get('exam_type', '').strip().lower() or None
+        
+        # Get uploaded file
+        if 'file' not in request.FILES:
+            return JsonResponse({
+                'error': 'MISSING_FILE',
+                'message': 'No file uploaded'
+            }, status=400)
+        
+        file_obj = request.FILES['file']
+        
+        # Validate file extension
+        if not file_obj.name.endswith('.xlsx'):
+            return JsonResponse({
+                'error': 'INVALID_FILE_TYPE',
+                'message': 'Only .xlsx files are supported'
+            }, status=400)
+        
+        # Validate exam type if provided
+        if exam_type:
+            allowed_exam_types = institution.exam_types or ['neet', 'jee']
+            if exam_type not in allowed_exam_types:
+                return JsonResponse({
+                    'error': 'INVALID_EXAM_TYPE',
+                    'message': f'Exam type must be one of: {", ".join(allowed_exam_types)}'
+                }, status=400)
+        
+        # Process offline upload
+        try:
+            result = process_offline_upload(
+                file_obj=file_obj,
+                institution=institution,
+                test_name=test_name,
+                exam_type=exam_type
+            )
+            
+            logger.info(
+                f"Institution {institution.name} (admin: {admin.username}) "
+                f"uploaded offline results: {result['test_code']}, "
+                f"sessions: {result['created_sessions']}, errors: {result['errors_count']}"
+            )
+            
+            # Return response
+            response_data = {
+                'success': result['success'],
+                'processed_rows': result['processed_rows'],
+                'created_sessions': result['created_sessions'],
+                'created_students': result['created_students'],
+                'questions_created': result['questions_created'],
+                'test_id': result['test_id'],
+                'test_code': result['test_code'],
+                'test_name': result['test_name'],
+                'errors_count': result['errors_count']
+            }
+            
+            # Include errors CSV if present
+            if result.get('errors_csv'):
+                response_data['errors_csv'] = result['errors_csv']
+            
+            return JsonResponse(response_data, status=201)
+            
+        except UploadValidationError as e:
+            return JsonResponse({
+                'error': 'VALIDATION_ERROR',
+                'message': str(e)
+            }, status=400)
+        
+    except ValueError as e:
+        return JsonResponse({
+            'error': 'INVALID_INPUT',
+            'message': f'Invalid input: {str(e)}'
+        }, status=400)
+    except Exception as e:
+        logger.exception("Error in upload_offline_results")
+        return JsonResponse({
+            'error': 'SERVER_ERROR',
+            'message': 'An unexpected error occurred during upload'
         }, status=500)

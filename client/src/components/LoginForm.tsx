@@ -172,7 +172,7 @@ export function LoginForm() {
               )}
             </Button>
             {/* Google Sign-In Button */}
-            {/*
+            
             <GoogleSignIn
               onSuccess={(data) => {
                 console.log("Google sign-in successful:", data);
@@ -183,6 +183,7 @@ export function LoginForm() {
               }}
               disabled={loading}
             />
+            {/*
             {/* Mobile OTP Login Button 
             <Button
               type="button"

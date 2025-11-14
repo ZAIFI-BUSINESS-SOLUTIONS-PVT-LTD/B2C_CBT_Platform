@@ -38,7 +38,7 @@ from neet_app.models import (
 )
 # Try to import Celery tasks (optional). If Celery not configured or unavailable, we'll fall back.
 from neet_app.views import insights_views
-from neet_app.services.zone_insights_service import generate_all_subject_zones
+from neet_app.services.zone_insights_service import generate_all_subject_zones, generate_zone_insights_for_subject
 try:
     from neet_app.tasks import generate_insights_task, generate_zone_insights_task
     CELERY_TASKS_AVAILABLE = True
@@ -123,22 +123,98 @@ def regenerate_zone_insights(session):
     # Delete existing zone insights to avoid duplicates/stale entries
     deleted_count = TestSubjectZoneInsight.objects.filter(test_session=session).delete()[0]
 
-    # If Celery tasks are available and workers likely present, enqueue the async task
+    # Build insights using the same answer-driven grouping logic used by the view
+    # This avoids relying on TestSession topic lists which may be missing/incorrect.
     try:
-        if CELERY_TASKS_AVAILABLE and insights_views.is_celery_worker_available():
-            # enqueue and return placeholder
-            generate_zone_insights_task.delay(session.id)
-            return {'status': 'enqueued'}, deleted_count
-    except Exception:
-        # Fall back to synchronous generation on any error
-        pass
+        # Fetch all answers for the session and group by normalized subject name
+        answers_qs = TestAnswer.objects.filter(session_id=session.id).select_related('question__topic')
 
-    # Synchronous fallback: generate fresh zone insights immediately
-    result = generate_all_subject_zones(session.id)
+        def normalize_subject_name(s: str) -> str:
+            if not s:
+                return 'Other'
+            s_low = s.lower()
+            if 'physics' in s_low:
+                return 'Physics'
+            if 'chemistry' in s_low:
+                return 'Chemistry'
+            if 'botany' in s_low or 'plant' in s_low or 'biology' in s_low:
+                return 'Botany'
+            if 'zoology' in s_low or 'animal' in s_low:
+                return 'Zoology'
+            if 'math' in s_low or 'algebra' in s_low or 'geometry' in s_low:
+                return 'Math'
+            return s.strip()
 
-    return result, deleted_count
+        grouped = {}
+        for a in answers_qs:
+            q = a.question
+            topic = getattr(q, 'topic', None)
+            subj_raw = getattr(topic, 'subject', None) if topic else None
+            subj = normalize_subject_name(subj_raw)
+            grouped.setdefault(subj, []).append(a)
 
+        results = {}
 
+        for subj, ans_list in grouped.items():
+            # Build question payloads from answers (same shape as view/service expects)
+            questions_payload = []
+            for a in ans_list:
+                q = a.question
+                options = {
+                    'A': getattr(q, 'option_a', None),
+                    'B': getattr(q, 'option_b', None),
+                    'C': getattr(q, 'option_c', None),
+                    'D': getattr(q, 'option_d', None),
+                }
+                questions_payload.append({
+                    'question_id': q.id,
+                    'question': (q.question if getattr(q, 'question', None) else ''),
+                    'options': options,
+                    'correct_answer': getattr(q, 'correct_answer', None),
+                    'selected_answer': a.selected_answer if a.selected_answer else None,
+                    'is_correct': a.is_correct,
+                    'time_taken': a.time_taken or 0,
+                })
+
+            subj_norm = normalize_subject_name(subj)
+
+            if not questions_payload:
+                print(f"    ⚠️ No answers/questions for subject {subj_norm}, skipping")
+                continue
+
+            # Generate zone insights for this subject using the service function
+            try:
+                zones = generate_zone_insights_for_subject(subj, questions_payload)
+            except Exception as e:
+                print(f"    ❌ Error generating zones for {subj_norm}: {e}")
+                zones = {'steady_zone': [], 'edge_zone': [], 'focus_zone': []}
+
+            # Persist into TestSubjectZoneInsight (use student_id field since we have session.student_id)
+            try:
+                TestSubjectZoneInsight.objects.update_or_create(
+                    test_session=session,
+                    subject=subj_norm,
+                    defaults={
+                        'student_id': session.student_id,
+                        'steady_zone': zones.get('steady_zone', []),
+                        'edge_zone': zones.get('edge_zone', []),
+                        'focus_zone': zones.get('focus_zone', []),
+                        'questions_analyzed': questions_payload
+                    }
+                )
+                results[subj_norm] = zones
+                print(f"    💾 Saved zone insights for {subj_norm}")
+            except Exception as e:
+                print(f"    ❌ Failed to save zone insight for {subj_norm}: {e}")
+                continue
+
+        return results, deleted_count
+
+    except Exception as e:
+        print(f"    ❌ Error regenerating zone insights for session {session.id}: {e}")
+        return {}, deleted_count
+
+'''
 def regenerate_student_insights(student_id, skip_llm=False):
     """Regenerate student insights."""
     # If Celery is available prefer enqueuing the async task which handles full insight generation
@@ -251,7 +327,7 @@ def regenerate_student_insights(student_id, skip_llm=False):
     )
     
     return True
-
+'''
 
 def main():
     parser = argparse.ArgumentParser(
@@ -363,7 +439,7 @@ def main():
     
     print("✅ Zone insights regenerated")
     print()
-    
+    '''
     # Step 3: Regenerate student insights
     print("🧠 Step 3: Regenerating student insights...")
     if args.skip_llm:
@@ -386,7 +462,7 @@ def main():
     
     print("✅ Student insights regenerated")
     print()
-    
+    '''
     # Summary
     print("=" * 80)
     print("🎉 RERUN COMPLETE")

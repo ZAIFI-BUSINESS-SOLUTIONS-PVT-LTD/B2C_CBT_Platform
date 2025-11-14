@@ -119,8 +119,12 @@ export default function TestZoneInsights() {
         unanswered: t.unanswered ?? t.unansweredQuestions ?? t.unansweredQuestions ?? 0
       }));
 
-      setTestList(normalized);
-      setError(null);
+  setTestList(normalized);
+  // Auto-select the most recent test (first in list) when available so
+  // the user immediately sees their latest test data. Do not override an
+  // existing selection (e.g., if user already picked one).
+  setSelectedTestId((prev) => prev ?? (normalized.length > 0 ? normalized[0].id : null));
+  setError(null);
     } catch (err) {
       console.error('Error fetching test list:', err);
       setError('Failed to load test list. Please try refreshing the page.');
@@ -358,7 +362,7 @@ export default function TestZoneInsights() {
             </div>
 
             {/* Subject Scores (only show subjects present in this test) */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {Object.entries(testInfo.subject_marks)
                 .filter(([_, marks]) => {
                   const max = (marks?.max_marks ?? 0);
@@ -368,10 +372,10 @@ export default function TestZoneInsights() {
                 .map(([subject, marks]) => (
                   <div key={subject} className="bg-white rounded-lg p-2 border border-blue-100">
                     <p className="text-xs text-gray-600">{subject}</p>
-                    <div className="flex items-baseline gap-1">
-                      <p className="text-lg font-bold text-gray-900">{marks.marks}</p>
-                     <p className="text-xs text-gray-500">/ {marks.max_marks}</p>
-                      <div className="ml-auto flex items-center gap-2">
+            <div className="flex items-baseline gap-1 min-w-0 flex-wrap">
+              <p className="text-lg font-bold text-gray-900">{marks.marks}</p>
+             <p className="text-xs text-gray-500">/ {marks.max_marks}</p>
+              <div className="ml-auto flex items-center gap-2 flex-wrap">
                         {/*
                         {marks.score !== undefined && (
                           <Badge variant="outline" className="text-xs">
@@ -380,14 +384,14 @@ export default function TestZoneInsights() {
                         )}
                         */}
                         {/* Small count badges: correct / incorrect / unanswered */}
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-50 text-green-800 border border-green-100">
+                        <span className="inline-flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium bg-green-50 text-green-800 border border-green-100">
                           <svg className="h-3.5 w-3.5 mr-1 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
                           {marks.correct ?? 0}
                         </span>
 
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-50 text-red-800 border border-red-100">
+                        <span className="inline-flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium bg-red-50 text-red-800 border border-red-100">
                           <svg className="h-3.5 w-3.5 mr-1 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                             <line x1="18" y1="6" x2="6" y2="18" />
                             <line x1="6" y1="6" x2="18" y2="18" />
@@ -395,7 +399,7 @@ export default function TestZoneInsights() {
                           {marks.incorrect ?? 0}
                         </span>
 
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-50 text-gray-800 border border-gray-100">
+                        <span className="inline-flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium bg-gray-50 text-gray-800 border border-gray-100">
                           {/* Outlined ring-style circle for 'unanswered' (better visual than a filled dot) - now grey */}
                           <svg className="h-3.5 w-3.5 mr-1 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                             <circle cx="12" cy="12" r="7" />
