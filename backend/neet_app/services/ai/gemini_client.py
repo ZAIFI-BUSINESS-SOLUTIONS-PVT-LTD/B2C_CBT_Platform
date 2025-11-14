@@ -116,9 +116,10 @@ class GeminiClient:
         
         self.last_request_time = time.time()
     
-    def generate_response(self, prompt: str, max_retries: int = 3) -> str:
+    def generate_response(self, prompt: str, max_retries: int = 10) -> str:
         """
-        Generate response with automatic key rotation on rate limit errors
+        Generate response with automatic key rotation on rate limit errors.
+        Default max_retries increased to 10 to allow more retry attempts before falling back.
         """
         if not self.client:
             return self._get_fallback_response()
