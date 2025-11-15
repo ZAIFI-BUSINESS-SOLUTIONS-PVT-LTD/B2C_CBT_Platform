@@ -33,6 +33,16 @@ export function LoginForm() {
     }
 
     if (error) {
+      // If backend returned the duplicate-name validation, surface a clear instruction
+      try {
+        const msg = String(error).toLowerCase();
+        if (msg.includes("multiple accounts") || msg.includes("multiple accounts found")) {
+          return "Multiple accounts were found with this name. Please login using your Student ID or email.";
+        }
+      } catch (e) {
+        // ignore
+      }
+
       // Handle authentication errors - convert all to user-friendly message
       if (
         error.includes("invalid") ||
@@ -97,7 +107,7 @@ export function LoginForm() {
           <div className="space-y-1">
             <Input
               type="text"
-              placeholder="Username"
+              placeholder="Student ID, email or full name"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required

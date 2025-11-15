@@ -188,8 +188,15 @@ def get_or_create_student(
     
     # Generate placeholder email if missing
     if not email:
+        # Create a slug from the student's name (alphanumeric, lowercased)
         slug = ''.join(c if c.isalnum() else '' for c in student_name.lower())[:20]
-        email = f"{slug}@offline.example.com"
+        # Use first 4 digits of phone number to make email more unique
+        phone_digits = ''.join(ch for ch in (phone_number or '') if ch.isdigit())
+        first4 = phone_digits[:4] if len(phone_digits) >= 4 else (phone_digits or '0000')
+        email = f"{slug}{first4}@offline.com"
+        # Ensure uniqueness: append short uuid suffix if collision
+        if StudentProfile.objects.filter(email=email).exists():
+            email = f"{slug}{first4}_{str(uuid.uuid4())[:6]}@offline.com"
     
     # Create minimal profile
     student = StudentProfile(

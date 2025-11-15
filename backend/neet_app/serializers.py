@@ -517,34 +517,50 @@ class StudentProfileCreateSerializer(serializers.ModelSerializer):
 
 
 class StudentLoginSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=100, help_text="Student ID or Full Name")
+    username = serializers.CharField(max_length=100, help_text="Student ID, Full Name or Email")
     password = serializers.CharField(max_length=64)
-    
+
     def validate(self, data):
         username = data.get('username')
         password = data.get('password')
-        
+
         student = None
-        
-        # Try to find student by student_id first
+
+        # 1) Try to find student by student_id first
         try:
             student = StudentProfile.objects.get(student_id=username)
         except StudentProfile.DoesNotExist:
-            # If not found by student_id, try by full_name (case-insensitive)
+            student = None
+
+        # 2) If not found, try by email (case-insensitive)
+        if not student:
+            try:
+                student = StudentProfile.objects.get(email__iexact=username)
+            except StudentProfile.DoesNotExist:
+                student = None
+
+        # 3) If still not found, try by full_name (case-insensitive).
+        #    If multiple accounts share the same full_name, return a clear error
+        #    asking the user to login with Student ID or email.
+        if not student:
             try:
                 student = StudentProfile.objects.get(full_name__iexact=username)
             except StudentProfile.DoesNotExist:
-                pass
-        
+                student = None
+            except StudentProfile.MultipleObjectsReturned:
+                raise serializers.ValidationError(
+                    "Multiple accounts found with this full name. Please login using Student ID or email."
+                )
+
         if not student:
             raise serializers.ValidationError("Invalid credentials.")
-        
+
         if not student.check_password(password):
             raise serializers.ValidationError("Invalid credentials.")
-            
+
         if not student.is_active:
             raise serializers.ValidationError("Account is deactivated.")
-            
+
         data['student'] = student
         return data
 
