@@ -380,7 +380,7 @@ class StudentProfileSerializer(serializers.ModelSerializer):
             'school_name', 'target_exam_year', 'is_active', 'is_verified', 'last_login',
             'created_at', 'updated_at', 'total_tests', 'recent_tests',
             'google_sub', 'google_email', 'email_verified', 'google_picture', 'auth_provider',
-            'institution'
+            'institution', 'institution_code', 'is_institution_student'
         ]
         read_only_fields = [
             'student_id', 'created_at', 'updated_at', 'last_login', 'google_sub', 'google_email', 'auth_provider'
@@ -412,12 +412,14 @@ class StudentProfileSerializer(serializers.ModelSerializer):
 class StudentProfileCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8, max_length=64, required=True)
     password_confirmation = serializers.CharField(write_only=True, required=True)
+    institution_code = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=50)
     
     class Meta:
         model = StudentProfile
         fields = [
             'full_name', 'email', 'phone_number', 'date_of_birth',
-            'school_name', 'target_exam_year', 'password', 'password_confirmation'
+            'school_name', 'target_exam_year', 'password', 'password_confirmation',
+            'institution_code'
         ]
         
     def validate_email(self, value):
@@ -487,9 +489,23 @@ class StudentProfileCreateSerializer(serializers.ModelSerializer):
         """Create student with user-defined password"""
         password = validated_data.pop('password')
         validated_data.pop('password_confirmation', None)
+        institution_code = validated_data.pop('institution_code', None)
         
         # Create student instance
         student = StudentProfile(**validated_data)
+        
+        # Handle institution code if provided
+        if institution_code:
+            from .models import Institution
+            try:
+                institution = Institution.objects.get(code__iexact=institution_code.strip(), is_active=True)
+                student.institution = institution
+                student.institution_code = institution.code
+                student.is_institution_student = True
+            except Institution.DoesNotExist:
+                raise serializers.ValidationError({
+                    'institution_code': f'Invalid institution code: {institution_code}. Please check with your institution.'
+                })
         
         # Set user-defined password
         student.set_user_password(password)

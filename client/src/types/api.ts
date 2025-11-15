@@ -23,6 +23,9 @@ export interface StudentProfile {
   updatedAt: string; // models.DateTimeField(auto_now=True) -> string (camelCase from updated_at)
   googlePicture: string | null; // models.URLField(null=True, blank=True) -> string or null (camelCase from google_picture)
   authProvider: string; // models.CharField(max_length=20, default='local') -> string (camelCase from auth_provider)
+  institution?: { id: number; name: string; code: string; examTypes: string[] } | null; // Institution details if student is linked
+  institutionCode?: string | null; // models.CharField(max_length=50, null=True, blank=True) -> string or null (camelCase from institution_code)
+  isInstitutionStudent?: boolean; // models.BooleanField(default=False) -> boolean (camelCase from is_institution_student)
 }
 
 /**

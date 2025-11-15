@@ -26,11 +26,12 @@ from neet_app.services.institution_upload import (
 )
 from neet_app.views.utils import clean_mathematical_text, normalize_subject
 from neet_app.utils.student_utils import ensure_unique_student_id
+import re
 
 logger = logging.getLogger(__name__)
 
 # Configuration
-MAX_ROWS = 5000
+MAX_ROWS = 50000
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 # Header mapping (case-insensitive variants)
@@ -632,27 +633,95 @@ def process_student_session(
                 })
                 continue
             
-            # Evaluate answer
+            # Normalize and decide where to store the student's response.
+            raw_opted = row_data.get('opted_answer')
+            selected_answer = None
+            text_answer = None
+
+            q_type = (row_data.get('question_type') or '').upper() if row_data.get('question_type') else None
+
+            if q_type == 'NVT':
+                # NVT: store full response in text_answer with light normalization
+                if raw_opted is not None:
+                    # Replace comma decimal separators with dot to help numeric parsing
+                    try:
+                        text_answer = str(raw_opted).strip().replace(',', '.')
+                    except Exception:
+                        text_answer = str(raw_opted).strip()
+                else:
+                    text_answer = None
+            else:
+                # MCQ / Blank: try to map to single-letter A/B/C/D for selected_answer
+                if raw_opted is None:
+                    selected_answer = None
+                else:
+                    s = str(raw_opted).strip()
+
+                    # Case 1: single letter like 'A' or 'a' or 'A.'
+                    m = re.match(r"^\s*([A-Da-d])\s*\.?\s*$", s)
+                    if m:
+                        selected_answer = m.group(1).upper()
+                    else:
+                        # Case 2: comma/semicolon separated letters like 'B,C' or 'B; C'
+                        parts = re.split(r'[;,\\s]+', s)
+                        first_letter = None
+                        for p in parts:
+                            pm = re.match(r"^([A-Da-d])\.?$", p.strip())
+                            if pm:
+                                first_letter = pm.group(1).upper()
+                                break
+                        if first_letter:
+                            selected_answer = first_letter
+                            # preserve original multi-answer string for audit
+                            text_answer = s
+                        else:
+                            # Case 3: the student wrote full option text (try to match to one of the question options)
+                            def _norm(x):
+                                return ''.join(str(x).split()).lower() if x is not None else ''
+
+                            s_norm = _norm(s)
+                            mapped = None
+                            try:
+                                opts = [
+                                    ('A', question.option_a),
+                                    ('B', question.option_b),
+                                    ('C', question.option_c),
+                                    ('D', question.option_d),
+                                ]
+                            except Exception:
+                                opts = []
+
+                            for letter, opt in opts:
+                                if _norm(opt) and _norm(opt) == s_norm:
+                                    mapped = letter
+                                    break
+
+                            if mapped:
+                                selected_answer = mapped
+                            else:
+                                # Unknown format: keep full text in text_answer and leave selected_answer None
+                                text_answer = s
+
+            # Defensive: ensure selected_answer is at most 1 char; otherwise move to text_answer
+            if selected_answer is not None and len(str(selected_answer)) > 1:
+                if not text_answer:
+                    text_answer = str(selected_answer)
+                selected_answer = None
+
+            # Evaluate correctness using the normalized value (prefer selected_answer)
+            eval_input = selected_answer if selected_answer is not None else text_answer
             is_correct = evaluate_answer(
-                row_data['opted_answer'],
+                eval_input,
                 row_data['correct_answer'],
                 row_data['question_type']
             )
-            
+
             if is_correct is True:
                 correct_count += 1
             elif is_correct is False:
                 incorrect_count += 1
             else:
                 unanswered_count += 1
-            
-            # Determine answer field
-            if row_data['question_type'] and row_data['question_type'].upper() == 'NVT':
-                selected_answer = None
-                text_answer = row_data['opted_answer']
-            else:
-                selected_answer = row_data['opted_answer']
-                text_answer = None
             
             # Create answer
             TestAnswer.objects.create(

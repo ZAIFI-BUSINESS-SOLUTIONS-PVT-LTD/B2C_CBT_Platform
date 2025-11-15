@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { StudentProfile } from "@/components/profile-avatar";
 import Logo from "@/assets/images/logo.svg";
-import { Crown, Home, NotepadText, FileChartPie, MessageSquareMore, ChevronDown, ChevronRight, School } from "lucide-react";
+import { Crown, Home, NotepadText, FileChartPie, MessageSquareMore, ChevronDown, ChevronRight, School, Lock } from "lucide-react";
 import { getAccessToken } from '@/lib/auth';
 import { getPostTestHidden } from '@/lib/postTestHidden';
 import { API_CONFIG } from '@/config/api';
@@ -13,6 +13,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 /**
  * Header component extracted from the desktop home page.
  * Renders the brand logo on the left and a payment button + student profile on the right.
+ * Role-based navigation visibility:
+ * - Institution Tests tab: hidden for normal students (without institution)
+ * - Test/Chatbot tabs: blurred/locked for institution students
  */
 
 // Small helper for rendering a sidebar item
@@ -25,6 +28,7 @@ interface NavItem {
     expandable?: boolean;
     expanded?: boolean;
     disabled?: boolean;
+    lockedForInstitution?: boolean;
 }
 
 interface ChatSession {
@@ -41,17 +45,20 @@ interface ChatSession {
 function SidebarItem({ item, currentPath, navigate }: { item: NavItem; currentPath: string; navigate: (to: string) => void; }) {
     const isActive = item.activePattern ? item.activePattern.test(currentPath) : currentPath === item.to;
     const disabled = !!item.disabled;
+    const locked = !!item.lockedForInstitution;
+    const isDisabled = disabled || locked;
+    
     return (
-        <li role="none">
+        <li role="none" className="relative">
             <button
-                onClick={() => { if (disabled) return; item.onClick ? item.onClick() : navigate(item.to); }}
+                onClick={() => { if (isDisabled) return; item.onClick ? item.onClick() : navigate(item.to); }}
                 role="menuitem"
                 aria-label={item.text}
-                aria-disabled={disabled}
-                disabled={disabled}
-                className={`group w-full flex items-center rounded-lg transition-all duration-200 focus:outline-none px-4 py-3 text-left ${isActive ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 font-medium shadow-sm' : 'text-gray-700 hover:bg-blue-50'} ${disabled ? 'filter blur-sm opacity-60 cursor-not-allowed' : ''}`}
+                aria-disabled={isDisabled}
+                disabled={isDisabled}
+                className={`group w-full flex items-center rounded-lg transition-all duration-200 focus:outline-none px-4 py-3 text-left ${isActive ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 font-medium shadow-sm' : 'text-gray-700 hover:bg-blue-50'} ${isDisabled ? 'filter blur-sm opacity-60 cursor-not-allowed' : ''}`}
             >
-                <div className={`flex items-center justify-center transition-colors duration-200 group-hover:text-blue-600 mr-3 ${isActive ? 'text-blue-600' : 'text-gray-600'} ${disabled ? 'text-gray-400' : ''}`}>
+                <div className={`flex items-center justify-center transition-colors duration-200 group-hover:text-blue-600 mr-3 ${isActive ? 'text-blue-600' : 'text-gray-600'} ${isDisabled ? 'text-gray-400' : ''}`}>
                     {item.icon}
                 </div>
                 <span className="text-base whitespace-nowrap overflow-hidden flex-1">
@@ -67,6 +74,11 @@ function SidebarItem({ item, currentPath, navigate }: { item: NavItem; currentPa
                     </div>
                 )}
             </button>
+            {locked && (
+                <div className="absolute top-2 right-2 bg-gray-800/80 rounded-full p-1.5">
+                    <Lock className="h-3 w-3 text-white" />
+                </div>
+            )}
         </li>
     );
 }
@@ -112,9 +124,13 @@ export default function HeaderDesktop() {
     // Navigation items configuration
     const postHidden = getPostTestHidden();
 
-    const navItems: NavItem[] = [
+    // Check if user is institution student
+    const isInstitutionStudent = student?.isInstitutionStudent === true;
+    const hasInstitution = !!student?.institution;
+
+    const allNavItems: NavItem[] = [
         { to: '/', text: 'Home', icon: <Home className="h-5 w-5" />, activePattern: /^\/$/ },
-        { to: '/topics', text: 'Test', icon: <NotepadText className="h-5 w-5" />, activePattern: /^\/topics/ },
+        { to: '/topics', text: 'Test', icon: <NotepadText className="h-5 w-5" />, activePattern: /^\/topics/, lockedForInstitution: true },
         { to: '/institution-tests', text: 'Institution Tests', icon: <School className="h-5 w-5" />, activePattern: /^\/institution-tests/ },
         { to: '/dashboard', text: 'Analysis', icon: <FileChartPie className="h-5 w-5" />, activePattern: /^\/dashboard/ },
         {
@@ -135,9 +151,24 @@ export default function HeaderDesktop() {
                     navigate('/chatbot');
                     setExpandedItems(prev => new Set([...prev, 'chatbot']));
                 }
-            }, expandable: true, expanded: expandedItems.has('chatbot')
+            }, expandable: true, expanded: expandedItems.has('chatbot'), lockedForInstitution: true
         },
     ];
+
+    // Filter navigation items based on user type
+    const navItems = allNavItems.filter(item => {
+        // Hide Institution Tests tab for normal students (without institution)
+        if (item.text === 'Institution Tests' && !hasInstitution && !isInstitutionStudent) {
+            return false;
+        }
+        return true;
+    }).map(item => {
+        // Apply lock status for institution students
+        if (isInstitutionStudent && item.lockedForInstitution) {
+            return { ...item, disabled: false, lockedForInstitution: true };
+        }
+        return item;
+    });
 
     // Wouter current path (hack: useLocation gives [path, set])
     const [path] = useLocation();
@@ -188,12 +219,7 @@ export default function HeaderDesktop() {
                         </div>
 
                         <ul className="space-y-2" role="menu">
-                            {navItems.map(item => {
-                                // Always keep menu items enabled (do not hide/disable by post-test flag)
-                                const isDisabled = false;
-                                const itemWithDisabled = { ...item, disabled: isDisabled } as NavItem;
-                                return <SidebarItem key={item.to} item={itemWithDisabled} currentPath={path} navigate={navigate} />
-                            })}
+                            {navItems.map(item => <SidebarItem key={item.to} item={item} currentPath={path} navigate={navigate} />)}
                         </ul>
                         {expandedItems.has('chatbot') && (
                             <div className="mt-2">

@@ -604,6 +604,8 @@ class StudentProfile(models.Model):
     
     # Institution membership (optional - for institution test access)
     institution = models.ForeignKey('Institution', on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
+    institution_code = models.CharField(max_length=50, null=True, blank=True)  # Store institution code entered during registration
+    is_institution_student = models.BooleanField(default=False)  # Flag to identify institution students
     
     # Account status
     is_active = models.BooleanField(default=True)
@@ -630,6 +632,8 @@ class StudentProfile(models.Model):
             models.Index(fields=['date_of_birth']),
             models.Index(fields=['is_active', 'created_at']),
             models.Index(fields=['institution']),
+            models.Index(fields=['institution_code']),
+            models.Index(fields=['is_institution_student']),
         ]
 
     def __str__(self):

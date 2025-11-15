@@ -213,8 +213,13 @@ export function LoginForm() {
               </Link>
             </Button> 
             <Button asChild type="button" size={"lg"} variant="outline" className="w-full rounded-xl h-12 border-blue-300 hover:bg-blue-50 hover:border-blue-400 text-blue-700 hover:text-blue-800">
+              <Link href="/institution-student-register" className="w-full text-center">
+                Institution Student Profile
+              </Link>
+            </Button>
+            <Button asChild type="button" size={"lg"} variant="outline" className="w-full rounded-xl h-12 border-green-300 hover:bg-green-50 hover:border-green-400 text-green-700 hover:text-green-800">
               <Link href="/institution-register" className="w-full text-center">
-                Institution Profile
+                Institution Admin
               </Link>
             </Button>
           </div>

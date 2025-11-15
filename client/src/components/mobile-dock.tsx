@@ -1,14 +1,19 @@
 import React from "react";
-import { Home, NotepadText, FileChartPie, MessageSquareMore, School } from "lucide-react";
+import { Home, NotepadText, FileChartPie, MessageSquareMore, School, Lock } from "lucide-react";
 import { useLocation } from "wouter";
 import { getPostTestHidden } from '@/lib/postTestHidden';
+import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * Mobile dock shown on small screens with navigation shortcuts
  * Items: Home, Test, Dashboard, Chatbot
+ * Role-based visibility:
+ * - Institution tab: hidden for normal students (without institution)
+ * - Test/Chatbot tabs: blurred/locked for institution students
  */
 export default function MobileDock() {
     const [location, navigate] = useLocation();
+    const { student } = useAuth();
 
     const isActive = (path: string) => {
         try {
@@ -23,13 +28,26 @@ export default function MobileDock() {
 
     const postHidden = getPostTestHidden();
 
-    const items = [
+    // Check if user is institution student
+    const isInstitutionStudent = student?.isInstitutionStudent === true;
+    const hasInstitution = !!student?.institution;
+
+    const allItems = [
         { key: "home", href: "/", label: "Home", icon: <Home className="h-5 w-5" /> },
-        { key: "test", href: "/topics", label: "Test", icon: <NotepadText className="h-5 w-5" /> },
-        { key: "institution", href: "/institution-tests", label: "Institution", icon: <School className="h-4 w-4" /> },
+        { key: "test", href: "/topics", label: "Test", icon: <NotepadText className="h-5 w-5" />, lockedForInstitution: true },
+        { key: "institution", href: "/institution-tests", label: "Institution", icon: <School className="h-4 w-4" />, hideForNormal: true },
         { key: "analysis", href: "/dashboard", label: "Analysis", icon: <FileChartPie className="h-5 w-5" /> },
-        { key: "chatbot", href: "/chatbot", label: "Chatbot", icon: <MessageSquareMore className="h-5 w-5" /> },
+        { key: "chatbot", href: "/chatbot", label: "Chatbot", icon: <MessageSquareMore className="h-5 w-5" />, lockedForInstitution: true },
     ];
+
+    // Filter items based on user type
+    const items = allItems.filter(item => {
+        // Hide Institution tab for normal students
+        if (item.hideForNormal && !hasInstitution && !isInstitutionStudent) {
+            return false;
+        }
+        return true;
+    });
 
     return (
         <nav
@@ -47,15 +65,18 @@ export default function MobileDock() {
                     {items.map((it) => {
                         const active = isActive(it.href);
                         const disabled = postHidden && ['Test', 'Analysis', 'Chatbot'].includes(it.label);
+                        const lockedForInstitution = isInstitutionStudent && it.lockedForInstitution;
+                        const isDisabled = disabled || lockedForInstitution;
+                        
                         return (
-                            <li key={it.key} className="flex-1">
+                            <li key={it.key} className="flex-1 relative">
                                 <button
-                                    onClick={() => { if (!disabled) navigate(it.href); }}
+                                    onClick={() => { if (!isDisabled) navigate(it.href); }}
                                     aria-current={active ? "page" : undefined}
                                     aria-label={it.label}
-                                    aria-disabled={disabled}
-                                    disabled={disabled}
-                                    className={`w-full h-full flex flex-col items-center justify-center gap-0 transition-colors duration-200 focus:outline-none ${disabled ? 'filter blur-sm opacity-60 cursor-not-allowed' : ''}`}
+                                    aria-disabled={isDisabled}
+                                    disabled={isDisabled}
+                                    className={`w-full h-full flex flex-col items-center justify-center gap-0 transition-colors duration-200 focus:outline-none ${isDisabled ? 'filter blur-sm opacity-60 cursor-not-allowed' : ''}`}
                                 >
                                     <div
                                         className={`mb-1 p-2 rounded-full transition-transform duration-200 ease-in-out ${active
@@ -72,6 +93,11 @@ export default function MobileDock() {
                                         {it.label}
                                     </span>
                                 </button>
+                                {lockedForInstitution && (
+                                    <div className="absolute top-2 right-2 bg-gray-800/80 rounded-full p-1">
+                                        <Lock className="h-3 w-3 text-white" />
+                                    </div>
+                                )}
                             </li>
                         );
                     })}
