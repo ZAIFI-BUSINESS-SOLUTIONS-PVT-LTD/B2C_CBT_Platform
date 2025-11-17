@@ -1,7 +1,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 
 // Lazy-load mobile and desktop dashboard components to keep bundles small
-const Mobiledashboard = React.lazy(() => import('../dashboard'));
+const Mobiledashboard = React.lazy(() => import('../mobile/dashboard'));
 const Desktopdashboard = React.lazy(() => import('../desktop/dashboard-desktop'));
 
 /**

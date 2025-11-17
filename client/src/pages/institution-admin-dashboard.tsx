@@ -117,7 +117,7 @@ export default function InstitutionAdminDashboard() {
       // Validate file type
       const validExtensions = [".xlsx", ".xls"];
       const fileExtension = selectedFile.name.substring(selectedFile.name.lastIndexOf(".")).toLowerCase();
-      
+
       if (!validExtensions.includes(fileExtension)) {
         setError("Please select an Excel file (.xlsx or .xls)");
         setFile(null);
@@ -161,7 +161,7 @@ export default function InstitutionAdminDashboard() {
 
     try {
       const token = localStorage.getItem("institutionAdminToken");
-      
+
       const formData = new FormData();
       formData.append("file", file);
       formData.append("exam_type", examType);
@@ -201,14 +201,14 @@ export default function InstitutionAdminDashboard() {
         `Test created successfully! ${data.questions_created} questions uploaded. Test Code: ${data.test_code}` +
         (data.scheduled_date_time ? ` Scheduled for: ${new Date(data.scheduled_date_time).toLocaleString()}` : '')
       );
-      
+
       // Reset form
       setTestName("");
       setTimeLimit("180");
       setInstructions("");
-  setScheduledDateTime(null);
+      setScheduledDateTime(null);
       setFile(null);
-      
+
       // Reset file input
       const fileInput = document.getElementById("file-upload") as HTMLInputElement;
       if (fileInput) {

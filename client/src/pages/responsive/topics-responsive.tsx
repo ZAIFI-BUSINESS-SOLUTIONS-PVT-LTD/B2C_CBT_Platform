@@ -1,7 +1,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 
 // Lazy-load mobile and desktop topics components to keep bundles small
-const Mobiletopics = React.lazy(() => import('../topics'));
+const Mobiletopics = React.lazy(() => import('../mobile/topics'));
 const Desktoptopics = React.lazy(() => import('../desktop/topics-desktop'));
 
 /**

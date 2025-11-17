@@ -1,7 +1,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 
 // Lazy-load mobile and desktop chatbot components to keep bundles small
-const Mobilechatbot = React.lazy(() => import('../chatbot'));
+const Mobilechatbot = React.lazy(() => import('../mobile/chatbot'));
 const Desktopchatbot = React.lazy(() => import('../desktop/chatbot-desktop'));
 
 /**

@@ -1,7 +1,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 
 // Lazy-load mobile and desktop Home components to keep bundles small
-const MobileHome = React.lazy(() => import('../home'));
+const MobileHome = React.lazy(() => import('../mobile/home'));
 const DesktopHome = React.lazy(() => import('../desktop/home-desktop'));
 
 /**
