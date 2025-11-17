@@ -10,6 +10,7 @@ import {
   type JWTLoginResponse
 } from "@/lib/auth";
 import { API_BASE_URL } from "@/config/google-auth";
+import { useLocation } from "wouter";
 
 interface AuthContextType {
   student: StudentProfile | null;
@@ -31,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true); // Start with loading true to check for existing tokens
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
 
   // Check for existing authentication on mount
   useEffect(() => {
@@ -41,6 +43,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const studentData = await getCurrentStudent();
           setStudent(studentData);
           setIsAuthenticated(true);
+          
+          // Check if phone number is missing and redirect to get-number page
+          if (!studentData.phoneNumber) {
+            console.log("AuthContext: Phone number missing on app load, redirecting to get-number");
+            navigate("/get-number");
+          }
         } catch (error) {
           console.error("Failed to verify existing authentication:", error);
           clearTokens();
@@ -50,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     checkAuthStatus();
-  }, []);
+  }, [navigate]);
 
   const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
     setLoading(true);
@@ -72,6 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAuthenticated(true);
       setLoading(false);
       console.log("AuthContext: Authentication state updated with JWT");
+      
+      // Check if phone number is missing and redirect to get-number page
+      if (!response.student.phoneNumber) {
+        console.log("AuthContext: Phone number missing, redirecting to get-number");
+        navigate("/get-number");
+      }
       
       // Return response in expected LoginResponse format
       return {
@@ -119,6 +133,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAuthenticated(true);
       setError(null);
       console.log("AuthContext: Google authentication state updated");
+      
+      // Check if phone number is missing and redirect to get-number page
+      if (!data.student.phoneNumber) {
+        console.log("AuthContext: Phone number missing, redirecting to get-number");
+        navigate("/get-number");
+      }
       
       return data;
     } catch (error) {

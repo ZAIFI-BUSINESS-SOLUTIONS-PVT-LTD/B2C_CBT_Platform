@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -8,13 +8,12 @@ import { StudentProfile } from "@/types/api";
 import { Eye, EyeOff, CheckCircle, XCircle } from "lucide-react";
 import Logo from "@/assets/images/logo.svg";
 import Login from "@/assets/images/login.png";
+import GoogleSignIn from "@/components/google-signin";
 
 export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfile) => void }) {
   const [form, setForm] = useState({
     fullName: "",
     email: "",
-    phoneNumber: "",
-    dateOfBirth: "",
     password: "",
     passwordConfirmation: "",
   });
@@ -24,7 +23,6 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
   const [success, setSuccess] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
-  const [passwordStrength, setPasswordStrength] = useState({ score: 0, label: "", errors: [] as string[] });
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
   const [checkingUsername, setCheckingUsername] = useState(false);
 
@@ -32,69 +30,10 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
 
-    // Check password strength in real-time
-    if (name === 'password') {
-      checkPasswordStrength(value);
-    }
-
     // Check username availability for full name
     if (name === 'fullName' && value.length >= 2) {
       checkUsernameAvailability(value);
     }
-  };
-
-  // Password strength checking function
-  const checkPasswordStrength = (password: string) => {
-    let score = 0;
-    const errors: string[] = [];
-
-    if (password.length < 8) {
-      errors.push("Must be at least 8 characters");
-    } else {
-      score += 20;
-    }
-
-    if (password.length > 64) {
-      errors.push("Must be no more than 64 characters");
-      setPasswordStrength({ score: 0, label: "Invalid", errors });
-      return;
-    }
-
-    if (!/[a-z]/.test(password)) {
-      errors.push("Must contain lowercase letter");
-    } else {
-      score += 15;
-    }
-
-    if (!/[A-Z]/.test(password)) {
-      errors.push("Must contain uppercase letter");
-    } else {
-      score += 15;
-    }
-
-    if (!/\d/.test(password)) {
-      errors.push("Must contain a number");
-    } else {
-      score += 15;
-    }
-
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-      errors.push("Must contain special character");
-    } else {
-      score += 15;
-    }
-
-    // Bonus for length
-    if (password.length >= 12) score += 10;
-    if (password.length >= 16) score += 10;
-
-    let label = "Very Weak";
-    if (score >= 85) label = "Strong";
-    else if (score >= 70) label = "Good";
-    else if (score >= 50) label = "Fair";
-    else if (score >= 30) label = "Weak";
-
-    setPasswordStrength({ score: Math.min(100, score), label, errors });
   };
 
   // Username availability checking
@@ -135,11 +74,6 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
       return;
     }
 
-    if (!form.phoneNumber.trim()) {
-      setError("Phone number is required");
-      return;
-    }
-
     if (!form.password) {
       setError("Password is required");
       return;
@@ -147,11 +81,6 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
 
     if (form.password !== form.passwordConfirmation) {
       setError("Passwords do not match");
-      return;
-    }
-
-    if (passwordStrength.score < 50) {
-      setError("Password is too weak. Please choose a stronger password.");
       return;
     }
 
@@ -165,8 +94,6 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
       const payload = {
         full_name: form.fullName,
         email: form.email,
-        phone_number: form.phoneNumber,
-        date_of_birth: form.dateOfBirth,
         password: form.password,
         password_confirmation: form.passwordConfirmation,
       };
@@ -213,7 +140,7 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
       <div className="space-y-4">
         {/* Full Name with Username Availability */}
         <div>
-          <Label htmlFor="fullName">Full Name (Username) *</Label>
+          <Label htmlFor="fullName">Full Name *</Label>
           <div className="relative">
             <Input
               id="fullName"
@@ -256,8 +183,6 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
               value={form.password}
               onChange={handleChange}
               required
-              minLength={8}
-              maxLength={64}
               className="h-12 rounded-xl pr-10"
             />
             <button
@@ -269,35 +194,6 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
-          {/* Password Strength Indicator */}
-          {form.password && (
-            <div className="mt-2">
-              <div className="flex justify-between text-sm">
-                <span>Password Strength:</span>
-                <span className={
-                  passwordStrength.score >= 70 ? "text-green-600" :
-                    passwordStrength.score >= 50 ? "text-yellow-600" : "text-red-600"
-                }>
-                  {passwordStrength.label}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                <div
-                  className={`h-2 rounded-full transition-all ${passwordStrength.score >= 70 ? "bg-green-500" :
-                    passwordStrength.score >= 50 ? "bg-yellow-500" : "bg-red-500"}
-                  `}
-                  style={{ width: `${passwordStrength.score}%` }}
-                ></div>
-              </div>
-              {passwordStrength.errors.length > 0 && (
-                <ul className="text-red-600 text-xs mt-1">
-                  {passwordStrength.errors.map((error, index) => (
-                    <li key={index}>• {error}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
         </div>
         {/* Password Confirmation */}
         <div>
@@ -326,43 +222,48 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
             <p className="text-red-600 text-sm mt-1">Passwords do not match</p>
           )}
         </div>
-        {/* Phone Number */}
-        <div>
-          <Label htmlFor="phoneNumber">Phone Number *</Label>
-          <Input
-            id="phoneNumber"
-            name="phoneNumber"
-            placeholder="Enter your phone number"
-            value={form.phoneNumber}
-            onChange={handleChange}
-            required
-            className="h-12 rounded-xl"
-          />
-        </div>
-        {/* Date of Birth */}
-        <div>
-          <Label htmlFor="dateOfBirth">Date of Birth *</Label>
-          <Input
-            id="dateOfBirth"
-            name="dateOfBirth"
-            type="date"
-            value={form.dateOfBirth}
-            onChange={handleChange}
-            required
-            className="h-12 rounded-xl"
-          />
-        </div>
         {error && <div className="text-red-600 text-sm mt-2 p-2 bg-red-50 rounded">{error}</div>}
         {success && <div className="text-green-700 text-sm mt-2 p-2 bg-green-50 rounded">{success}</div>}
       </div>
-      <div className="pt-4">
+      <div className="pt-4 space-y-3">
         <Button
           type="submit"
-          disabled={loading || passwordStrength.score < 50 || usernameAvailable === false}
-          className="w-full h-12 rounded-xl text-lg"
+          disabled={loading || usernameAvailable === false}
+          className="w-full h-12 rounded-xl text-sm"
         >
           {loading ? "Creating Account..." : "Create Account"}
         </Button>
+
+        {/* OR Divider */}
+        <div className="relative flex items-center justify-center my-4">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300"></div>
+          </div>
+          <div className="relative bg-white px-4 text-sm text-gray-500 font-medium">OR</div>
+        </div>
+
+        {/* Google Sign-In Button */}
+        <GoogleSignIn
+          onSuccess={(data) => {
+            console.log("Google sign-in successful:", data);
+            if (onSuccess && data.profile) {
+              onSuccess(data.profile);
+            }
+          }}
+          onError={(error) => {
+            console.error("Google sign-in error:", error);
+            setError(error);
+          }}
+          disabled={loading}
+        />
+
+        {/* Login Link */}
+        <div className="text-center text-sm text-gray-600 pt-2">
+          Already have an account?{" "}
+          <Link href="/login" className="text-blue-600 hover:text-blue-700 underline font-medium">
+            Login
+          </Link>
+        </div>
       </div>
     </form>
   );

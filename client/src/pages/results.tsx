@@ -90,7 +90,7 @@ export default function Results() {
         {/* Header Section */}
         <div className="w-full mx-auto py-3 px-4 border-b border-gray-200 flex items-center justify-between">
           <div className="inline-flex items-center gap-3">
-            <Button variant="secondary" size="icon" className="size-8" onClick={() => navigate('/topics')}>
+            <Button variant="secondary" size="icon" className="size-8" onClick={() => navigate('/dashboard')}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <h1 className="text-lg font-bold text-gray-900">Test Result</h1>

@@ -14,6 +14,10 @@ export default function ScheduledTestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startingTest, setStartingTest] = useState<number | null>(null);
+  const [showPasscodeModal, setShowPasscodeModal] = useState(false);
+  const [passcodeValue, setPasscodeValue] = useState('');
+  const [passcodeError, setPasscodeError] = useState<string | null>(null);
+  const [pendingTestToStart, setPendingTestToStart] = useState<PlatformTest | null>(null);
   const [showCompletedModal, setShowCompletedModal] = useState(false);
   const [completedSessionInfo, setCompletedSessionInfo] = useState<{ sessionId?: number | null; completedAt?: string | null; message?: string | null }>({ sessionId: null, completedAt: null, message: null });
   const [activeTab, setActiveTab] = useState<'open' | 'upcoming'>('open');
@@ -43,10 +47,11 @@ export default function ScheduledTestsPage() {
     }
   };
 
-  const handleStartTest = async (testId: number) => {
+  const handleStartTest = async (testId: number, passcode?: string) => {
     try {
+      setPasscodeError(null);
       setStartingTest(testId);
-      const response = await startPlatformTest({ testId });
+      const response = await (startPlatformTest as any)({ testId, passcode });
       // Navigate to test interface with session ID
       // Note: wouter does not support navigation state; test page should fetch session by id
       setLocation(`/test/${response.session.id}`);
@@ -81,6 +86,20 @@ export default function ScheduledTestsPage() {
           return;
         } catch (parseErr) {
           console.error('Failed to parse 403 response body:', parseErr);
+        }
+      }
+
+      // If backend returned 401/403 for invalid passcode, surface the error back to the passcode modal
+      if (err instanceof Error && (/^\s*401\s*:/.test(err.message) || /^\s*403\s*:/.test(err.message)) && pendingTestToStart) {
+        try {
+          const bodyText = err.message.replace(/^\s*\d+\s*:\s*/, '');
+          const parsed = JSON.parse(bodyText);
+          const message = parsed.error || parsed.message || 'Invalid passcode.';
+          setPasscodeError(message);
+          setShowPasscodeModal(true);
+          return;
+        } catch (parseErr) {
+          console.error('Failed to parse auth error response body:', parseErr);
         }
       }
 
@@ -130,6 +149,11 @@ export default function ScheduledTestsPage() {
     }
   };
 
+  const requiresPasscode = (test: PlatformTest) => {
+    const t = test as any;
+    return !!(t.requiresPasscode || t.passcodeRequired || t.requires_passcode || t.passcode_required);
+  };
+
   const isTestAvailable = (test: PlatformTest) => {
     const status = getTestStatus(test);
     return status === 'active' || status === 'open';
@@ -140,7 +164,17 @@ export default function ScheduledTestsPage() {
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base leading-tight">{test.testName}</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base leading-tight">{test.testName}</CardTitle>
+              {/* Render exam-type badge if present (try common fields) */}
+              {((test as any).examType || (test as any).testType || (test as any).exam_type) && (
+                <Badge variant="outline" className="text-xs ml-1 uppercase">{(test as any).examType ?? (test as any).testType ?? (test as any).exam_type}</Badge>
+              )}
+              {/* Show a small passcode badge if this test requires one */}
+              {requiresPasscode(test) && (
+                <Badge variant="secondary" className="text-xs ml-1">Passcode</Badge>
+              )}
+            </div>
             <CardDescription className="mt-1 text-sm">{test.description}</CardDescription>
           </div>
           <div className="ml-2 flex-shrink-0">
@@ -175,7 +209,19 @@ export default function ScheduledTestsPage() {
           )}
 
           <Button
-            onClick={() => handleStartTest(test.id)}
+            onClick={() => {
+              if (!isTestAvailable(test)) return;
+              // If test requires passcode, open modal to collect it
+              if (requiresPasscode(test)) {
+                setPendingTestToStart(test);
+                setPasscodeValue('');
+                setPasscodeError(null);
+                setShowPasscodeModal(true);
+                return;
+              }
+
+              handleStartTest(test.id);
+            }}
             disabled={!isTestAvailable(test) || startingTest === test.id}
             className="w-full mt-3 text-sm py-2"
             size="sm"
@@ -252,7 +298,7 @@ export default function ScheduledTestsPage() {
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <h1 className="text-lg font-bold text-gray-900">Platform Tests</h1>
+              <h1 className="text-lg font-bold text-gray-900">Scheduled Tests</h1>
             </div>
           </div>
         </div>
@@ -335,6 +381,58 @@ export default function ScheduledTestsPage() {
 
                 {completedSessionInfo.sessionId && (
                   <p className="text-sm text-gray-600 mb-4">Completed on: {completedSessionInfo.completedAt ? new Date(completedSessionInfo.completedAt).toLocaleString() : 'N/A'}</p>
+                )}
+
+                {/* Passcode Modal: collect passcode when required by test */}
+                {showPasscodeModal && pendingTestToStart && (
+                  <div className="fixed inset-0 bg-[#0F172A]/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl p-4 max-w-md mx-auto w-full border-2 border-[#E6EEF9]/20">
+                      <div className="text-center">
+                        <h3 className="text-lg font-bold text-[#1F2937] mb-2">Enter Passcode</h3>
+                        <p className="text-[#6B7280] mb-4 text-sm">This test requires a passcode provided by the coaching institute.</p>
+
+                        <div className="mb-3">
+                          <input
+                            type="password"
+                            value={passcodeValue}
+                            onChange={(e) => setPasscodeValue(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-md text-sm"
+                            placeholder="Enter passcode"
+                          />
+                          {passcodeError && <p className="text-sm text-red-600 mt-2">{passcodeError}</p>}
+                        </div>
+
+                        <div className="flex flex-col space-y-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowPasscodeModal(false);
+                              setPasscodeValue('');
+                              setPasscodeError(null);
+                              setPendingTestToStart(null);
+                            }}
+                            className="w-full border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={async () => {
+                              if (!pendingTestToStart) return;
+                              // Keep modal open while validating; startingTest state will show spinner text on button if needed
+                              setShowPasscodeModal(false);
+                              await handleStartTest(pendingTestToStart.id, passcodeValue);
+                              // If there was a passcode error, it will re-open modal via error handling; otherwise clear
+                              setPasscodeValue('');
+                              setPendingTestToStart(null);
+                            }}
+                            className="w-full bg-[#4F83FF] hover:bg-[#3B82F6] text-white"
+                          >
+                            {startingTest === pendingTestToStart.id ? 'Starting...' : 'Start Test'}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 <div className="flex flex-col space-y-2">

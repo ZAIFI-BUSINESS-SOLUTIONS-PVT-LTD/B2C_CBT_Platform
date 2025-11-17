@@ -22,47 +22,50 @@ export default function Topics() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-teal-50">
+    <div className="min-h-screen bg-white">
       {/* Page header */}
-      <header className="sticky top-0 max-w-7xl mx-auto px-4 py-4 border-b bg-white">
+      <header className="sticky top-0 z-10 max-w-7xl mx-auto px-4 py-4 border-b bg-white">
         <h1 className="text-xl font-bold text-gray-900">Mock Tests & History</h1>
       </header>
 
       {/* Test cards section */}
       <div className="max-w-7xl mx-auto px-3">
-        <div className="mt-4 grid grid-cols-1 gap-4">
+        <div className="mt-4 grid grid-cols-1 gap-3">
           <TestCard
-            title="Quick Random Test"
+            title="Quick Test"
             subtitle="Just choose the no. of questions and get started"
-            icon={<Shuffle className="w-4 h-4 text-blue-800" />}
+            icon={<Shuffle className="w-10 h-10 text-blue-500" />}
+            bgClass="bg-blue-50"
+            accentClass="bg-blue-500/20"
             onClick={() => setShowRandomModal(true)}
           />
 
           <TestCard
             title="Build Your Own Test"
             subtitle="Select subjects, chapters & topics of your choice"
-            icon={<SlidersHorizontal className="w-4 h-4 text-blue-800" />}
+            icon={<SlidersHorizontal className="w-10 h-10 text-green-500" />}
+            bgClass="bg-green-50"
+            accentClass="bg-green-500/20"
             onClick={() => setShowChapterModal(true)}
           />
 
           <TestCard
             title="Scheduled Tests"
             subtitle="Compete with other NEET aspirants and boost your preparation"
-            icon={<ClipboardClock className="w-4 h-4 text-blue-800" />}
+            icon={<ClipboardClock className="w-10 h-10 text-purple-500" />}
+            bgClass="bg-purple-50"
+            accentClass="bg-purple-500/20"
             href="/scheduled-tests"
           />
 
           <TestCard
-            title="Previous Year Questions"
+            title="PYQs"
             subtitle="Free practice with past year papers get your confidence up"
-            icon={<ClipboardList className="w-4 h-4 text-blue-800" />}
+            icon={<ClipboardList className="w-10 h-10 text-orange-500" />}
+            bgClass="bg-orange-50"
+            accentClass="bg-orange-500/20"
           />
         </div>
-      </div>
-
-      {/* Test History Section */}
-      <div className="max-w-7xl mx-auto mt-4 pb-20">
-        <TestHistory />
       </div>
 
       <MobileDock />
@@ -115,9 +118,13 @@ interface TestCardProps {
   href?: string;
   onClick?: () => void;
   className?: string;
+  /** Tailwind background class for the decorative circle (eg: 'bg-blue-50') */
+  bgClass?: string;
+  /** Tailwind class for the thin left accent (eg: 'bg-blue-500/20') */
+  accentClass?: string;
 }
 
-function TestCard({ title, subtitle, icon, href, onClick }: TestCardProps) {
+function TestCard({ title, subtitle, icon, href, onClick, bgClass, accentClass }: TestCardProps) {
   const [, navigate] = useLocation();
   const handleClick = () => {
     if (href) navigate(href);
@@ -125,22 +132,25 @@ function TestCard({ title, subtitle, icon, href, onClick }: TestCardProps) {
   };
 
   return (
-    <Card onClick={handleClick} className="rounded-2xl shadow-md cursor-pointer">
+    <Card onClick={handleClick} className="rounded-2xl border cursor-pointer h-24 overflow-hidden relative">
       <CardContent className="p-3">
+        {/* subtle left accent */}
+        <div className={`absolute left-0 top-3 bottom-3 w-1 rounded-l-2xl ${accentClass ?? 'bg-gray-100'}`} aria-hidden />
+        {/* decorative background circle behind the icon */}
+        <div className={`absolute -bottom-6 -right-6 w-28 h-28 rounded-full ${bgClass ?? 'bg-gray-100'} opacity-30`} aria-hidden />
         <div className="flex items-center justify-between space-x-2">
-          <div className="flex items-center space-x-2 pr-6">
+          <div className="flex items-center space-x-2 pr-6 flex-1">
             <div className="flex-1">
               <div className="flex items-center space-x-1">
-                <h3 className="text-lg font-semibold text-blue-900">{title}</h3>
+                <h3 className="text-lg font-bold text-gray-900 uppercase">{title}</h3>
                 <ChevronRight className="w-3 h-3 text-gray-700" />
               </div>
               <div className="text-xs text-gray-500 mt-0.5">{subtitle}</div>
             </div>
           </div>
-
-          <div className="flex items-center pr-2">
-            {icon}
-          </div>
+        </div>
+        <div className="absolute bottom-0 right-0 transform -translate-x-1 -translate-y-1 z-10">
+          {icon}
         </div>
       </CardContent>
     </Card>

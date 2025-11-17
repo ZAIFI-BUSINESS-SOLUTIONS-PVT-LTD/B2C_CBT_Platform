@@ -4,8 +4,8 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { NotFound, Home, Test, Results, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, InstitutionTesterPage, InstitutionRegisterPage, InstitutionAdminDashboard, OfflineResultsUpload, ThankYou, InstitutionStudentRegisterPage } from "@/pages";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { NotFound, Home, Test, Results, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, InstitutionTesterPage, InstitutionRegisterPage, InstitutionAdminDashboard, OfflineResultsUpload, ThankYou, InstitutionStudentRegisterPage, GetNumberPage } from "@/pages";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { getPostTestHidden } from '@/lib/postTestHidden';
 
@@ -21,6 +21,29 @@ function protect(Component: any) {
     }, [setLoc]);
 
     if (getPostTestHidden()) return null;
+    return <Component {...props} />;
+  };
+}
+
+// Wrapper to check if user has phone number before accessing dashboard
+function requirePhoneNumber(Component: any) {
+  return function PhoneNumberProtectedWrapper(props: any) {
+    const { student, isAuthenticated, loading } = useAuth();
+    const [, navigate] = useLocation();
+
+    useEffect(() => {
+      if (!loading) {
+        if (!isAuthenticated) {
+          navigate("/login");
+        } else if (!student?.phoneNumber) {
+          navigate("/get-number");
+        }
+      }
+    }, [loading, isAuthenticated, student, navigate]);
+
+    if (loading) return null;
+    if (!isAuthenticated || !student?.phoneNumber) return null;
+
     return <Component {...props} />;
   };
 }
@@ -73,7 +96,7 @@ function ErrorPageRoute() {
 
 function Router() {
   return (
-  <Switch>
+    <Switch>
       <Route path="/" component={Home} />                           {/* Home page with topic selection */}
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
@@ -81,14 +104,15 @@ function Router() {
       <Route path="/institution-register" component={InstitutionRegisterPage} />
       <Route path="/institution-admin/dashboard" component={InstitutionAdminDashboard} />
       <Route path="/offline-results-upload" component={OfflineResultsUpload} />
+      <Route path="/get-number" component={GetNumberPage} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/topics" component={Topics} />                  {/* Topics overview page */}
-      <Route path="/profile" component={StudentProfile} />        {/* Student profile page */}
-      <Route path="/scheduled-tests" component={ScheduledTests} /> {/* Platform tests page */}
+      <Route path="/profile" component={requirePhoneNumber(StudentProfile)} />        {/* Student profile page */}
+      <Route path="/scheduled-tests" component={requirePhoneNumber(ScheduledTests)} /> {/* Platform tests page */}
       <Route path="/institution-tests" component={InstitutionTesterPage} /> {/* Institution tests page */}
-      <Route path="/dashboard" component={LandingDashboard} />  {/* Comprehensive landing dashboard */}
-      <Route path="/chatbot" component={Chatbot} />               {/* AI Chatbot tutor page */}
+      <Route path="/dashboard" component={requirePhoneNumber(LandingDashboard)} />  {/* Comprehensive landing dashboard */}
+      <Route path="/chatbot" component={requirePhoneNumber(Chatbot)} />               {/* AI Chatbot tutor page */}
       <Route path="/auth/callback" component={GoogleAuthCallback} /> {/* Google OAuth callback */}
       <Route path="/auth/google/callback" component={GoogleCallback} /> {/* Google OAuth popup callback */}
       <Route path="/test/:sessionId" component={Test} />           {/* Test taking interface */}

@@ -12,19 +12,20 @@
  */
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from "wouter";
 import { StudentProfile } from "@/components/profile-avatar";
 import Logo from "@/assets/images/logo.svg";
 import MiniChatbot from '@/components/mini-chatbot';
-import MiniDashboard from '@/components/mini-dashboard';
-import { ArrowRight, History, NotebookPen, Trophy, AlertTriangle, Crown, Lock } from "lucide-react";
+import { ArrowRight, History, NotebookPen, Trophy, AlertTriangle, Crown, Lock, GraduationCap, Timer, HelpCircle, FileText, ChevronRight, ClipboardList } from "lucide-react";
 import MobileDock from "@/components/mobile-dock";
 import { AnalyticsData, InsightsData } from "@/components/insight-card";
 import NeetCountdown from '@/components/coundown';
 import Share from '@/components/share';
+import Stat from '@/components/ui/stat-mobile';
 
 // =============================================================================
 // UTILITY FUNCTIONS
@@ -174,10 +175,10 @@ export default function Home() {
 
   // Debug: Log institution status
   useEffect(() => {
-    console.log('🏫 Institution check:', { 
-      student, 
+    console.log('🏫 Institution check:', {
+      student,
       hasInstitution,
-      institutionData: student?.institution 
+      institutionData: student?.institution
     });
   }, [student, hasInstitution]);
 
@@ -388,308 +389,360 @@ export default function Home() {
         {/* Content wrapper with conditional blur */}
         <div className={hasInstitution ? 'blur-lg pointer-events-none select-none' : ''} aria-hidden={hasInstitution}>
 
-        {/* ============================================================================= */}
-        {/* INSIGHTS SECTION - Show tabs always; if no tests, show friendly fallback cards */}
-        {/* ============================================================================= */}
-        <>
-          {/* Tab Headers - Outside the card, below header */}
-          <div className="border-b border-gray-200 bg-gray-50">
-            <nav ref={tabNavRef} className="flex overflow-x-auto hide-scrollbar px-4" aria-label="Tabs">
-              {[
-                { id: 0, label: 'Study Plan', icon: NotebookPen, color: 'text-blue-600' },
-                { id: 1, label: 'Last Test Recommendations', icon: History, color: 'text-indigo-600' },
-                { id: 2, label: 'Strengths', icon: Trophy, color: 'text-green-600' },
-                { id: 3, label: 'Weaknesses', icon: AlertTriangle, color: 'text-red-600' }
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  data-tab-id={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center justify-center gap-2 py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 active:bg-gray-50 whitespace-nowrap ${activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                >
-                  <tab.icon className={`h-4 w-4 transition-colors duration-200 ${activeTab === tab.id ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`} />
-                  <span>{tab.label}</span>
-                </button>
-              ))}
-            </nav>
-          </div>
+          {/* ============================================================================= */}
+          {/* STATS SECTION - Mini Dashboard at the top */}
+          {/* ============================================================================= */}
+          <div className="w-full px-3 py-2 bg-gradient-to-br from-slate-100 to-white">
+            <div className="w-full overflow-x-auto hide-scrollbar">
+              <div className="flex gap-3 snap-x snap-mandatory items-center">
+                {/* Accuracy Card */}
+                <div className="flex-shrink-0 snap-center p-1">
+                  <Stat
+                    icon={<GraduationCap className="w-5 h-5 text-green-600" />}
+                    iconBgClass="bg-green-50 border border-green-100"
+                    label="Your Average Score"
+                    value={analytics ? `${Math.round(analytics.overallAccuracy ?? 0)}%` : '0%'}
+                    info="Percentage score across all tests taken"
+                    className="p-2"
+                  />
+                </div>
 
-          {/* Tab Content Card */}
-          <div className="select-none insights-container relative">
-            <div
-              ref={touchContainerRef}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              className="overflow-hidden"
-            >
-              {/* Tab Content */}
-              <div className="p-4 min-h-[120px]">
-                {/* If user has no tests, show a clear fallback CTA card for all tabs */}
-                {!hasData ? (
-                  <div className="space-y-3">
-                    <InsightCard variant={activeTab === 0 ? 'blue' : activeTab === 1 ? 'indigo' : activeTab === 2 ? 'green' : 'red'}>
-                      <div className="flex flex-col  justify-center items-center gap-3">
-                        <div>
+                {/* Avg. Speed Card */}
+                <div className="flex-shrink-0 snap-center p-1">
+                  <Stat
+                    icon={<Timer className="w-5 h-5 text-orange-600" />}
+                    iconBgClass="bg-orange-50 border border-orange-100"
+                    label="Avg. Speed /Question"
+                    value={analytics ? `${Math.round(analytics.averageTimePerQuestion ?? 0)} sec.` : '0 sec.'}
+                    info="Average time spent per question"
+                    className="p-2"
+                  />
+                </div>
 
-                          <Lock className="h-16 w-16 text-gray-400" />
+                {/* Questions Card */}
+                <div className="flex-shrink-0 snap-center p-1">
+                  <Stat
+                    icon={<HelpCircle className="w-5 h-5 text-blue-600" />}
+                    iconBgClass="bg-blue-50 border border-blue-100"
+                    label="Questions attended"
+                    value={analytics ? `${analytics.uniqueQuestionsAttempted ?? 0}` : '0'}
+                    info="Total number of questions attempted"
+                    className="p-2"
+                  />
+                </div>
 
-                        </div>
-                        <div className="text-center">
-                          <p className="font-semibold">Get personalized insights</p>
-                          <p className="text-xs text-gray-600">Take your first practice test to unlock AI study plans, strengths and weaknesses analysis.</p>
-                        </div>
-                        <div className="flex">
-                          <Button
-                            variant="default"
-                            size="lg"
-                            onClick={() => navigate('/topics')}
-                            className="w-full rounded-lg font-bold"
-                            aria-label="Take a Test"
-                          >
-                            Take Unlimited Mock Tests
-                          </Button>
-                        </div>
-                      </div>
-                    </InsightCard>
-                  </div>
-                ) : (
-                  // Existing content when user has data
-                  <>
-                    {/* Study Plan Tab */}
-                    {activeTab === 0 && (
-                      <div className="space-y-3">
-                        {insights?.data?.llmInsights?.studyPlan?.insights ? (
-                          <div className="space-y-3">
-                            {insights.data.llmInsights.studyPlan.insights.length > 0 && (() => {
-                              const firstInsight = insights.data.llmInsights.studyPlan.insights[0] as any;
-                              return (
-                                <InsightCard key={firstInsight?.id ?? firstInsight} variant="blue">
-                                  {firstInsight?.text ?? firstInsight}
-                                </InsightCard>
-                              );
-                            })()}
-                          </div>
-                        ) : insights?.data?.improvementTopics && insights.data.improvementTopics.length > 0 ? (
-                          <div>
-                            <p className="text-xs text-blue-700 mb-2">Recommended focus areas:</p>
-                            <ul className="space-y-1 text-xs">
-                              {insights.data.improvementTopics.slice(0, 3).map((topic: any, idx: number) => (
-                                <li key={idx} className="flex justify-between">
-                                  <span>{topic.topic}</span>
-                                  <span className="text-blue-600">{topic.accuracy}%</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
-                          <div>
-                            <p className="text-xs text-blue-700 mb-2">Focus on improving these areas:</p>
-                            <ul className="space-y-1 text-xs">
-                              {insights.data.weakTopics.slice(0, 2).map((topic: any, idx: number) => (
-                                <li key={idx} className="flex justify-between">
-                                  <span>{topic.topic}</span>
-                                  <span className="text-red-600">{topic.accuracy}%</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <InsightCard variant="blue">
-                              Take some tests to get AI-generated study plans!
-                            </InsightCard>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Last Test Tab */}
-                    {activeTab === 1 && (
-                      <div className="space-y-2">
-                        {insights?.data?.llmInsights?.lastTestFeedback?.insights ? (
-                          <div className="space-y-2">
-                            {insights.data.llmInsights.lastTestFeedback.insights.length > 0 && (() => {
-                              const firstInsight = insights.data.llmInsights.lastTestFeedback.insights[0] as any;
-                              return (
-                                <InsightCard key={firstInsight?.id ?? firstInsight} variant="indigo">
-                                  {firstInsight?.text ?? firstInsight}
-                                </InsightCard>
-                              );
-                            })()}
-                          </div>
-                        ) : insights?.data?.lastTestTopics && insights.data.lastTestTopics.length > 0 ? (
-                          <div>
-                            <p className="text-xs text-indigo-700 mb-2">Recent test performance:</p>
-                            <ul className="space-y-1 text-xs">
-                              {insights.data.lastTestTopics.slice(0, 3).map((topic: any, idx: number) => (
-                                <li key={idx} className="flex justify-between">
-                                  <span>{topic.topic}</span>
-                                  <span className="text-indigo-600">{topic.accuracy}%</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <InsightCard variant="indigo">
-                              Complete a test to get AI feedback on your performance!
-                            </InsightCard>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Strengths Tab */}
-                    {activeTab === 2 && (
-                      <div className="space-y-2">
-                        {(!analytics || analytics.totalTests === 0) ? (
-                          <div className="space-y-2">
-                            <InsightCard variant="gray">
-                              Complete practice tests to unlock your strengths!
-                            </InsightCard>
-                          </div>
-                        ) : insights?.data?.llmInsights?.strengths?.insights ? (
-                          <div className="space-y-2">
-                            {insights.data.llmInsights.strengths.insights.length > 0 && (() => {
-                              const firstInsight = insights.data.llmInsights.strengths.insights[0] as any;
-                              return (
-                                <InsightCard key={firstInsight?.id ?? firstInsight} variant="green">
-                                  {firstInsight?.text ?? firstInsight}
-                                </InsightCard>
-                              );
-                            })()}
-                          </div>
-                        ) : insights?.data?.strengthTopics && insights.data.strengthTopics.length > 0 ? (
-                          <div>
-                            <p className="text-xs text-green-700 mb-2">Your top performing topics:</p>
-                            <ul className="space-y-1 text-xs">
-                              {insights.data.strengthTopics.slice(0, 3).map((topic: any, idx: number) => (
-                                <li key={idx} className="flex justify-between">
-                                  <span>{topic.topic}</span>
-                                  <span className="text-green-600">{topic.accuracy}%</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <InsightCard variant="green">
-                              Take some tests to get AI analysis of your strengths!
-                            </InsightCard>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Weaknesses Tab */}
-                    {activeTab === 3 && (
-                      <div className="space-y-2">
-                        {insights?.data?.llmInsights?.weaknesses?.insights ? (
-                          <div className="space-y-2">
-                            {insights.data.llmInsights.weaknesses.insights.length > 0 && (() => {
-                              const firstInsight = insights.data.llmInsights.weaknesses.insights[0] as any;
-                              return (
-                                <InsightCard key={firstInsight?.id ?? firstInsight} variant="red">
-                                  {firstInsight?.text ?? firstInsight}
-                                </InsightCard>
-                              );
-                            })()}
-                          </div>
-                        ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
-                          <div>
-                            <p className="text-xs text-red-700 mb-2">Topics needing focus:</p>
-                            <ul className="space-y-1 text-xs">
-                              {insights.data.weakTopics.slice(0, 3).map((topic: any, idx: number) => (
-                                <li key={idx} className="flex justify-between">
-                                  <span>{topic.topic}</span>
-                                  <span className="text-red-600">{topic.accuracy}%</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <InsightCard variant="red">
-                              Take some tests to get AI analysis of your weaknesses!
-                            </InsightCard>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
+                {/* Tests Attended Card */}
+                <div className="flex-shrink-0 snap-center p-1">
+                  <Stat
+                    icon={<FileText className="w-5 h-5 text-purple-600" />}
+                    iconBgClass="bg-purple-50 border border-purple-100"
+                    label="Tests attended"
+                    value={analytics ? `${analytics.totalTests ?? 0}` : '0'}
+                    info="Total number of tests completed"
+                    className="p-2"
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </>
 
 
-        {/* ============================================================================= */}
-        {/* BODY CONTAINER - Main content area below insights */}
-        {/* ============================================================================= */}
-        <div className="pb-20 bg-white rounded-t-3xl w-full shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1),0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)]">
+
 
           {/* ============================================================================= */}
-          {/* AI TUTOR CHAT SECTION */}
+          {/* BODY CONTAINER - Main content area below insights */}
           {/* ============================================================================= */}
-          <div className="px-4 py-4">
-            <MiniChatbot className="max-w-full" />
-          </div>
-          {/* ============================================================================= */}
-          {/* MINI DASHBOARD SECTION */}
-          {/* ============================================================================= */}
-          <div className="px-4 pb-4 pt-4">
-            <MiniDashboard analytics={analytics} />
-          </div>
-          {/* ============================================================================= */}
-          {/* TEST SECTION */}
-          {/* ============================================================================= */}
-          <div className="px-4">
-            <div>
-              <Button
-                variant="default"
-                size="lg"
-                onClick={() => navigate('/topics')}
-                aria-label="View Test ArrowRight"
-                className="w-full rounded-xl font-bold"
-              >
-                Take a Test
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
+          <div className="pb-20 bg-white rounded-t-3xl w-full shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1),0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)]">
+
+            {/* ============================================================================= */}
+            {/* INSIGHTS SECTION - Show tabs always; if no tests, show friendly fallback cards */}
+            {/* ============================================================================= */}
+            <>
+              {/* Tab Headers - Modern design with colored backgrounds */}
+              <div className="px-4 pt-4">
+                <div className="flex space-x-3">
+                  {[
+                    { id: 0, label: 'Focus Zone', icon: AlertTriangle, key: 'yetToDecide' },
+                    { id: 1, label: 'Edge Zone', icon: NotebookPen, key: 'areasForImprovement' },
+                    { id: 2, label: 'Steady Zone', icon: Trophy, key: 'keyStrengths' }
+                  ].map((tab) => {
+                    const isActive = activeTab === tab.id;
+                    let activeClasses = '';
+                    if (isActive) {
+                      if (tab.key === 'keyStrengths') {
+                        activeClasses = 'bg-green-100 text-green-900 shadow-sm shadow-green-200/50 border border-green-300';
+                      } else if (tab.key === 'areasForImprovement') {
+                        activeClasses = 'bg-blue-100 text-blue-900 shadow-sm shadow-blue-200/50 border border-blue-300';
+                      } else if (tab.key === 'yetToDecide') {
+                        activeClasses = 'bg-orange-100 text-orange-900 shadow-sm shadow-orange-200/60 border border-orange-300';
+                      }
+                    }
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`flex-1 py-2 px-2 text-sm font-semibold rounded-xl transition-all duration-300 ease-out transform scale-[1.02] ${isActive
+                          ? activeClasses
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-white/50 active:scale-95'
+                          }`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tab Content Card */}
+              <div className="select-none insights-container relative bg-white">
+                <div
+                  ref={touchContainerRef}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  className="overflow-hidden"
+                >
+                  {/* Tab Content */}
+                  <div className="p-4 min-h-[120px]">
+                    {/* If user has no tests, show a clear fallback CTA card for all tabs */}
+                    {!hasData ? (
+                      <div className="space-y-3">
+                        <InsightCard variant={activeTab === 0 ? 'red' : activeTab === 1 ? 'blue' : 'green'}>
+                          <div className="flex flex-col  justify-center items-center gap-3">
+                            <div>
+
+                              <Lock className="h-16 w-16 text-gray-400" />
+
+                            </div>
+                            <div className="text-center">
+                              <p className="font-semibold">Get personalized insights</p>
+                              <p className="text-xs text-gray-600">Take your first practice test to unlock AI-powered Focus Zone, Edge Zone and Steady Zone analysis.</p>
+                            </div>
+                            <div className="flex">
+                              <Button
+                                variant="default"
+                                size="lg"
+                                onClick={() => navigate('/topics')}
+                                className="w-full rounded-lg font-bold"
+                                aria-label="Take a Test"
+                              >
+                                Take Unlimited Mock Tests
+                              </Button>
+                            </div>
+                          </div>
+                        </InsightCard>
+                      </div>
+                    ) : (
+                      // Existing content when user has data
+                      <>
+                        {/* Focus Zone Tab */}
+                        {activeTab === 0 && (
+                          <div className="space-y-2">
+                            {insights?.data?.llmInsights?.weaknesses?.insights ? (
+                              <div className="space-y-2">
+                                {insights.data.llmInsights.weaknesses.insights.length > 0 && (() => {
+                                  const firstInsight = insights.data.llmInsights.weaknesses.insights[0] as any;
+                                  return (
+                                    <InsightCard key={firstInsight?.id ?? firstInsight} variant="red">
+                                      {firstInsight?.text ?? firstInsight}
+                                    </InsightCard>
+                                  );
+                                })()}
+                              </div>
+                            ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
+                              <div>
+                                <p className="text-xs text-red-700 mb-2">Topics needing focus:</p>
+                                <ul className="space-y-1 text-xs">
+                                  {insights.data.weakTopics.slice(0, 3).map((topic: any, idx: number) => (
+                                    <li key={idx} className="flex justify-between">
+                                      <span>{topic.topic}</span>
+                                      <span className="text-red-600">{topic.accuracy}%</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <InsightCard variant="red">
+                                  Take some tests to get AI analysis of your weaknesses!
+                                </InsightCard>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Edge Zone Tab */}
+                        {activeTab === 1 && (
+                          <div className="space-y-3">
+                            {insights?.data?.llmInsights?.studyPlan?.insights ? (
+                              <div className="space-y-3">
+                                {insights.data.llmInsights.studyPlan.insights.length > 0 && (() => {
+                                  const firstInsight = insights.data.llmInsights.studyPlan.insights[0] as any;
+                                  return (
+                                    <InsightCard key={firstInsight?.id ?? firstInsight} variant="blue">
+                                      {firstInsight?.text ?? firstInsight}
+                                    </InsightCard>
+                                  );
+                                })()}
+                              </div>
+                            ) : insights?.data?.improvementTopics && insights.data.improvementTopics.length > 0 ? (
+                              <div>
+                                <p className="text-xs text-blue-700 mb-2">Recommended focus areas:</p>
+                                <ul className="space-y-1 text-xs">
+                                  {insights.data.improvementTopics.slice(0, 3).map((topic: any, idx: number) => (
+                                    <li key={idx} className="flex justify-between">
+                                      <span>{topic.topic}</span>
+                                      <span className="text-blue-600">{topic.accuracy}%</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
+                              <div>
+                                <p className="text-xs text-blue-700 mb-2">Focus on improving these areas:</p>
+                                <ul className="space-y-1 text-xs">
+                                  {insights.data.weakTopics.slice(0, 2).map((topic: any, idx: number) => (
+                                    <li key={idx} className="flex justify-between">
+                                      <span>{topic.topic}</span>
+                                      <span className="text-red-600">{topic.accuracy}%</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <InsightCard variant="blue">
+                                  Take some tests to get AI-generated study plans!
+                                </InsightCard>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Steady Zone Tab */}
+                        {activeTab === 2 && (
+                          <div className="space-y-2">
+                            {(!analytics || analytics.totalTests === 0) ? (
+                              <div className="space-y-2">
+                                <InsightCard variant="gray">
+                                  Complete practice tests to unlock your strengths!
+                                </InsightCard>
+                              </div>
+                            ) : insights?.data?.llmInsights?.strengths?.insights ? (
+                              <div className="space-y-2">
+                                {insights.data.llmInsights.strengths.insights.length > 0 && (() => {
+                                  const firstInsight = insights.data.llmInsights.strengths.insights[0] as any;
+                                  return (
+                                    <InsightCard key={firstInsight?.id ?? firstInsight} variant="green">
+                                      {firstInsight?.text ?? firstInsight}
+                                    </InsightCard>
+                                  );
+                                })()}
+                              </div>
+                            ) : insights?.data?.strengthTopics && insights.data.strengthTopics.length > 0 ? (
+                              <div>
+                                <p className="text-xs text-green-700 mb-2">Your top performing topics:</p>
+                                <ul className="space-y-1 text-xs">
+                                  {insights.data.strengthTopics.slice(0, 3).map((topic: any, idx: number) => (
+                                    <li key={idx} className="flex justify-between">
+                                      <span>{topic.topic}</span>
+                                      <span className="text-green-600">{topic.accuracy}%</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <InsightCard variant="green">
+                                  Take some tests to get AI analysis of your strengths!
+                                </InsightCard>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* ============================================================================= */}
+              {/* VIEW MORE AI TIPS SECTION */}
+              {/* ============================================================================= */}
+              <div className="px-4 pb-6">
+                <Button
+                  variant="default"
+                  size="lg"
+                  onClick={() => navigate('/dashboard')}
+                  className="w-full px-4 bg-gradient-to-b from-gray-600 to-gray-800 text-white rounded-xl font-semibold flex"
+                  aria-label="View more AI generated tips"
+                >
+                  Results and more AI generated tips
+                  <ChevronRight className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
+            </>
+            {/* Visual separator */}
+            <div className="px-4 pb-4">
+              <div className="h-px bg-gradient-to-r from-transparent via-gray-100 to-transparent"></div>
+            </div>
+
+            {/* ============================================================================= */}
+            {/* TEST SECTION */}
+            {/* ============================================================================= */}
+            <div className="px-4 pb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Take your tests to grow</h2>
+              <div className="space-y-3">
+                <Card
+                  onClick={() => navigate('/topics')}
+                  className="rounded-2xl border-2 border-blue-200"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+
+                      {/* LEFT SIDE */}
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1 group">
+                          <h3 className="text-lg font-semibold text-blue-900">
+                            Select your test
+                          </h3>
+
+                          {/* Micro-interaction arrow */}
+                          <ChevronRight className="w-4 h-4 text-gray-700 transition-transform duration-200 group-hover:translate-x-0.5" />
+                        </div>
+
+                        <p className="text-sm text-gray-600">
+                          Scheduled Tests • Quick Tests • Build Your Own Tests and more
+                        </p>
+                      </div>
+
+                      {/* RIGHT-SIDE ICON */}
+                      <div className="ml-3">
+                        <div className="p-2 rounded-xl bg-blue-50 border border-blue-100">
+                          <ClipboardList className="w-6 h-6 text-blue-600" />
+                        </div>
+                      </div>
+
+                    </div>
+                  </CardContent>
+                </Card>
+
+              </div>
+            </div>
+
+            {/* Visual separator */}
+            <div className="px-4 pb-6">
+              <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
+            </div>
+
+            {/* ============================================================================= */}
+            {/* AI TUTOR CHAT SECTION */}
+            {/* ============================================================================= */}
+            <div className="px-4 pb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Learn how to improve with your own assisstant</h2>
+              <MiniChatbot className="max-w-full" />
             </div>
           </div>
-          <div className="px-4 mt-3 mb-4 ">
-            <div>
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => navigate('/topics')}
-                aria-label="View Test History"
-                className="w-full rounded-xl border border-blue-500 bg-blue-50 text-blue-600"
-              >
-                View Test History
-                <History className="h-4 w-4 ml-2" />
-              </Button>
-            </div>
-          </div>
-
-
-
-          <div className="px-4 pb-4 pt-8">
-            <h1 className="text-xl font-bold mb-4">More from InzightEd</h1>
-            <NeetCountdown />
-          </div>
-
-          {/* ============================================================================= */}
-          {/* SHARE SECTION */}
-          {/* ============================================================================= */}
-          <Share type="app" />
-
-        </div>
         </div>
         {/* End content wrapper */}
       </div>

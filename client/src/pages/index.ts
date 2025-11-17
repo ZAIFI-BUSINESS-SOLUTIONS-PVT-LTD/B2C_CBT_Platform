@@ -26,3 +26,4 @@ export { default as InstitutionRegisterPage } from "./institution-register";
 export { default as InstitutionStudentRegisterPage } from "./institution-student-register";
 export { default as InstitutionAdminDashboard } from "./institution-admin-dashboard";
 export { default as OfflineResultsUpload } from "./offline-results-upload";
+export { default as GetNumberPage } from "./get-number";

@@ -325,8 +325,33 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
             'message': 'Password changed successfully'
         }, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['get'], url_path='check-username')
-    def check_username(self, request):
+    @action(detail=False, methods=['post'], url_path='update-phone')
+    def update_phone(self, request):
+        """
+        Update phone number for the authenticated student.
+        POST /api/student-profile/update-phone/
+        """
+        if not hasattr(request.user, 'student_id'):
+            raise AppValidationError(code=ErrorCodes.AUTH_REQUIRED if hasattr(ErrorCodes, 'AUTH_REQUIRED') else ErrorCodes.INVALID_INPUT, message='User not properly authenticated')
+        
+        phone_number = request.data.get('phone_number')
+        if not phone_number:
+            raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='phone_number is required')
+        
+        # Basic phone number validation
+        import re
+        if not re.match(r'^\d{10}$', str(phone_number)):
+            raise AppValidationError(code=ErrorCodes.INVALID_INPUT, message='Phone number must be 10 digits')
+        
+        try:
+            student = StudentProfile.objects.get(student_id=request.user.student_id)
+            student.phone_number = phone_number
+            student.save()
+            
+            serializer = StudentProfileSerializer(student)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except StudentProfile.DoesNotExist:
+            raise NotFoundError(code=ErrorCodes.NOT_FOUND if hasattr(ErrorCodes, 'NOT_FOUND') else ErrorCodes.SERVER_ERROR, message='Student profile not found')
         """
         Check if a username (full_name) is available.
         GET /api/student-profile/check-username/?full_name=John%20Doe

@@ -598,19 +598,6 @@ export default function PracticeArena({ analytics, insights, timeDistSubject, se
             
             END OF HASHED CODE - Uncomment above to restore old analytics 
             */}
-
-
-            {/* Logout Button - Kept active */}
-            <div className="w-full flex justify-center mt-6">
-                <Button
-                    onClick={logout}
-                    variant="outline"
-                    className="flex items-center gap-2 text-red-600 border-red-600 hover:bg-red-50"
-                >
-                    <LogOut className="h-4 w-4" />
-                    Logout
-                </Button>
-            </div>
         </>
     );
 }

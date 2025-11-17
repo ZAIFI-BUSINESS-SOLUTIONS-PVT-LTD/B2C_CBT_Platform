@@ -102,12 +102,6 @@ export default function TestHistory() {
   return (
     <div className="py-4">
       <div className="container mx-auto max-w-6xl ">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 px-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Test History</h1>
-          </div>
-        </div>
-
         <div>
           <div>
             {isLoading ? (

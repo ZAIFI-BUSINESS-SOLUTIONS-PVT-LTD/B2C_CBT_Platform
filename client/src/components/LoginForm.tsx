@@ -107,13 +107,13 @@ export function LoginForm() {
           <div className="space-y-1">
             <Input
               type="text"
-              placeholder="Student ID, email or full name"
+              placeholder="Email id"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
               className={`transition-all duration-200 text-base h-12 rounded-xl ${hasAuthError
-                  ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
-                  : "focus:border-blue-500 focus:ring-blue-500"
+                ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
+                : "focus:border-blue-500 focus:ring-blue-500"
                 }`}
               aria-invalid={hasAuthError ? "true" : "false"}
               aria-describedby={hasAuthError ? "login-error" : undefined}
@@ -128,8 +128,8 @@ export function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               className={`transition-all duration-200 pr-10 text-base h-12 rounded-xl ${hasAuthError
-                  ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
-                  : "focus:border-blue-500 focus:ring-blue-500"
+                ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
+                : "focus:border-blue-500 focus:ring-blue-500"
                 }`}
               aria-invalid={hasAuthError ? "true" : "false"}
               aria-describedby={hasAuthError ? "login-error" : undefined}
@@ -182,7 +182,7 @@ export function LoginForm() {
               )}
             </Button>
             {/* Google Sign-In Button */}
-            
+
             <GoogleSignIn
               onSuccess={(data) => {
                 console.log("Google sign-in successful:", data);
@@ -217,19 +217,9 @@ export function LoginForm() {
             <div className="relative bg-white px-4 text-sm text-gray-500 font-medium">OR</div>
           </div>
           <div className="flex flex-col gap-2">
-            <Button asChild type="button" size={"lg"} variant="outline" className="w-full rounded-xl h-12">
+            <Button asChild type="button" size={"lg"} variant="outline" className="w-full rounded-xl h-12 ">
               <Link href="/register" className="w-full text-center">
                 Create Profile
-              </Link>
-            </Button> 
-            <Button asChild type="button" size={"lg"} variant="outline" className="w-full rounded-xl h-12 border-blue-300 hover:bg-blue-50 hover:border-blue-400 text-blue-700 hover:text-blue-800">
-              <Link href="/institution-student-register" className="w-full text-center">
-                Institution Student Profile
-              </Link>
-            </Button>
-            <Button asChild type="button" size={"lg"} variant="outline" className="w-full rounded-xl h-12 border-green-300 hover:bg-green-50 hover:border-green-400 text-green-700 hover:text-green-800">
-              <Link href="/institution-register" className="w-full text-center">
-                Institution Admin
               </Link>
             </Button>
           </div>
