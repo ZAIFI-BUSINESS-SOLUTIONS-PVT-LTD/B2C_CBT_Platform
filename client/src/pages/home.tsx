@@ -14,7 +14,7 @@
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from "wouter";
 import { StudentProfile } from "@/components/profile-avatar";
 import Logo from "@/assets/images/logo.svg";
@@ -165,9 +165,21 @@ export default function Home() {
   // =============================================================================
 
   // Authentication and navigation hooks
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, student } = useAuth();
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
+
+  // Check if user is institution student
+  const hasInstitution = !!student?.institution;
+
+  // Debug: Log institution status
+  useEffect(() => {
+    console.log('🏫 Institution check:', { 
+      student, 
+      hasInstitution,
+      institutionData: student?.institution 
+    });
+  }, [student, hasInstitution]);
 
   // Tab state for horizontal swipable tabs
   const [activeTab, setActiveTab] = useState(0);
@@ -330,6 +342,10 @@ export default function Home() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <img src={Logo} alt="InzightEd" className="h-6 w-auto" />
+              {/* Debug indicator */}
+              {hasInstitution && (
+                <span className="text-xs bg-red-500 text-white px-2 py-1 rounded">INSTITUTION</span>
+              )}
             </div>
             {/* Right side with profile */}
             <div className="flex items-center space-x-2">
@@ -351,7 +367,26 @@ export default function Home() {
       {/* ============================================================================= */}
       {/* MAIN CONTENT AREA */}
       {/* ============================================================================= */}
-      <div className="w-full bg-gray-100">
+      <div className="w-full bg-gray-100 relative">
+        {/* Blur overlay for institution students */}
+        {hasInstitution && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-sm min-h-screen">
+            <div className="bg-white p-8 rounded-2xl shadow-2xl border-2 border-gray-300 max-w-md mx-4">
+              <div className="flex flex-col items-center gap-4 text-center">
+                <div className="bg-gray-100 p-4 rounded-full">
+                  <Lock className="h-16 w-16 text-gray-500" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-xl text-gray-900 mb-2"></h3>
+                  <p className="text-base text-gray-600 leading-relaxed">This feature is not available for institution-enrolled students. Please access your institution-specific tests and resources.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Content wrapper with conditional blur */}
+        <div className={hasInstitution ? 'blur-lg pointer-events-none select-none' : ''} aria-hidden={hasInstitution}>
 
         {/* ============================================================================= */}
         {/* INSIGHTS SECTION - Show tabs always; if no tests, show friendly fallback cards */}
@@ -655,6 +690,8 @@ export default function Home() {
           <Share type="app" />
 
         </div>
+        </div>
+        {/* End content wrapper */}
       </div>
 
       {/* ============================================================================= */}

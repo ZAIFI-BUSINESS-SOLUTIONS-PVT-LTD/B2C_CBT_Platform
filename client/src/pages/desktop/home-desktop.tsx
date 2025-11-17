@@ -342,9 +342,21 @@ export default function Home() {
     // =============================================================================
 
     // Authentication and navigation hooks
-    const { isAuthenticated, loading } = useAuth();
+    const { isAuthenticated, loading, student } = useAuth();
     const [, navigate] = useLocation();
     const queryClient = useQueryClient();
+
+    // Check if user is institution student
+    const hasInstitution = !!student?.institution;
+
+    // Debug: Log institution status
+    useEffect(() => {
+        console.log('🏫 Institution check (Desktop):', { 
+            student, 
+            hasInstitution,
+            institutionData: student?.institution 
+        });
+    }, [student, hasInstitution]);
 
     // Tab state for horizontal swipable tabs
     const [activeTab, setActiveTab] = useState(0);
@@ -540,7 +552,27 @@ export default function Home() {
     return (
         <div className={`flex min-h-screen bg-gray-50 text-text`}>
             <HeaderDesktop />
-            <main className={`flex-1 flex flex-col bg-gray-50 mt-20 mb-24 transition-all duration-300 ${sidebarMarginClass}`}>
+            <main className={`flex-1 flex flex-col bg-gray-50 mt-20 mb-24 transition-all duration-300 ${sidebarMarginClass} relative`}>
+
+                {/* Blur overlay for institution students */}
+                {hasInstitution && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-sm">
+                        <div className="bg-white p-8 rounded-2xl shadow-2xl border-2 border-gray-300 max-w-md mx-4">
+                            <div className="flex flex-col items-center gap-4 text-center">
+                                <div className="bg-gray-100 p-4 rounded-full">
+                                    <Lock className="h-16 w-16 text-gray-500" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-xl text-gray-900 mb-2"></h3>
+                                    <p className="text-base text-gray-600 leading-relaxed">This feature is not available for institution-enrolled students. Please access your institution-specific tests and resources.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Content wrapper with conditional blur */}
+                <div className={hasInstitution ? 'blur-lg pointer-events-none select-none' : ''} aria-hidden={hasInstitution}>
 
                 {/* ============================================================================= */}
                 {/* MAIN CONTENT AREA */}
@@ -606,6 +638,8 @@ export default function Home() {
                         </div>
                     </div>
                 </div>
+                </div>
+                {/* End content wrapper */}
             </main>
         </div>
     );

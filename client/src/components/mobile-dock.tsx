@@ -28,8 +28,7 @@ export default function MobileDock() {
 
     const postHidden = getPostTestHidden();
 
-    // Check if user is institution student
-    const isInstitutionStudent = student?.isInstitutionStudent === true;
+    // Check if user is institution student (only by institution presence)
     const hasInstitution = !!student?.institution;
 
     const allItems = [
@@ -42,8 +41,8 @@ export default function MobileDock() {
 
     // Filter items based on user type
     const items = allItems.filter(item => {
-        // Hide Institution tab for normal students
-        if (item.hideForNormal && !hasInstitution && !isInstitutionStudent) {
+        // Hide Institution tab for normal students (no institution)
+        if (item.hideForNormal && !hasInstitution) {
             return false;
         }
         return true;
@@ -64,9 +63,11 @@ export default function MobileDock() {
                 <ul className="flex justify-between items-center h-16">
                     {items.map((it) => {
                         const active = isActive(it.href);
-                        const disabled = postHidden && ['Test', 'Analysis', 'Chatbot'].includes(it.label);
-                        const lockedForInstitution = isInstitutionStudent && it.lockedForInstitution;
-                        const isDisabled = disabled || lockedForInstitution;
+                        
+                        // Institution students (has institution): blur/lock Test and Chatbot
+                        // Normal students (no institution): never blur Test and Chatbot
+                        const lockedForInstitution = hasInstitution && it.lockedForInstitution;
+                        const isDisabled = lockedForInstitution;
                         
                         return (
                             <li key={it.key} className="flex-1 relative">

@@ -124,8 +124,7 @@ export default function HeaderDesktop() {
     // Navigation items configuration
     const postHidden = getPostTestHidden();
 
-    // Check if user is institution student
-    const isInstitutionStudent = student?.isInstitutionStudent === true;
+    // Check if user is institution student (only by institution presence)
     const hasInstitution = !!student?.institution;
 
     const allNavItems: NavItem[] = [
@@ -156,19 +155,25 @@ export default function HeaderDesktop() {
     ];
 
     // Filter navigation items based on user type
-    const navItems = allNavItems.filter(item => {
-        // Hide Institution Tests tab for normal students (without institution)
-        if (item.text === 'Institution Tests' && !hasInstitution && !isInstitutionStudent) {
-            return false;
-        }
-        return true;
-    }).map(item => {
-        // Apply lock status for institution students
-        if (isInstitutionStudent && item.lockedForInstitution) {
-            return { ...item, disabled: false, lockedForInstitution: true };
-        }
-        return item;
-    });
+    const navItems = allNavItems
+        .filter(item => {
+            // Hide Institution Tests tab for normal students (no institution)
+            if (item.text === 'Institution Tests' && !hasInstitution) {
+                return false;
+            }
+            return true;
+        })
+        .map(item => {
+            // Institution students (has institution): set lockedForInstitution to true for Test/Chatbot
+            // Normal students (no institution): never set lockedForInstitution
+            const base = { ...item };
+            if (hasInstitution && item.lockedForInstitution) {
+                base.lockedForInstitution = true;
+            } else {
+                base.lockedForInstitution = false;
+            }
+            return base;
+        });
 
     // Wouter current path (hack: useLocation gives [path, set])
     const [path] = useLocation();
