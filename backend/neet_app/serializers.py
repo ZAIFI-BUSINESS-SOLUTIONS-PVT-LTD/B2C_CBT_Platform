@@ -410,7 +410,7 @@ class StudentProfileSerializer(serializers.ModelSerializer):
 
 
 class StudentProfileCreateSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8, max_length=64, required=True)
+    password = serializers.CharField(write_only=True, min_length=6, max_length=64, required=True)
     password_confirmation = serializers.CharField(write_only=True, required=True)
     institution_code = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=50)
     
@@ -507,12 +507,39 @@ class StudentProfileCreateSerializer(serializers.ModelSerializer):
                     'institution_code': f'Invalid institution code: {institution_code}. Please check with your institution.'
                 })
         
+        # Ensure a student_id is generated so frontend immediately has an ID.
+        # The model's save() will only auto-generate a STU... id when both
+        # full_name and date_of_birth are present. Many frontends (register)
+        # don't collect DOB, so generate a suitable ID here:
+        try:
+            from .utils.student_utils import ensure_unique_student_id
+        except Exception:
+            # Local import fallback to avoid circular imports during tests
+            from .utils.student_utils import ensure_unique_student_id
+
+        if not student.student_id:
+            # If user provided a real DOB, use it to generate the STU id
+            if getattr(student, 'full_name', None) and getattr(student, 'date_of_birth', None):
+                try:
+                    student.student_id = ensure_unique_student_id(student.full_name, student.date_of_birth)
+                except Exception:
+                    student.student_id = None
+            else:
+                # Requirement: if DOB not provided, use profile creation date (now) to generate STU id
+                try:
+                    from django.utils import timezone
+                    creation_date = timezone.now().date()
+                    base_name = student.full_name or (student.email.split('@')[0] if student.email else 'user')
+                    student.student_id = ensure_unique_student_id(base_name, creation_date)
+                except Exception:
+                    student.student_id = None
+
         # Set user-defined password
         student.set_user_password(password)
-        
-        # Save the student (this will trigger student_id generation via signals)
+
+        # Save the student (this will persist student_id generated above)
         student.save()
-        
+
         return student
 
 
@@ -686,7 +713,7 @@ class VerifyTokenSerializer(serializers.Serializer):
 class ResetPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
     token = serializers.CharField()
-    new_password = serializers.CharField(min_length=8)
+    new_password = serializers.CharField(min_length=6)
 
 
 # --- Payment serializers ---

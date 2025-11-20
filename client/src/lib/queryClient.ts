@@ -74,6 +74,26 @@ async function throwIfResNotOk(res: Response) {
         );
       }
 
+      // Handle serializer-style field errors (e.g., { "email": ["..."] })
+      if (typeof errorData === 'object' && errorData !== null && !errorData.error) {
+        const maybeFieldErrors = Object.values(errorData).every(
+          (v) => Array.isArray(v) || typeof v === 'string'
+        );
+        if (maybeFieldErrors && Object.keys(errorData).length > 0) {
+          const firstField = Object.entries(errorData)[0];
+          const field = firstField[0];
+          const val = firstField[1];
+          const message = Array.isArray(val) ? val.join(', ') : String(val);
+          throw new APIError(
+            'INVALID_INPUT',
+            `${field}: ${message}`,
+            res.status,
+            undefined,
+            { validation_errors: errorData }
+          );
+        }
+      }
+
       // Generic error for unrecognized format
       throw new APIError(
         'UNKNOWN_ERROR',

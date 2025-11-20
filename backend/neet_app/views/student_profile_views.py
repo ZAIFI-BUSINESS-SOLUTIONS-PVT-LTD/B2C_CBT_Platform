@@ -170,18 +170,16 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
                 }
                 return Response(response_data, status=status.HTTP_201_CREATED)
             
-            # Log validation errors
-            # Attach validation details to a temporary Sentry scope and capture message
+            # Log validation errors and return field-level errors so frontend
+            # can highlight specific inputs (e.g., email) instead of a generic message.
             with sentry_sdk.push_scope() as scope:
                 scope.set_extra("validation_errors", serializer.errors)
                 scope.set_extra("request_data", request.data)
                 sentry_sdk.capture_message("Student registration validation failed", level="warning")
-            # Include structured validation errors so frontend can show field-level messages
-            raise AppValidationError(
-                code=ErrorCodes.INVALID_INPUT,
-                message='Invalid input for registration',
-                details={'validation_errors': serializer.errors}
-            )
+
+            # Return serializer.errors directly (HTTP 400) so client receives
+            # a mapping of field -> [errors] and can show field-specific messages.
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             
         except Exception as e:
             # Capture any unexpected errors in Sentry

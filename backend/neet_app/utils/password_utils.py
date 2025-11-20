@@ -29,61 +29,19 @@ def validate_password_strength(password: str) -> Tuple[bool, List[str], int]:
     """
     errors = []
     strength_score = 0
-    
-    # Check minimum length
-    if len(password) < 8:
-        errors.append("Password must be at least 8 characters long")
+
+    # New relaxed policy: only enforce minimum length of 6 characters
+    # Keep maximum length as 64 to be compatible with storage limits
+    if len(password) < 6:
+        errors.append("Password must be at least 6 characters long")
     else:
-        strength_score += 20
-    
-    # Check maximum length
+        # minimal positive score for satisfying length
+        strength_score = 50
+
     if len(password) > 64:
         errors.append("Password must be no more than 64 characters long")
         return False, errors, 0
-    
-    # Check for lowercase letters
-    if re.search(r'[a-z]', password):
-        strength_score += 15
-    else:
-        errors.append("Password must contain at least one lowercase letter")
-    
-    # Check for uppercase letters
-    if re.search(r'[A-Z]', password):
-        strength_score += 15
-    else:
-        errors.append("Password must contain at least one uppercase letter")
-    
-    # Check for numbers
-    if re.search(r'\d', password):
-        strength_score += 15
-    else:
-        errors.append("Password must contain at least one number")
-    
-    # Check for special characters
-    if re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
-        strength_score += 15
-    else:
-        errors.append("Password must contain at least one special character")
-    
-    # Check against common passwords
-    if password.lower() in COMMON_PASSWORDS:
-        errors.append("Password is too common. Please choose a more unique password")
-        strength_score = max(0, strength_score - 30)
-    
-    # Bonus points for length
-    if len(password) >= 12:
-        strength_score += 10
-    if len(password) >= 16:
-        strength_score += 10
-    
-    # Check for repeated characters
-    if len(set(password)) < len(password) * 0.6:
-        errors.append("Password has too many repeated characters")
-        strength_score = max(0, strength_score - 20)
-    
-    # Ensure score doesn't exceed 100
-    strength_score = min(100, strength_score)
-    
+
     is_valid = len(errors) == 0
     return is_valid, errors, strength_score
 

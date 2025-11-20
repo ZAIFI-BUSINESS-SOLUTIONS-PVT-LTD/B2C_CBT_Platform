@@ -3,7 +3,7 @@ import { useLocation, Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, APIError } from "@/lib/queryClient";
 import { StudentProfile } from "@/types/api";
 import { Eye, EyeOff, CheckCircle, XCircle } from "lucide-react";
 import Logo from "@/assets/images/logo.svg";
@@ -20,6 +20,7 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
   const [, navigate] = useLocation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [success, setSuccess] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
@@ -90,6 +91,7 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
     }
 
     setLoading(true);
+    setFieldErrors({});
     try {
       const payload = {
         full_name: form.fullName,
@@ -107,24 +109,16 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
       setTimeout(() => navigate("/login"), 2000);
     } catch (err: any) {
       let msg = err.message || "Registration failed";
-      if (err.response) {
-        try {
-          const data = await err.response.json();
-          if (typeof data === 'object' && data.non_field_errors) {
-            msg = data.non_field_errors.join(', ');
-          } else if (typeof data === 'object') {
-            // Handle field-specific errors
-            const fieldErrors = Object.entries(data)
-              .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
-              .join('; ');
-            msg = fieldErrors || JSON.stringify(data);
-          } else {
-            msg = typeof data === 'string' ? data : JSON.stringify(data);
-          }
-        } catch {
-          // If JSON parsing fails, use the original error message
-        }
+
+      // If our API client threw an APIError with validation details, capture field errors
+      if (err instanceof APIError && err.details && (err as any).details.validation_errors) {
+        const v: Record<string, string[]> = (err as any).details.validation_errors;
+        setFieldErrors(v);
+        // Show the first field error as the top-level message as well
+        const first = Object.entries(v)[0];
+        if (first) msg = `${first[0]}: ${first[1].join(', ')}`;
       }
+
       setError(msg);
     } finally {
       setLoading(false);
@@ -168,8 +162,12 @@ export function RegisterForm({ onSuccess }: { onSuccess?: (profile: StudentProfi
             value={form.email}
             onChange={handleChange}
             required
-            className="h-12 rounded-xl"
+            aria-invalid={fieldErrors.email ? "true" : "false"}
+            className={`h-12 rounded-xl ${fieldErrors.email ? "border-red-500" : ""}`}
           />
+          {fieldErrors.email && (
+            <p className="text-red-600 text-sm mt-1">{fieldErrors.email.join(", ")}</p>
+          )}
         </div>
         {/* Password */}
         <div>
