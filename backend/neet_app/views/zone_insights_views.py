@@ -279,7 +279,7 @@ def get_test_zone_insights(request, test_id):
         from collections import defaultdict
 
         # Initialize counters for expected subjects
-        subjects = ['Physics', 'Chemistry', 'Botany', 'Zoology', 'Math']
+        subjects = ['Physics', 'Chemistry', 'Botany', 'Zoology', 'Biology', 'Math']
         counters = {s: {'correct': 0, 'incorrect': 0, 'unanswered': 0, 'total_questions': 0} for s in subjects}
 
         # Helper to normalize subject name (reuse same logic used for insights)
@@ -291,10 +291,12 @@ def get_test_zone_insights(request, test_id):
                 return 'Physics'
             if 'chemistry' in s_low:
                 return 'Chemistry'
-            if 'botany' in s_low or 'plant' in s_low or 'biology' in s_low:
+            if 'botany' in s_low or 'plant' in s_low:
                 return 'Botany'
             if 'zoology' in s_low or 'animal' in s_low:
                 return 'Zoology'
+            if 'biology' in s_low or 'bio' in s_low:
+                return 'Biology'
             if 'math' in s_low or 'algebra' in s_low or 'geometry' in s_low:
                 return 'Math'
             return s.strip()
@@ -538,8 +540,8 @@ def get_zone_insights_status(request, test_id):
         "status": "success",
         "test_id": 123,
         "insights_generated": true,
-        "subjects_with_insights": ["Physics", "Chemistry", "Botany", "Zoology"],
-        "total_subjects": 4
+        "subjects_with_insights": ["Physics", "Chemistry", "Botany", "Zoology", "Biology"],
+        "total_subjects": 5
     }
     """
     try:

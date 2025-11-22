@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.conf import settings
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -420,15 +421,59 @@ class TestSessionViewSet(viewsets.ModelViewSet):
         for answer in answers:
             question = answer.question
             is_correct = False
-            if answer.selected_answer is not None and str(answer.selected_answer).strip() != '':
-                if str(answer.selected_answer) == str(question.correct_answer):
-                    correct_answers_count += 1
-                    is_correct = True
-                else:
-                    incorrect_answers_count += 1
-            else:
-                unanswered_questions_count += 1
 
+            # Determine question type (NVT vs MCQ/Blank)
+            q_type = (getattr(question, 'question_type', '') or '').upper()
+
+            if q_type == 'NVT':
+                # Prefer text_answer for NVT questions
+                student_text = answer.text_answer if answer.text_answer is not None and str(answer.text_answer).strip() != '' else None
+
+                if student_text is None:
+                    # For NVT, missing text_answer is considered unanswered (do not fallback to selected_answer)
+                    unanswered_questions_count += 1
+                    is_correct = False
+                else:
+                    # Evaluate NVT answer: try numeric comparison first, then string
+                    try:
+                        student_numeric = float(str(student_text).strip())
+                        correct_numeric = float(str(question.correct_answer).strip())
+                        tolerance = settings.NEET_SETTINGS.get('NVT_NUMERIC_TOLERANCE', 0.01)
+                        if abs(student_numeric - correct_numeric) <= float(tolerance):
+                            correct_answers_count += 1
+                            is_correct = True
+                        else:
+                            incorrect_answers_count += 1
+                            is_correct = False
+                    except (ValueError, TypeError):
+                        # Fall back to string comparison
+                        case_sensitive = settings.NEET_SETTINGS.get('NVT_CASE_SENSITIVE', False)
+                        if case_sensitive:
+                            match = str(student_text).strip() == str(question.correct_answer).strip()
+                        else:
+                            match = str(student_text).strip().lower() == str(question.correct_answer).strip().lower()
+
+                        if match:
+                            correct_answers_count += 1
+                            is_correct = True
+                        else:
+                            incorrect_answers_count += 1
+                            is_correct = False
+
+            else:
+                # Default/MCQ handling: compare selected_answer to correct_answer
+                if answer.selected_answer is not None and str(answer.selected_answer).strip() != '':
+                    if str(answer.selected_answer).strip() == str(question.correct_answer):
+                        correct_answers_count += 1
+                        is_correct = True
+                    else:
+                        incorrect_answers_count += 1
+                        is_correct = False
+                else:
+                    unanswered_questions_count += 1
+                    is_correct = False
+
+            # Persist correctness (maintain existing field semantics)
             answer.is_correct = is_correct
             answer.save(update_fields=['is_correct'])
 

@@ -413,7 +413,8 @@ def create_institution_test(
     questions_data: List[Dict[str, Any]],
     time_limit: int = 180,  # Default 3 hours
     instructions: str = None,
-    scheduled_date_time=None
+    scheduled_date_time=None,
+    expires_at=None
 ) -> Tuple[PlatformTest, List[Question]]:
     """
     Create a PlatformTest and associated Question records for an institution.
@@ -484,6 +485,12 @@ def create_institution_test(
         topic_ids.add(q_data['topic'].id)
     
     # Create PlatformTest
+    # Validate expiry if provided
+    if expires_at and scheduled_date_time:
+        # Ensure expiry is after scheduled start
+        if expires_at <= scheduled_date_time:
+            raise UploadValidationError("expires_at must be later than scheduled_date_time")
+
     platform_test = PlatformTest.objects.create(
         test_name=test_name,
         test_code=test_code,
@@ -505,6 +512,13 @@ def create_institution_test(
             platform_test.save(update_fields=['scheduled_date_time'])
         except Exception:
             logger.exception('Failed to set scheduled_date_time on PlatformTest')
+    # If an expiry datetime was provided, set it
+    if expires_at:
+        try:
+            platform_test.expires_at = expires_at
+            platform_test.save(update_fields=['expires_at'])
+        except Exception:
+            logger.exception('Failed to set expires_at on PlatformTest')
     
     logger.info(f"Created institution test: {test_code} with {len(created_questions)} questions")
     
@@ -518,7 +532,8 @@ def process_upload(
     exam_type: str,
     time_limit: int = 180,
     instructions: str = None,
-    scheduled_date_time=None
+    scheduled_date_time=None,
+    expires_at=None
 ) -> Dict[str, Any]:
     """
     Main entry point for processing an uploaded Excel file.
@@ -567,7 +582,8 @@ def process_upload(
             questions_data=questions_data,
             time_limit=time_limit,
             instructions=instructions,
-            scheduled_date_time=scheduled_date_time
+            scheduled_date_time=scheduled_date_time,
+            expires_at=expires_at
         )
         
         # Get unique topics
@@ -581,7 +597,8 @@ def process_upload(
             'questions_created': len(created_questions),
             'topics_used': topics_used,
             'exam_type': exam_type,
-            'scheduled_date_time': platform_test.scheduled_date_time.isoformat() if platform_test.scheduled_date_time else None
+            'scheduled_date_time': platform_test.scheduled_date_time.isoformat() if platform_test.scheduled_date_time else None,
+            'expires_at': platform_test.expires_at.isoformat() if platform_test.expires_at else None
         }
         
     except UploadValidationError:

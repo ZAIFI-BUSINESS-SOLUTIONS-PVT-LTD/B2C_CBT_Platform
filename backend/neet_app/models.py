@@ -101,6 +101,8 @@ class PlatformTest(models.Model):
     instructions = models.TextField(null=True, blank=True)  # Special instructions for this test
     time_limit = models.IntegerField(null=False)  # Time limit in minutes
     total_questions = models.IntegerField(null=False)  # Total number of questions
+    # Optional expiry: when set, test should become inactive after this datetime
+    expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
     
     # Question selection criteria
     selected_topics = models.JSONField(null=False)  # Array of topic IDs included in this test
@@ -169,6 +171,22 @@ class PlatformTest(models.Model):
         # If not active, not available
         if not self.is_active:
             return False
+
+        # Defensive expiry check: if expires_at is set and has passed, mark inactive
+        if self.expires_at:
+            try:
+                now = timezone.now()
+                if now > self.expires_at:
+                    # Mark inactive to keep DB state consistent
+                    if self.is_active:
+                        # Use update to avoid side-effects where possible
+                        type(self).objects.filter(id=self.id, is_active=True).update(is_active=False)
+                        # reflect state on instance
+                        self.is_active = False
+                    return False
+            except Exception:
+                # If anything goes wrong with expiry check, fall back to existing logic
+                pass
             
         # If open test, always available
         if self.is_open_test():
@@ -177,10 +195,17 @@ class PlatformTest(models.Model):
         # If scheduled test, check if current time is within the window
         if self.is_scheduled_test():
             current_time = timezone.now()
-            # Test is available from scheduled time for the duration + 30 minutes buffer
-            test_duration_minutes = self.time_limit + 30  # Add 30 minutes buffer
-            from datetime import timedelta
-            end_time = self.scheduled_date_time + timedelta(minutes=test_duration_minutes)
+            
+            # Use expires_at if explicitly set, otherwise calculate window from time_limit
+            if self.expires_at:
+                # Use explicit expiry time
+                end_time = self.expires_at
+            else:
+                # Calculate window: scheduled time + duration + 30 min buffer
+                test_duration_minutes = self.time_limit + 30  # Add 30 minutes buffer
+                from datetime import timedelta
+                end_time = self.scheduled_date_time + timedelta(minutes=test_duration_minutes)
+            
             return self.scheduled_date_time <= current_time <= end_time
             
         return False
@@ -235,6 +260,7 @@ class TestSession(models.Model):
     chemistry_topics = models.JSONField(default=list, blank=True)  # Topics classified as Chemistry
     botany_topics = models.JSONField(default=list, blank=True)  # Topics classified as Botany
     zoology_topics = models.JSONField(default=list, blank=True)  # Topics classified as Zoology
+    biology_topics = models.JSONField(default=list, blank=True)  # Topics classified as Biology
     math_topics = models.JSONField(default=list, blank=True)  # Topics classified as Math
     # Test configuration
     time_limit = models.IntegerField(null=True, blank=True)  # Time limit in minutes
@@ -254,6 +280,7 @@ class TestSession(models.Model):
     chemistry_score = models.FloatField(null=True, blank=True)  # Chemistry percentage
     botany_score = models.FloatField(null=True, blank=True)  # Botany percentage
     zoology_score = models.FloatField(null=True, blank=True)  # Zoology percentage
+    biology_score = models.FloatField(null=True, blank=True)  # Biology percentage
     math_score = models.FloatField(null=True, blank=True)  # Math percentage
     # Activity tracking for admin metrics
     last_heartbeat = models.DateTimeField(null=True, blank=True)
@@ -333,6 +360,7 @@ class TestSession(models.Model):
         self.chemistry_topics = []
         self.botany_topics = []
         self.zoology_topics = []
+        self.biology_topics = []
         self.math_topics = []
         
         # Get topic objects for selected topic IDs with their subjects
@@ -348,10 +376,12 @@ class TestSession(models.Model):
                 self.physics_topics.append(topic_name)
             elif subject.lower() in ['chemistry']:
                 self.chemistry_topics.append(topic_name)
-            elif subject.lower() in ['botany', 'biology', 'plant biology']:
+            elif subject.lower() in ['botany', 'plant biology']:
                 self.botany_topics.append(topic_name)
             elif subject.lower() in ['zoology', 'animal biology']:
                 self.zoology_topics.append(topic_name)
+            elif subject.lower() in ['biology']:
+                self.biology_topics.append(topic_name)
             else:
                 # Handle edge cases - try to map based on common patterns
                 if 'physics' in subject.lower():
@@ -362,6 +392,8 @@ class TestSession(models.Model):
                     self.botany_topics.append(topic_name)
                 elif 'animal' in subject.lower() or 'zoology' in subject.lower():
                     self.zoology_topics.append(topic_name)
+                elif 'biology' in subject.lower() or 'bio' in subject.lower():
+                    self.biology_topics.append(topic_name)
                 # If no match, the topic won't be classified (which is fine)
 
     def calculate_and_update_subject_scores(self):
@@ -378,6 +410,7 @@ class TestSession(models.Model):
             'Chemistry': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0},
             'Botany': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0},
             'Zoology': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0},
+            'Biology': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0},
             'Math': {'correct': 0, 'wrong': 0, 'unanswered': 0, 'total_questions': 0}
         }
         
@@ -395,10 +428,12 @@ class TestSession(models.Model):
                 subject_key = 'Physics'
             elif subject.lower() in ['chemistry']:
                 subject_key = 'Chemistry'
-            elif subject.lower() in ['botany', 'biology', 'plant biology']:
+            elif subject.lower() in ['botany', 'plant biology']:
                 subject_key = 'Botany'
             elif subject.lower() in ['zoology', 'animal biology']:
                 subject_key = 'Zoology'
+            elif subject.lower() in ['biology']:
+                subject_key = 'Biology'
             elif subject.lower() in ['math', 'mathematics', 'maths']:
                 subject_key = 'Math'
             else:
@@ -411,6 +446,8 @@ class TestSession(models.Model):
                     subject_key = 'Botany'
                 elif 'animal' in subject.lower() or 'zoology' in subject.lower():
                     subject_key = 'Zoology'
+                elif 'biology' in subject.lower() or 'bio' in subject.lower():
+                    subject_key = 'Biology'
                 elif 'math' in subject.lower() or 'algebra' in subject.lower() or 'geometry' in subject.lower():
                     subject_key = 'Math'
                 else:
@@ -450,6 +487,8 @@ class TestSession(models.Model):
                     self.botany_score = round(percentage, 2)
                 elif subject == 'Zoology':
                     self.zoology_score = round(percentage, 2)
+                elif subject == 'Biology':
+                    self.biology_score = round(percentage, 2)
                 elif subject == 'Math':
                     self.math_score = round(percentage, 2)
             else:
@@ -462,11 +501,13 @@ class TestSession(models.Model):
                     self.botany_score = None
                 elif subject == 'Zoology':
                     self.zoology_score = None
+                elif subject == 'Biology':
+                    self.biology_score = None
                 elif subject == 'Math':
                     self.math_score = None
         
-        # Save the updated scores (include math)
-        update_fields = ['physics_score', 'chemistry_score', 'botany_score', 'zoology_score', 'math_score']
+        # Save the updated scores (include biology and math)
+        update_fields = ['physics_score', 'chemistry_score', 'botany_score', 'zoology_score', 'biology_score', 'math_score']
         self.save(update_fields=update_fields)
         
         return subject_scores  # Return for debugging/logging purposes

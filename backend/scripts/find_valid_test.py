@@ -33,9 +33,10 @@ for sid in session_ids[:3]:  # Check first 3
         print(f"  Chemistry: {len(ts.chemistry_topics)} topics")
         print(f"  Botany: {len(ts.botany_topics)} topics")
         print(f"  Zoology: {len(ts.zoology_topics)} topics")
+        print(f"  Biology: {len(ts.biology_topics)} topics")
         print(f"  Math: {len(ts.math_topics)} topics")
         
         # Check if subject classification method works
-        if not any([ts.physics_topics, ts.chemistry_topics, ts.botany_topics, ts.zoology_topics, ts.math_topics]):
+        if not any([ts.physics_topics, ts.chemistry_topics, ts.botany_topics, ts.zoology_topics, ts.biology_topics, ts.math_topics]):
             print(f"\n⚠️ WARNING: No subject topics classified!")
             print(f"Selected topics field: {ts.selected_topics}")

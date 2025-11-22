@@ -1094,8 +1094,8 @@ class DeterministicSelectionEngine:
             # Update subject count  
             if question.topic:
                 subject = question.topic.subject.lower() if question.topic.subject else 'unknown'
-                # Keep all 4 NEET subjects separate
-                if subject in ['physics', 'chemistry', 'botany', 'zoology']:
+                # Keep all 6 NEET subjects separate
+                if subject in ['physics', 'chemistry', 'botany', 'zoology', 'biology', 'math']:
                     subject_counts[subject] = subject_counts.get(subject, 0) + 1
                 else:
                     # Handle any unknown subjects
@@ -1192,8 +1192,8 @@ class DeterministicSelectionEngine:
             try:
                 topic = Topic.objects.get(id=candidate.topic_id)
                 subject = topic.subject.lower() if topic.subject else 'unknown'
-                # Keep all 4 NEET subjects separate
-                if subject in ['physics', 'chemistry', 'botany', 'zoology']:
+                # Keep all 6 NEET subjects separate
+                if subject in ['physics', 'chemistry', 'botany', 'zoology', 'biology', 'math']:
                     if subject not in candidates_by_subject:
                         candidates_by_subject[subject] = []
                     candidates_by_subject[subject].append(candidate)
@@ -1240,8 +1240,8 @@ class DeterministicSelectionEngine:
                     topic = Topic.objects.get(id=candidate.topic_id)
                     subject = topic.subject.lower() if topic.subject else 'unknown'
                     
-                    # Keep all 4 NEET subjects separate
-                    if subject in ['physics', 'chemistry', 'botany', 'zoology']:
+                    # Keep all 6 NEET subjects separate
+                    if subject in ['physics', 'chemistry', 'botany', 'zoology', 'biology', 'math']:
                         # Check subject balance - prefer underrepresented subjects
                         current_subject_count = subject_counts.get(subject, 0)
                         # Use per-difficulty per-subject target (derived from difficulty target)
@@ -1280,7 +1280,7 @@ class DeterministicSelectionEngine:
                     try:
                         topic = Topic.objects.get(id=candidate.topic_id)
                         subject = topic.subject.lower() if topic.subject else 'unknown'
-                        if subject in ['physics', 'chemistry', 'botany', 'zoology']:
+                        if subject in ['physics', 'chemistry', 'botany', 'zoology', 'biology', 'math']:
                             subject_counts[subject] = subject_counts.get(subject, 0) + 1
                     except Topic.DoesNotExist:
                         pass
@@ -1379,8 +1379,8 @@ class DeterministicSelectionEngine:
                         topic = Topic.objects.get(id=candidate.topic_id)
                         subject = topic.subject.lower() if topic.subject else 'unknown'
                         
-                        # Keep all 4 NEET subjects separate
-                        if subject in ['physics', 'chemistry', 'botany', 'zoology']:
+                        # Keep all 6 NEET subjects separate
+                        if subject in ['physics', 'chemistry', 'botany', 'zoology', 'biology', 'math']:
                             if subject not in unused_by_subject:
                                 unused_by_subject[subject] = []
                             unused_by_subject[subject].append(candidate)

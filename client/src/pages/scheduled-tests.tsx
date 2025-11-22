@@ -38,6 +38,8 @@ export default function ScheduledTestsPage() {
       setLoading(true);
       setError(null);
       const data = await getAvailablePlatformTests();
+      // Debug: log raw API response to help diagnose disappeared tests
+      console.debug('GET /api/platform-tests/available/ response:', data);
       setPlatformTests(data);
     } catch (err) {
       console.error('Error fetching platform tests:', err);
@@ -121,11 +123,19 @@ export default function ScheduledTestsPage() {
   };
 
   const getTestStatus = (test: PlatformTest) => {
+    // Prefer backend-provided availability flag when present (authoritative)
+    const backendIsAvailable = (test as any).isAvailableNow ?? (test as any).is_available_now;
+
     if (!test.scheduledDateTime) return 'open';
 
+    // If backend explicitly marks test as available now, treat as active
+    if (backendIsAvailable === true) return 'active';
+
+    // Fallback: derive status from scheduled time and timeLimit (defensive)
     const now = new Date();
     const scheduledTime = new Date(test.scheduledDateTime);
-    const testEndTime = new Date(scheduledTime.getTime() + (test.timeLimit * 60 * 1000));
+    const timeLimitMinutes = test.timeLimit ?? 0;
+    const testEndTime = new Date(scheduledTime.getTime() + (timeLimitMinutes * 60 * 1000));
 
     if (now < scheduledTime) return 'upcoming';
     if (now >= scheduledTime && now <= testEndTime) return 'active';
@@ -135,18 +145,14 @@ export default function ScheduledTestsPage() {
   const getStatusBadge = (test: PlatformTest) => {
     const status = getTestStatus(test);
 
-    switch (status) {
-      case 'active':
-        return <Badge variant="default" className="bg-green-500">Live Now</Badge>;
-      case 'upcoming':
-        return <Badge variant="secondary">Upcoming</Badge>;
-      case 'expired':
-        return <Badge variant="destructive">Expired</Badge>;
-      case 'open':
-        return <Badge variant="outline">Available Anytime</Badge>;
-      default:
-        return null;
-    }
+    // Prefer backend human-readable availability_status if provided
+    const availabilityStatus = (test as any).availabilityStatus ?? (test as any).availability_status ?? null;
+
+    if (status === 'active') return <Badge variant="default" className="bg-green-500">{availabilityStatus ?? 'Live Now'}</Badge>;
+    if (status === 'upcoming') return <Badge variant="secondary">{availabilityStatus ?? 'Upcoming'}</Badge>;
+    if (status === 'expired') return <Badge variant="destructive">{availabilityStatus ?? 'Expired'}</Badge>;
+    if (status === 'open') return <Badge variant="outline">{availabilityStatus ?? 'Available Anytime'}</Badge>;
+    return null;
   };
 
   const requiresPasscode = (test: PlatformTest) => {
@@ -243,8 +249,26 @@ export default function ScheduledTestsPage() {
   );
 
   // Safely derive arrays so we don't call .length or .map on undefined (TypeScript safety)
-  const scheduledTests = platformTests?.scheduledTests ?? [];
-  const openTests = platformTests?.openTests ?? [];
+  const scheduledTestsRaw = platformTests?.scheduledTests ?? [];
+  const openTestsRaw = platformTests?.openTests ?? [];
+
+  // Normalize test objects to handle different API shapes (snake_case vs camelCase, duration vs timeLimit)
+  const normalizeTest = (t: any) => {
+    const timeLimit = t.timeLimit ?? t.duration ?? t.time_limit ?? t.timeLimitMinutes ?? null;
+    const scheduledDateTime = t.scheduledDateTime ?? t.scheduled_date_time ?? t.scheduled_date ?? null;
+    const totalQuestions = t.totalQuestions ?? t.total_questions ?? t.total_questions_count ?? t.total_questions_available ?? 0;
+    const testType = t.testType ?? t.test_type ?? t.testTypeName ?? t.test_type_name ?? t.test_type_label ?? null;
+    return {
+      ...t,
+      timeLimit,
+      scheduledDateTime,
+      totalQuestions,
+      testType
+    };
+  };
+
+  const scheduledTests = scheduledTestsRaw.map(normalizeTest);
+  const openTests = openTestsRaw.map(normalizeTest);
   // Completed tests are identified per-student by platform API which returns `hasCompleted` on each test
   const allScheduled = scheduledTests.filter((t) => !t.hasCompleted);
   const allOpen = openTests.filter((t) => !t.hasCompleted);
@@ -254,7 +278,21 @@ export default function ScheduledTestsPage() {
 
   // Filter tests by status for the new tabs
   const upcomingTests = allScheduled.filter((test) => getTestStatus(test) === 'upcoming');
-  const openAvailableTests = allOpen.filter((test) => getTestStatus(test) === 'open');
+
+  // Include active scheduled tests in the Open tab so tests that have reached their
+  // scheduled time become visible under "Open Tests" as well as in the Scheduled tab.
+  // Build a combined list: existing open tests + scheduled tests that are currently active.
+  const activeScheduled = allScheduled.filter((test) => getTestStatus(test) === 'active');
+  // Merge and dedupe by id (just in case)
+  const mergedOpenCandidates = [...allOpen, ...activeScheduled];
+  const seen = new Set<number>();
+  const openAvailableTests = mergedOpenCandidates.filter((t) => {
+    if (seen.has(t.id)) return false;
+    seen.add(t.id);
+    // Be defensive: treat missing timeLimit as using scheduled active flag
+    const status = getTestStatus(t);
+    return status === 'open' || status === 'active';
+  });
 
   if (loading) {
     return (
@@ -383,57 +421,7 @@ export default function ScheduledTestsPage() {
                   <p className="text-sm text-gray-600 mb-4">Completed on: {completedSessionInfo.completedAt ? new Date(completedSessionInfo.completedAt).toLocaleString() : 'N/A'}</p>
                 )}
 
-                {/* Passcode Modal: collect passcode when required by test */}
-                {showPasscodeModal && pendingTestToStart && (
-                  <div className="fixed inset-0 bg-[#0F172A]/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl p-4 max-w-md mx-auto w-full border-2 border-[#E6EEF9]/20">
-                      <div className="text-center">
-                        <h3 className="text-lg font-bold text-[#1F2937] mb-2">Enter Passcode</h3>
-                        <p className="text-[#6B7280] mb-4 text-sm">This test requires a passcode provided by the coaching institute.</p>
-
-                        <div className="mb-3">
-                          <input
-                            type="password"
-                            value={passcodeValue}
-                            onChange={(e) => setPasscodeValue(e.target.value)}
-                            className="w-full px-3 py-2 border rounded-md text-sm"
-                            placeholder="Enter passcode"
-                          />
-                          {passcodeError && <p className="text-sm text-red-600 mt-2">{passcodeError}</p>}
-                        </div>
-
-                        <div className="flex flex-col space-y-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setShowPasscodeModal(false);
-                              setPasscodeValue('');
-                              setPasscodeError(null);
-                              setPendingTestToStart(null);
-                            }}
-                            className="w-full border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={async () => {
-                              if (!pendingTestToStart) return;
-                              // Keep modal open while validating; startingTest state will show spinner text on button if needed
-                              setShowPasscodeModal(false);
-                              await handleStartTest(pendingTestToStart.id, passcodeValue);
-                              // If there was a passcode error, it will re-open modal via error handling; otherwise clear
-                              setPasscodeValue('');
-                              setPendingTestToStart(null);
-                            }}
-                            className="w-full bg-[#4F83FF] hover:bg-[#3B82F6] text-white"
-                          >
-                            {startingTest === pendingTestToStart.id ? 'Starting...' : 'Start Test'}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* Completed modal content continues here */}
 
                 <div className="flex flex-col space-y-2">
                   <Button
@@ -458,6 +446,58 @@ export default function ScheduledTestsPage() {
             </div>
           </div>
         )}
+
+          {/* Passcode Modal: collect passcode when required by test (rendered independently) */}
+          {showPasscodeModal && pendingTestToStart && (
+            <div className="fixed inset-0 bg-[#0F172A]/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl p-4 max-w-md mx-auto w-full border-2 border-[#E6EEF9]/20">
+                <div className="text-center">
+                  <h3 className="text-lg font-bold text-[#1F2937] mb-2">Enter Passcode</h3>
+                  <p className="text-[#6B7280] mb-4 text-sm">This test requires a passcode provided by the coaching institute.</p>
+
+                  <div className="mb-3">
+                    <input
+                      type="password"
+                      value={passcodeValue}
+                      onChange={(e) => setPasscodeValue(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-md text-sm"
+                      placeholder="Enter passcode"
+                    />
+                    {passcodeError && <p className="text-sm text-red-600 mt-2">{passcodeError}</p>}
+                  </div>
+
+                  <div className="flex flex-col space-y-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowPasscodeModal(false);
+                        setPasscodeValue('');
+                        setPasscodeError(null);
+                        setPendingTestToStart(null);
+                      }}
+                      className="w-full border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        if (!pendingTestToStart) return;
+                        // Keep modal open while validating; startingTest state will show spinner text on button if needed
+                        setShowPasscodeModal(false);
+                        await handleStartTest(pendingTestToStart.id, passcodeValue);
+                        // If there was a passcode error, it will re-open modal via error handling; otherwise clear
+                        setPasscodeValue('');
+                        setPendingTestToStart(null);
+                      }}
+                      className="w-full bg-[#4F83FF] hover:bg-[#3B82F6] text-white"
+                    >
+                      {startingTest === pendingTestToStart.id ? 'Starting...' : 'Start Test'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
       </div>
     </div>
   );

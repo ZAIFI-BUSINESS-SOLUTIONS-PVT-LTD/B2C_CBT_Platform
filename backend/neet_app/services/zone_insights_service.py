@@ -54,12 +54,13 @@ def extract_subject_questions(test_session_id: int, subject: str) -> List[Dict]:
         
         test_session = TestSession.objects.get(id=test_session_id)
         
-        # Get subject-specific topic IDs (including Math)
+        # Get subject-specific topic IDs (including Biology and Math)
         subject_map = {
             'Physics': test_session.physics_topics,
             'Chemistry': test_session.chemistry_topics,
             'Botany': test_session.botany_topics,
             'Zoology': test_session.zoology_topics,
+            'Biology': test_session.biology_topics,
             'Math': test_session.math_topics
         }
         
@@ -350,7 +351,7 @@ def generate_all_subject_zones(test_session_id: int) -> Dict[str, Dict[str, List
         
         test_session = TestSession.objects.get(id=test_session_id)
         
-        # Dynamically determine which subjects are present in this test (including Math)
+        # Dynamically determine which subjects are present in this test (including Biology and Math)
         subjects_to_process = []
         
         if test_session.physics_topics:
@@ -361,6 +362,8 @@ def generate_all_subject_zones(test_session_id: int) -> Dict[str, Dict[str, List
             subjects_to_process.append('Botany')
         if test_session.zoology_topics:
             subjects_to_process.append('Zoology')
+        if test_session.biology_topics:
+            subjects_to_process.append('Biology')
         if test_session.math_topics:
             subjects_to_process.append('Math')
         

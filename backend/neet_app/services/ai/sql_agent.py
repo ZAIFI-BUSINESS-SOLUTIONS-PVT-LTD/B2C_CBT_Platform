@@ -365,7 +365,7 @@ class SQLAgent:
            - student_id (VARCHAR) - Foreign key to student_profiles.student_id
            - start_time, end_time (TIMESTAMP) - Test duration (use for dates only)
            - is_completed (BOOLEAN) - Whether test is completed
-           - **DO NOT USE: physics_score, chemistry_score, botany_score, zoology_score, correct_answers, incorrect_answers - these are not populated**
+           - **DO NOT USE: physics_score, chemistry_score, botany_score, zoology_score, biology_score, math_score, correct_answers, incorrect_answers - these are not populated**
            
         3. test_answers: **PRIMARY DATA SOURCE FOR PERFORMANCE**
            - id (SERIAL PRIMARY KEY)
@@ -379,7 +379,7 @@ class SQLAgent:
         4. topics:
            - id (SERIAL PRIMARY KEY)
            - name (TEXT) - Topic name
-           - subject (TEXT) - Subject (Physics/Chemistry/Botany/Zoology)
+           - subject (TEXT) - Subject (Physics/Chemistry/Botany/Zoology/Biology/Math)
            
         5. questions:
            - id (SERIAL PRIMARY KEY)

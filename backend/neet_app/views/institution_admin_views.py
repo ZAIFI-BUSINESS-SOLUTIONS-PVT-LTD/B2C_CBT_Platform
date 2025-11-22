@@ -201,6 +201,12 @@ def upload_test(request):
             if scheduled_dt_raw:
                 scheduled_dt = parse_datetime(scheduled_dt_raw)
 
+            # Optional expiry datetime for the test
+            expires_at_raw = request.POST.get('expires_at')
+            expires_at = None
+            if expires_at_raw:
+                expires_at = parse_datetime(expires_at_raw)
+
             result = process_upload(
                 file_obj=file_obj,
                 institution=institution,
@@ -208,7 +214,8 @@ def upload_test(request):
                 exam_type=exam_type,
                 time_limit=time_limit,
                 instructions=instructions or None,
-                scheduled_date_time=scheduled_dt
+                scheduled_date_time=scheduled_dt,
+                expires_at=expires_at
             )
             
             logger.info(f"Institution {institution.name} (admin: {admin.username}) uploaded test: {result['test_code']}")

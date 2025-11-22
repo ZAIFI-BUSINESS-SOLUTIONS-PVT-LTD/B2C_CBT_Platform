@@ -25,7 +25,7 @@ class PlatformTestSerializer(serializers.ModelSerializer):
             'description', 'instructions', 'time_limit', 'duration', 'total_questions',
             'difficulty_distribution',
             'scheduled_date_time', 'is_scheduled', 'is_open', 'is_available_now',
-            'availability_status', 'is_active', 'created_at', 'updated_at'
+            'availability_status', 'is_active', 'expires_at', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
     
@@ -57,6 +57,7 @@ class PlatformTestCreateSerializer(serializers.Serializer):
     time_limit = serializers.IntegerField(required=False, default=180)
     instructions = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     scheduled_date_time = serializers.DateTimeField(required=False, allow_null=True)
+    expires_at = serializers.DateTimeField(required=False, allow_null=True)
 
     def validate_test_name(self, value):
         if not value.strip():
@@ -71,6 +72,7 @@ class PlatformTestCreateSerializer(serializers.Serializer):
         time_limit = validated_data.get('time_limit', 180)
         instructions = validated_data.get('instructions')
         scheduled_date_time = validated_data.get('scheduled_date_time')
+        expires_at = validated_data.get('expires_at') if 'expires_at' in validated_data else None
         exam_type = validated_data.get('exam_type', None)
 
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -92,6 +94,11 @@ class PlatformTestCreateSerializer(serializers.Serializer):
         if scheduled_date_time:
             platform_test.scheduled_date_time = scheduled_date_time
             platform_test.save(update_fields=['scheduled_date_time'])
+
+        # set expires_at if provided
+        if expires_at:
+            platform_test.expires_at = expires_at
+            platform_test.save(update_fields=['expires_at'])
 
         return platform_test
 
@@ -126,16 +133,16 @@ class TestSessionSerializer(serializers.ModelSerializer):
         model = TestSession
         fields = [
             'id', 'student_id', 'student_name', 'test_type', 'platform_test', 'platform_test_details',
-            'test_name', 'selected_topics', 'physics_topics', 'chemistry_topics', 'botany_topics', 'zoology_topics',
+            'test_name', 'selected_topics', 'physics_topics', 'chemistry_topics', 'botany_topics', 'zoology_topics', 'biology_topics',
             'time_limit', 'question_count', 'start_time', 'end_time', 'is_completed',
             'total_questions', 'correct_answers', 'incorrect_answers', 'unanswered',
             'total_time_taken', 'physics_score', 'chemistry_score', 'botany_score',
-            'zoology_score', 'math_score', 'math_topics', 'overall_score'
+            'zoology_score', 'biology_score', 'math_score', 'math_topics', 'overall_score'
         ]
         read_only_fields = [
-            'physics_topics', 'chemistry_topics', 'botany_topics', 'zoology_topics', 'math_topics',
+            'physics_topics', 'chemistry_topics', 'botany_topics', 'zoology_topics', 'biology_topics', 'math_topics',
             'correct_answers', 'incorrect_answers', 'unanswered', 'total_time_taken',
-            'physics_score', 'chemistry_score', 'botany_score', 'zoology_score', 'math_score'
+            'physics_score', 'chemistry_score', 'botany_score', 'zoology_score', 'biology_score', 'math_score'
         ]
     
     def get_student_name(self, obj):

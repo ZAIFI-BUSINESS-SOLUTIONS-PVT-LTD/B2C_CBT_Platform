@@ -36,6 +36,7 @@ export default function InstitutionAdminDashboard() {
   const [timeLimit, setTimeLimit] = useState("180");
   const [instructions, setInstructions] = useState("");
   const [scheduledDateTime, setScheduledDateTime] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
 
   useEffect(() => {
@@ -179,6 +180,14 @@ export default function InstitutionAdminDashboard() {
           console.warn("Failed to parse scheduledDateTime", err);
         }
       }
+      if (expiresAt) {
+        try {
+          const isoExp = new Date(expiresAt).toISOString();
+          formData.append("expires_at", isoExp);
+        } catch (err) {
+          console.warn("Failed to parse expiresAt", err);
+        }
+      }
 
       const response = await fetch("/api/institution-admin/upload/", {
         method: "POST",
@@ -207,6 +216,7 @@ export default function InstitutionAdminDashboard() {
       setTimeLimit("180");
       setInstructions("");
       setScheduledDateTime(null);
+      setExpiresAt(null);
       setFile(null);
 
       // Reset file input
@@ -247,6 +257,10 @@ export default function InstitutionAdminDashboard() {
             <Button variant="outline" onClick={() => navigate('/offline-results-upload')}>
               <FileText className="h-4 w-4 mr-2" />
               Upload Offline Results
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/answer-key-upload')}>
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Upload Answer Key
             </Button>
             <Button variant="outline" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
@@ -403,6 +417,19 @@ export default function InstitutionAdminDashboard() {
                   disabled={loading}
                 />
                 <p className="text-xs text-gray-600">Optional: set a future date & time when this test should become available. Leave empty to make the test available immediately after creation.</p>
+              </div>
+
+              {/* Expiry Date & Time (Optional) */}
+              <div className="space-y-2">
+                <Label htmlFor="expiresAt">Expires At (Optional)</Label>
+                <Input
+                  id="expiresAt"
+                  type="datetime-local"
+                  value={expiresAt ?? ""}
+                  onChange={(e) => setExpiresAt(e.target.value || null)}
+                  disabled={loading}
+                />
+                <p className="text-xs text-gray-600">Optional: set when this test should expire and no longer be available to students.</p>
               </div>
 
               {/* File Upload */}

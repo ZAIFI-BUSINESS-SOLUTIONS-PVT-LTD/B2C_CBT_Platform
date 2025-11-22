@@ -61,6 +61,7 @@ def list_available_platform_tests(request):
             'has_completed': has_completed,
             'has_active_session': has_active_session,
             'created_at': test.created_at.isoformat(),
+            'requires_passcode': bool(test.is_institution_test),
         }
         tests_data.append(test_data)
     
@@ -91,25 +92,36 @@ def start_platform_test(request, test_id):
     
     # Check if this is an institution test and verify student has access
     if platform_test.is_institution_test and platform_test.institution:
-        # Get student profile to check institution membership
+        # Allow if student is linked to the institution OR correct passcode provided
         from ..models import StudentProfile
+        student_linked = False
         try:
             student_profile = StudentProfile.objects.get(student_id=request.user.student_id)
-            
-            # Check if student is linked to this institution
-            if student_profile.institution != platform_test.institution:
-                # Student is not linked to the institution - deny access
-                # Use standardized auth error code from ErrorCodes
+            if student_profile.institution == platform_test.institution:
+                student_linked = True
+        except StudentProfile.DoesNotExist:
+            student_profile = None
+
+        if not student_linked:
+            # Read passcode from request body (frontend will send this)
+            passcode = request.data.get('passcode') if hasattr(request, 'data') else None
+
+            # Derive expected passcode from test_code: last 8 chars
+            expected_passcode = None
+            if platform_test.test_code:
+                expected_passcode = platform_test.test_code[-8:]
+
+            if not passcode or str(passcode).strip() != str(expected_passcode):
+                # Deny but indicate that passcode is required so frontend shows modal
                 raise AppError(
                     code=ErrorCodes.AUTH_FORBIDDEN,
-                    message='You do not have access to this institution test. Please verify your institution code first.',
+                    message='Passcode required to join this institution test.',
                     details={
-                        'required_institution': platform_test.institution.name,
-                        'institution_code_required': True
+                        'requires_passcode': True,
+                        'hint': 'Enter the passcode provided by your coaching institute'
                     }
                 )
-        except StudentProfile.DoesNotExist:
-            raise AppError(code=ErrorCodes.AUTH_REQUIRED, message='Student profile not found')
+            # else: passcode matched -> allow to continue
     
     # Check if test is available now
     if not platform_test.is_available_now():

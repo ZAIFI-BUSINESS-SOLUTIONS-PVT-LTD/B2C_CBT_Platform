@@ -16,7 +16,7 @@ def normalize_subject(subject_raw: str) -> str:
     """
     Normalize various subject name variants to canonical subject names used in Topic model.
 
-    Returns one of: 'Physics', 'Chemistry', 'Botany', 'Zoology', 'Math'
+    Returns one of: 'Physics', 'Chemistry', 'Botany', 'Zoology', 'Biology', 'Math'
     or None if the subject cannot be normalized.
     """
     if not subject_raw:
@@ -28,8 +28,9 @@ def normalize_subject(subject_raw: str) -> str:
     mapping = {
         'physics': 'Physics', 'phys': 'Physics', 'phy': 'Physics',
         'chemistry': 'Chemistry', 'chem': 'Chemistry',
-        'botany': 'Botany', 'biology': 'Botany', 'plant biology': 'Botany',
+        'botany': 'Botany', 'plant biology': 'Botany',
         'zoology': 'Zoology', 'animal biology': 'Zoology', 'zoo': 'Zoology',
+        'biology': 'Biology', 'bio': 'Biology',
         'math': 'Math', 'mathematics': 'Math', 'maths': 'Math'
     }
 
@@ -52,7 +53,7 @@ def normalize_subject(subject_raw: str) -> str:
 
     # As a last resort, capitalize and accept if it matches allowed set
     candidate = s.capitalize()
-    if candidate in ['Physics', 'Chemistry', 'Botany', 'Zoology', 'Math']:
+    if candidate in ['Physics', 'Chemistry', 'Botany', 'Zoology', 'Biology', 'Math']:
         return candidate
 
     return None
@@ -583,9 +584,9 @@ def generate_random_questions_from_database(question_count, exclude_question_ids
             question_count = total_available
         
         # Randomly select questions ensuring good distribution across subjects
-        subjects = ["Physics", "Chemistry", "Botany", "Zoology"]
-        questions_per_subject = max(1, question_count // 4)  # At least 1 question per subject
-        remaining_questions = question_count % 4  # Distribute remaining questions
+        subjects = ["Physics", "Chemistry", "Botany", "Zoology", "Biology", "Math"]
+        questions_per_subject = max(1, question_count // len(subjects))  # At least 1 question per subject
+        remaining_questions = question_count % len(subjects)  # Distribute remaining questions
         
         selected_questions = []
         

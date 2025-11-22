@@ -137,10 +137,12 @@ def regenerate_zone_insights(session):
                 return 'Physics'
             if 'chemistry' in s_low:
                 return 'Chemistry'
-            if 'botany' in s_low or 'plant' in s_low or 'biology' in s_low:
+            if 'botany' in s_low or 'plant' in s_low:
                 return 'Botany'
             if 'zoology' in s_low or 'animal' in s_low:
                 return 'Zoology'
+            if 'biology' in s_low or 'bio' in s_low:
+                return 'Biology'
             if 'math' in s_low or 'algebra' in s_low or 'geometry' in s_low:
                 return 'Math'
             return s.strip()

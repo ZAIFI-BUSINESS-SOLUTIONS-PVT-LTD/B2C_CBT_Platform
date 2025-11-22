@@ -742,7 +742,7 @@ def platform_test_analytics(request):
                         avg_time_per_question = (total_time / cnt) if cnt > 0 else 0
 
                     # Subject-wise accuracy for this student in the selected test
-                    subjects = ['Physics', 'Chemistry', 'Botany', 'Zoology']
+                    subjects = ['Physics', 'Chemistry', 'Botany', 'Zoology', 'Biology', 'Math']
                     subject_accuracy_for_test = []
                     for subj in subjects:
                         subj_answers = TestAnswer.objects.filter(session=student_most_recent_session, question__topic__subject__iexact=subj)
@@ -816,7 +816,7 @@ def platform_test_analytics(request):
                                 best_s = cs
                         return best_s
 
-                    subjects = ['Physics', 'Chemistry', 'Botany', 'Zoology']
+                    subjects = ['Physics', 'Chemistry', 'Botany', 'Zoology', 'Biology', 'Math']
                     for sid, pct in sorted_students[:3]:
                         s_session = select_best_session_for_student(sid, pct)
                         if not s_session:

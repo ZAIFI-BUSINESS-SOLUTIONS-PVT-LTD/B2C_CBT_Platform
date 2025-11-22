@@ -137,7 +137,8 @@ def classify_test_session_topics(sender, instance, created, **kwargs):
         instance.physics_topics,
         instance.chemistry_topics,
         instance.botany_topics,
-        instance.zoology_topics
+        instance.zoology_topics,
+        instance.biology_topics
     ])):
         _processed_sessions.add(classify_key)
         
@@ -148,7 +149,8 @@ def classify_test_session_topics(sender, instance, created, **kwargs):
                 physics_topics=instance.physics_topics,
                 chemistry_topics=instance.chemistry_topics,
                 botany_topics=instance.botany_topics,
-                zoology_topics=instance.zoology_topics
+                zoology_topics=instance.zoology_topics,
+                biology_topics=instance.biology_topics
             )
         except Exception as e:
             print(f"❌ Failed to classify topics for session {instance.id}: {e}")

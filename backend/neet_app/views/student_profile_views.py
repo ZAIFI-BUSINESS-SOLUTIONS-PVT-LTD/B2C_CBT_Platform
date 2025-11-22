@@ -433,6 +433,6 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
             'subject_statistics': subject_stats,
             'recent_performance': test_sessions[:10].values(
                 'id', 'start_time', 'total_questions', 'correct_answers',
-                'physics_score', 'chemistry_score', 'botany_score', 'zoology_score'
+                'physics_score', 'chemistry_score', 'botany_score', 'zoology_score', 'biology_score', 'math_score'
             )
         }, status=status.HTTP_200_OK)
