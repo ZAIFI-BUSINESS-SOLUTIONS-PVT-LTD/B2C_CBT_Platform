@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Upload, FileSpreadsheet, LogOut, Building2, CheckCircle, FileText } from "lucide-react";
+import { AlertCircle, Upload, FileSpreadsheet, LogOut, Building2, CheckCircle, FileText, FileCode } from "lucide-react";
 
 interface InstitutionAdminData {
   id: number;
@@ -261,6 +261,10 @@ export default function InstitutionAdminDashboard() {
             <Button variant="outline" onClick={() => navigate('/answer-key-upload')}>
               <CheckCircle className="h-4 w-4 mr-2" />
               Upload Answer Key
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/json-question-upload')}>
+              <FileCode className="h-4 w-4 mr-2" />
+              Upload JSON Updates
             </Button>
             <Button variant="outline" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />

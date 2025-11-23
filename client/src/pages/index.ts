@@ -26,4 +26,5 @@ export { default as InstitutionRegisterPage } from "./institution-register";
 export { default as InstitutionAdminDashboard } from "./institution-admin-dashboard";
 export { default as OfflineResultsUpload } from "./offline-results-upload";
 export { default as AnswerKeyUpload } from "./answer-key-upload";
+export { default as JSONQuestionUpload } from "./json-question-upload";
 export { default as GetNumberPage } from "./get-number";

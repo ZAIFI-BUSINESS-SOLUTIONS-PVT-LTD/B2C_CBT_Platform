@@ -43,6 +43,7 @@ from .views.institution_admin_views import (
     toggle_test_status, get_test_details, upload_offline_results
 )
 from .views.institution_answer_key_views import upload_answer_key
+from .views.institution_json_update_views import upload_json_updates
 from .views.institution_student_views import (
     verify_institution_code, list_institution_tests, link_student_to_institution
 )
@@ -159,6 +160,7 @@ urlpatterns = [
     path('institution-admin/upload/', upload_test, name='institution-admin-upload'),
     path('institution-admin/upload-results/', upload_offline_results, name='institution-admin-upload-results'),
     path('institution-admin/upload-answer-key/', upload_answer_key, name='institution-admin-upload-answer-key'),
+    path('institution-admin/upload-json-updates/', upload_json_updates, name='institution-admin-upload-json-updates'),
     path('institution-admin/tests/', admin_list_institution_tests, name='institution-admin-list-tests'),
     path('institution-admin/tests/<int:test_id>/', get_test_details, name='institution-admin-test-details'),
     path('institution-admin/tests/<int:test_id>/toggle/', toggle_test_status, name='institution-admin-toggle-test'),
