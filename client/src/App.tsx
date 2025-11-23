@@ -5,7 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { NotFound, Home, Test, Results, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, InstitutionTesterPage, InstitutionRegisterPage, InstitutionAdminDashboard, OfflineResultsUpload, AnswerKeyUpload, ThankYou, GetNumberPage } from "@/pages";
+import { NotFound, Home, Test, Results, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, InstitutionTesterPage, InstitutionRegisterPage, InstitutionAdminDashboard, OfflineResultsUpload, AnswerKeyUpload, JSONQuestionUpload, ThankYou, GetNumberPage } from "@/pages";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { getPostTestHidden } from '@/lib/postTestHidden';
 
@@ -102,8 +102,10 @@ function Router() {
       <Route path="/register" component={RegisterPage} />
       <Route path="/institution-register" component={InstitutionRegisterPage} />
       <Route path="/institution-admin/dashboard" component={InstitutionAdminDashboard} />
+      <Route path="/institution-admin-dashboard" component={InstitutionAdminDashboard} />
       <Route path="/offline-results-upload" component={OfflineResultsUpload} />
       <Route path="/answer-key-upload" component={AnswerKeyUpload} />
+      <Route path="/json-question-upload" component={JSONQuestionUpload} />
       <Route path="/get-number" component={GetNumberPage} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
