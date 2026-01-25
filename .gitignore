@@ -3,9 +3,8 @@ node_modules
 server/public
 vite.config.ts.*
 *.tar.gz
-venv/
+.venv/
 .env
 __pycache__/
 *.pyc
 backend/neet_app/neet_docs/
-backend/staticfiles/
