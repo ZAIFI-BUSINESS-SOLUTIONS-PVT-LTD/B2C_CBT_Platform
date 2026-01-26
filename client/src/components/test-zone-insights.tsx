@@ -11,7 +11,6 @@ import { API_CONFIG } from "@/config/api";
 interface ZoneInsight {
   subject: string;
   steady_zone: string[];
-  edge_zone: string[];
   focus_zone: string[];
 }
 
@@ -198,7 +197,6 @@ export default function TestZoneInsights() {
             setZoneInsights(rawInsights.map((r: any) => ({
               subject: r.subject,
               steady_zone: r.steady_zone || r.steadyZone || [],
-              edge_zone: r.edge_zone || r.edgeZone || [],
               focus_zone: r.focus_zone || r.focusZone || []
             })));
           } else {
@@ -214,7 +212,6 @@ export default function TestZoneInsights() {
         const normalized = primaryZones.map((z: any) => ({
           subject: z.subject,
           steady_zone: z.steady_zone || z.steadyZone || [],
-          edge_zone: z.edge_zone || z.edgeZone || [],
           focus_zone: z.focus_zone || z.focusZone || []
         }));
         setZoneInsights(normalized);
@@ -443,27 +440,6 @@ export default function TestZoneInsights() {
                     {insight.steady_zone.map((point, idx) => (
                       <li key={idx} className="flex items-start gap-2">
                         <ChevronRight className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        <span className="text-sm text-gray-700 leading-relaxed">{point}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Edge Zone */}
-                <div className="p-4 border-b bg-orange-50/50">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="bg-orange-500 rounded-full p-1">
-                      <TrendingUp className="h-4 w-4 text-white" />
-                    </div>
-                    <h5 className="font-semibold text-orange-800">Edge Zone</h5>
-                    <Badge variant="outline" className="ml-auto text-xs bg-orange-100 text-orange-700 border-orange-300">
-                      Needs Practice
-                    </Badge>
-                  </div>
-                  <ul className="space-y-2">
-                    {insight.edge_zone.map((point, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <ChevronRight className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
                         <span className="text-sm text-gray-700 leading-relaxed">{point}</span>
                       </li>
                     ))}

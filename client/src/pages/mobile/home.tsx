@@ -463,16 +463,13 @@ export default function Home() {
                 <div className="flex space-x-3">
                   {[
                     { id: 0, label: 'Focus Zone', icon: AlertTriangle, key: 'yetToDecide' },
-                    { id: 1, label: 'Edge Zone', icon: NotebookPen, key: 'areasForImprovement' },
-                    { id: 2, label: 'Steady Zone', icon: Trophy, key: 'keyStrengths' }
+                    { id: 1, label: 'Steady Zone', icon: Trophy, key: 'keyStrengths' }
                   ].map((tab) => {
                     const isActive = activeTab === tab.id;
                     let activeClasses = '';
                     if (isActive) {
                       if (tab.key === 'keyStrengths') {
                         activeClasses = 'bg-green-100 text-green-900 shadow-sm shadow-green-200/50 border border-green-300';
-                      } else if (tab.key === 'areasForImprovement') {
-                        activeClasses = 'bg-blue-100 text-blue-900 shadow-sm shadow-blue-200/50 border border-blue-300';
                       } else if (tab.key === 'yetToDecide') {
                         activeClasses = 'bg-orange-100 text-orange-900 shadow-sm shadow-orange-200/60 border border-orange-300';
                       }
@@ -516,7 +513,7 @@ export default function Home() {
                             </div>
                             <div className="text-center">
                               <p className="font-semibold">Get personalized insights</p>
-                              <p className="text-xs text-gray-600">Take your first practice test to unlock AI-powered Focus Zone, Edge Zone and Steady Zone analysis.</p>
+                              <p className="text-xs text-gray-600">Take your first practice test to unlock AI-powered Focus Zone and Steady Zone analysis.</p>
                             </div>
                             <div className="flex">
                               <Button
@@ -571,56 +568,8 @@ export default function Home() {
                           </div>
                         )}
 
-                        {/* Edge Zone Tab */}
-                        {activeTab === 1 && (
-                          <div className="space-y-3">
-                            {insights?.data?.llmInsights?.studyPlan?.insights ? (
-                              <div className="space-y-3">
-                                {insights.data.llmInsights.studyPlan.insights.length > 0 && (() => {
-                                  const firstInsight = insights.data.llmInsights.studyPlan.insights[0] as any;
-                                  return (
-                                    <InsightCard key={firstInsight?.id ?? firstInsight} variant="blue">
-                                      {firstInsight?.text ?? firstInsight}
-                                    </InsightCard>
-                                  );
-                                })()}
-                              </div>
-                            ) : insights?.data?.improvementTopics && insights.data.improvementTopics.length > 0 ? (
-                              <div>
-                                <p className="text-xs text-blue-700 mb-2">Recommended focus areas:</p>
-                                <ul className="space-y-1 text-xs">
-                                  {insights.data.improvementTopics.slice(0, 3).map((topic: any, idx: number) => (
-                                    <li key={idx} className="flex justify-between">
-                                      <span>{topic.topic}</span>
-                                      <span className="text-blue-600">{topic.accuracy}%</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
-                              <div>
-                                <p className="text-xs text-blue-700 mb-2">Focus on improving these areas:</p>
-                                <ul className="space-y-1 text-xs">
-                                  {insights.data.weakTopics.slice(0, 2).map((topic: any, idx: number) => (
-                                    <li key={idx} className="flex justify-between">
-                                      <span>{topic.topic}</span>
-                                      <span className="text-red-600">{topic.accuracy}%</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <InsightCard variant="blue">
-                                  Take some tests to get AI-generated study plans!
-                                </InsightCard>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
                         {/* Steady Zone Tab */}
-                        {activeTab === 2 && (
+                        {activeTab === 1 && (
                           <div className="space-y-2">
                             {(!analytics || analytics.totalTests === 0) ? (
                               <div className="space-y-2">

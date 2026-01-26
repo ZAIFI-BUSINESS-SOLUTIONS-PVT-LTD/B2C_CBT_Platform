@@ -14,26 +14,48 @@ logger = logging.getLogger(__name__)
 # LLM Prompt for zone-based insights
 ZONE_INSIGHT_PROMPT = """
 You are an expert NEET and JEE exam tutor analyzing a student's test performance for {subject}. 
-Analyze the following questions and their answers to generate exactly 6 insights grouped into 3 zones: 
-🟢 Steady Zone (2 points): Areas where the student is consistently performing well - high accuracy, good speed, solid conceptual understanding 
-🟠 Edge Zone (2 points): Borderline concepts needing mild improvement - moderate accuracy, timing issues, or inconsistent performance 
-🔴 Focus Zone (2 points): Critical weak areas requiring priority attention - low accuracy, conceptual gaps, or recurring mistakes 
-RULES: 
-- Each point must be 15-25 words maximum 
-- Be specific and actionable 
-- Avoid formatting markers like ** or asterisks 
-- Analyze question-by-question patterns (correctness, speed, topic consistency) 
-- Prioritize insights by impact and actionability 
-- Focus on patterns across multiple questions, not individual questions 
-- Be encouraging and constructive in tone 
-- All insights must strictly reference academic concepts, test-taking strategy, or subject-specific topics. Avoid personal or emotional analysis.
-Questions Data ({total_questions} 
-questions analyzed): {questions_json} 
-Return EXACTLY 6 insights in this JSON format: 
-{{ 
-"steady_zone": ["point 1", "point 2"], 
-"edge_zone": ["point 1", "point 2"], 
-"focus_zone": ["point 1", "point 2"]
+
+Analyze the categorized questions below and identify the student's MENTAL MODELS and CONCEPTUAL UNDERSTANDING patterns.
+
+Questions are grouped by performance:
+- CORRECT: {correct_count} questions the student answered correctly
+- WRONG: {wrong_count} questions the student answered incorrectly  
+- SKIPPED: {skipped_count} questions the student did not attempt
+
+Your task: Generate insights for 2 zones by analyzing mental models, NOT just listing topics.
+
+🟢 STEADY ZONE (Correct Understanding):
+- Analyze ONLY the CORRECT questions
+- Identify what MENTAL MODELS or CONCEPTUAL FRAMEWORKS the student has mastered
+- Focus on WHY they got questions right - what understanding patterns are working
+- Generate multiple insights, rank them by actionability and impact, then return TOP 2
+- Each insight: 15-25 words, specific, actionable
+- If NO correct questions: return ["Insufficient data for analysis - complete more questions to identify strengths"]
+
+🔴 FOCUS ZONE (Misconceptions & Gaps):
+- Analyze WRONG questions and SKIPPED questions (time_taken > 0 indicates confusion, prioritize these)
+- Identify WRONG MENTAL MODELS, MISCONCEPTIONS, or CONCEPTUAL GAPS
+- Focus on WHY they got questions wrong or skipped - what flawed reasoning patterns exist
+- Generate multiple insights, rank them by actionability and impact, then return TOP 2  
+- Each insight: 15-25 words, specific, actionable
+- If wrong+skipped(time>0) unavailable but skipped(time=0) exists: mention time management issues
+- If NO wrong or skipped questions: return ["Insufficient data for analysis - performance is strong across all questions"]
+
+RULES:
+- Do NOT just list topic/chapter names - explain the UNDERLYING UNDERSTANDING or MISUNDERSTANDING
+- Be specific about the mental model (e.g., "confuses vector addition with scalar addition" not "weak in vectors")
+- Avoid formatting markers like ** or asterisks
+- Be encouraging and constructive
+- All insights must reference academic concepts or test-taking strategy
+- Focus on patterns across multiple questions
+
+Data ({total_questions} questions analyzed):
+{questions_json}
+
+Return EXACTLY this JSON format with TOP 2 insights per zone:
+{{
+  "steady_zone": ["insight 1", "insight 2"],
+  "focus_zone": ["insight 1", "insight 2"]
 }}
 """
 
@@ -125,18 +147,44 @@ def extract_subject_questions(test_session_id: int, subject: str) -> List[Dict]:
 def generate_zone_insights_for_subject(subject: str, questions: List[Dict]) -> Dict[str, List[str]]:
     """
     Generate zone insights for a subject using LLM.
+    Groups questions by correct/wrong/skipped and analyzes mental models.
     
     Args:
         subject: Subject name
         questions: List of question dictionaries
         
     Returns:
-        Dict with steady_zone, edge_zone, focus_zone (each containing 2 points)
+        Dict with steady_zone, focus_zone (each containing 2 points)
     """
     try:
         if not questions:
             print(f"⚠️ No questions provided for {subject}")
             return get_fallback_zones(subject, "No questions available")
+        
+        # Categorize questions by performance
+        correct_questions = []
+        wrong_questions = []
+        skipped_questions = []
+        
+        for q in questions:
+            sel = q.get('selected_answer')
+            is_correct = q.get('is_correct', False)
+            time_taken = q.get('time_taken', 0)
+            
+            # If no selection or empty selection, it's skipped
+            if sel is None or (isinstance(sel, str) and sel.strip() == ''):
+                skipped_questions.append(q)
+            elif is_correct:
+                correct_questions.append(q)
+            else:
+                wrong_questions.append(q)
+        
+        # Sort skipped by priority: time_taken > 0 first (indicates confusion)
+        skipped_with_time = [q for q in skipped_questions if q.get('time_taken', 0) > 0]
+        skipped_no_time = [q for q in skipped_questions if q.get('time_taken', 0) == 0]
+        skipped_sorted = skipped_with_time + skipped_no_time
+        
+        print(f"📊 {subject}: {len(correct_questions)} correct, {len(wrong_questions)} wrong, {len(skipped_questions)} skipped ({len(skipped_with_time)} with time)")
 
         # Ensure we send at most 45 questions and truncate overly long question text
         def _truncate_questions_for_prompt(qs: List[Dict], max_questions: int = 45, max_text_len: int = 1000) -> List[Dict]:
@@ -159,8 +207,19 @@ def generate_zone_insights_for_subject(subject: str, questions: List[Dict]) -> D
                         if isinstance(v, str) and len(v) > max_text_len:
                             q['options'][k] = v[:max_text_len] + '...'
             return qs
-
-        questions = _truncate_questions_for_prompt(questions)
+        
+        # Limit each category but prioritize having both correct and wrong/skipped
+        max_per_category = 20
+        correct_questions = _truncate_questions_for_prompt(correct_questions, max_per_category)
+        wrong_questions = _truncate_questions_for_prompt(wrong_questions, max_per_category)
+        skipped_sorted = _truncate_questions_for_prompt(skipped_sorted, max_per_category)
+        
+        # Build grouped structure for prompt
+        grouped_questions = {
+            "correct": correct_questions,
+            "wrong": wrong_questions,
+            "skipped": skipped_sorted
+        }
         
         # Import GeminiClient
         try:
@@ -174,11 +233,15 @@ def generate_zone_insights_for_subject(subject: str, questions: List[Dict]) -> D
             print(f"❌ Gemini client not available for {subject} zone insights")
             return get_fallback_zones(subject, "AI service unavailable")
         
-        # Build prompt
-        questions_json = json.dumps(questions, indent=2)
+        # Build prompt with grouped questions
+        questions_json = json.dumps(grouped_questions, indent=2)
+        total_q = len(correct_questions) + len(wrong_questions) + len(skipped_sorted)
         prompt = ZONE_INSIGHT_PROMPT.format(
             subject=subject,
-            total_questions=len(questions),
+            total_questions=total_q,
+            correct_count=len(correct_questions),
+            wrong_count=len(wrong_questions),
+            skipped_count=len(skipped_sorted),
             questions_json=questions_json
         )
         
@@ -213,14 +276,14 @@ def generate_zone_insights_for_subject(subject: str, questions: List[Dict]) -> D
 
 def parse_llm_zone_response(llm_response: str, subject: str) -> Dict[str, List[str]]:
     """
-    Parse LLM response to extract zone insights.
+    Parse LLM response to extract zone insights (steady and focus only).
     
     Args:
         llm_response: Raw LLM response text
         subject: Subject name (for logging)
         
     Returns:
-        Dict with steady_zone, edge_zone, focus_zone
+        Dict with steady_zone, focus_zone
     """
     try:
         # Try to parse as JSON first
@@ -237,10 +300,10 @@ def parse_llm_zone_response(llm_response: str, subject: str) -> Dict[str, List[s
         try:
             zones = json.loads(response_text)
             
-            # Validate structure
-            if all(key in zones for key in ['steady_zone', 'edge_zone', 'focus_zone']):
+            # Validate structure (only steady and focus now)
+            if all(key in zones for key in ['steady_zone', 'focus_zone']):
                 # Ensure each zone has exactly 2 points
-                for zone_key in ['steady_zone', 'edge_zone', 'focus_zone']:
+                for zone_key in ['steady_zone', 'focus_zone']:
                     if not isinstance(zones[zone_key], list):
                         zones[zone_key] = [str(zones[zone_key])]
                     
@@ -259,7 +322,6 @@ def parse_llm_zone_response(llm_response: str, subject: str) -> Dict[str, List[s
         # Fallback: Try to extract zones from text format
         zones = {
             'steady_zone': [],
-            'edge_zone': [],
             'focus_zone': []
         }
         
@@ -269,12 +331,9 @@ def parse_llm_zone_response(llm_response: str, subject: str) -> Dict[str, List[s
         for line in lines:
             line = line.strip()
             
-            # Detect zone headers
+            # Detect zone headers (only steady and focus now)
             if 'steady' in line.lower() or '🟢' in line:
                 current_zone = 'steady_zone'
-                continue
-            elif 'edge' in line.lower() or '🟠' in line:
-                current_zone = 'edge_zone'
                 continue
             elif 'focus' in line.lower() or '🔴' in line:
                 current_zone = 'focus_zone'
@@ -288,7 +347,7 @@ def parse_llm_zone_response(llm_response: str, subject: str) -> Dict[str, List[s
                     zones[current_zone].append(clean_line)
         
         # Ensure exactly 2 points per zone
-        for zone_key in ['steady_zone', 'edge_zone', 'focus_zone']:
+        for zone_key in ['steady_zone', 'focus_zone']:
             zones[zone_key] = zones[zone_key][:2]
             while len(zones[zone_key]) < 2:
                 zones[zone_key].append(f"Continue practicing {subject} for better insights")
@@ -321,16 +380,12 @@ def get_fallback_zones(subject: str, reason: str) -> Dict[str, List[str]]:
     
     return {
         'steady_zone': [
-            f"Your {subject} performance is being analyzed for steady areas.",
-            f"Complete more {subject} questions to identify consistent strengths."
-        ],
-        'edge_zone': [
-            f"Some {subject} concepts need mild improvement in accuracy or speed.",
-            f"Focus on time management and revisiting borderline {subject} topics."
+            f"Your {subject} performance is being analyzed for strong mental models.",
+            f"Complete more {subject} questions to identify conceptual strengths."
         ],
         'focus_zone': [
-            f"Certain {subject} areas need priority attention and deeper understanding.",
-            f"Dedicate extra practice time to weak {subject} concepts identified."
+            f"Certain {subject} areas need deeper conceptual understanding and practice.",
+            f"Focus on identifying and correcting misconceptions in {subject}."
         ]
     }
 
@@ -388,14 +443,13 @@ def generate_all_subject_zones(test_session_id: int) -> Dict[str, Dict[str, List
                 # Generate zone insights
                 zones = generate_zone_insights_for_subject(subject, questions)
                 
-                # Save to database
+                # Save to database (edge_zone removed)
                 insight, created = TestSubjectZoneInsight.objects.update_or_create(
                     test_session_id=test_session_id,
                     subject=subject,
                     defaults={
                         'student_id': test_session.student_id,
                         'steady_zone': zones['steady_zone'],
-                        'edge_zone': zones['edge_zone'],
                         'focus_zone': zones['focus_zone'],
                         'questions_analyzed': questions  # Store for debugging
                     }

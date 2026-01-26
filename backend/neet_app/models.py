@@ -950,9 +950,11 @@ class StudentInsight(models.Model):
 
 class TestSubjectZoneInsight(models.Model):
     """
-    Stores test-specific, subject-wise zone insights (Steady, Edge, Focus).
+    Stores test-specific, subject-wise zone insights (Steady and Focus).
     Generated after each test completion alongside overall insights.
-    Provides granular per-test, per-subject analysis with 3 zones (2 points each).
+    Provides granular per-test, per-subject analysis with 2 zones (2 points each).
+    - Steady Zone: Identifies correct mental models and understanding patterns
+    - Focus Zone: Identifies misconceptions and conceptual gaps
     """
     id = models.AutoField(primary_key=True)
     
@@ -975,9 +977,9 @@ class TestSubjectZoneInsight(models.Model):
     subject = models.CharField(max_length=20)  # Physics, Chemistry, Botany, Zoology
     
     # Zone insights (each is a list of 2 strings)
-    steady_zone = models.JSONField(default=list, blank=True)  # 2 actionable points - consistent strengths
-    edge_zone = models.JSONField(default=list, blank=True)    # 2 actionable points - borderline concepts
-    focus_zone = models.JSONField(default=list, blank=True)   # 2 actionable points - critical weak areas
+    steady_zone = models.JSONField(default=list, blank=True)  # 2 actionable points - correct mental models
+    edge_zone = models.JSONField(default=list, blank=True)    # DEPRECATED - kept for backward compatibility
+    focus_zone = models.JSONField(default=list, blank=True)   # 2 actionable points - misconceptions/gaps
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)

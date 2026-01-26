@@ -321,60 +321,17 @@ Be specific and practical. Consider unattempted topics as areas needing confiden
 Important — use the topic metadata and the `questions` arrays provided (each question: question_id, options, correct_answer, selected_answer, is_correct, time_taken). Analyze question-level patterns, prepare candidate study interventions, rank them by likely impact, and return exactly 2 actionable, ranked study suggestions (most actionable first).
 
 Performance data: {data}
-""",
-    
-    'last_test_feedback': """
-Act as a highly personalized NEET and JEE exam tutor. Carefully analyze the provided student data and deliver feedback with a warm, supportive, and individualized touch. Use the topic metadata: if a topic's `subject` is "Math" treat it with JEE framing (math problem-solving strategies and higher quantitative standards); for all other subjects use NEET framing.
-For each metric or insight:
-- Avoid using raw formatting like asterisks (**).
-- Each point must be concise, specific, and limited to 18–20 words.
-- Ensure every suggestion or observation is actionable, encouraging, and tailored to the student’s unique strengths and areas for improvement.
-
-You are a friendly NEET exam tutor giving feedback on the student's most recent test performance.
-Provide exactly 2 points in a warm, encouraging teacher tone that:
-1. Notice improvements or strong performances from this latest session
-2. Gently highlight areas that need attention from this test only
-Keep each point to 1-2 sentences. Focus on recent progress and specific next steps.
-
-Important — use the topic metadata and the `questions` list for the latest test (each question includes question_id, options, correct_answer, selected_answer, is_correct, time_taken). Analyze each question, generate candidate observations, rank them by importance, and return exactly 2 actionable feedback points ordered most-actionable-first.
-
-Latest test data: {data}
 """
 }
-# Dynamic configuration for thresholds
-DEFAULT_THRESHOLDS = {
-    'strength_accuracy': 80.0,      # Minimum accuracy for strength (%)
-    'weakness_accuracy': 60.0,      # Maximum accuracy for weakness (%)
-    'time_multiplier': 1.2,         # Multiplier for average time threshold
-    'min_attempts': 3,              # Minimum attempts needed for reliable metrics
-}
-
-def get_thresholds(request_data=None):
-    """
-    Get dynamic thresholds from request or use defaults.
-    Allows frontend to customize classification criteria.
-    """
-    thresholds = DEFAULT_THRESHOLDS.copy()
-    
-    if request_data:
-        # Update thresholds from request if provided
-        if 'strength_accuracy' in request_data:
-            thresholds['strength_accuracy'] = float(request_data['strength_accuracy'])
-        if 'weakness_accuracy' in request_data:
-            thresholds['weakness_accuracy'] = float(request_data['weakness_accuracy'])
-        if 'time_multiplier' in request_data:
-            thresholds['time_multiplier'] = float(request_data['time_multiplier'])
-        if 'min_attempts' in request_data:
-            thresholds['min_attempts'] = int(request_data['min_attempts'])
-    
-    return thresholds
+# Thresholds removed: classification no longer depends on configurable thresholds.
+# Previous dynamic thresholds have been removed to avoid gating topics.
 
 def generate_llm_insights(insight_type, data):
     """
     Generate LLM-powered insights using Gemini API.
     
     Args:
-        insight_type: Type of insight ('strengths', 'weaknesses', 'study_plan', 'last_test_feedback')
+        insight_type: Type of insight ('strengths', 'weaknesses', 'study_plan')
         data: Topic data to analyze
         
     Returns:
@@ -427,27 +384,47 @@ def generate_llm_insights(insight_type, data):
         # Parse response into individual points (bullets or numbered lines)
         insights = []
         lines = insights_text.split('\n')
+        
+        # First pass: try to extract numbered or bulleted points
         for line in lines:
             line = line.strip()
             if not line:
                 continue
+            # Check if line starts with number, bullet, dash, or asterisk
             if line[0].isdigit() or line.startswith('•') or line.startswith('-') or line.startswith('*'):
                 clean_line = line.lstrip('0123456789.• -*').strip()
-                if clean_line:
+                if clean_line and len(clean_line) > 15:  # At least 15 chars
                     insights.append(clean_line)
-
-        # Fallback: split into sentences and take first 2
+        
+        # Second pass: If no structured points found, extract meaningful sentences
         if len(insights) < 2 and insights_text:
-            sentences = [s.strip() for s in insights_text.replace('\n', ' ').split('.') if s.strip()]
-            insights = [s + '.' for s in sentences[:2]]
+            # Remove greetings and conversational fluff
+            text_to_parse = insights_text
+            # Remove common greeting patterns
+            greeting_patterns = [
+                r'Hello.*?!',
+                r'Hi.*?!',
+                r'Great to connect.*?!',
+                r"Let's work together.*?!",
+                r"I've carefully reviewed.*?\.",
+                r"I see a lot of potential.*?\."
+            ]
+            import re
+            for pattern in greeting_patterns:
+                text_to_parse = re.sub(pattern, '', text_to_parse, flags=re.IGNORECASE)
+            
+            # Split into sentences
+            sentences = [s.strip() for s in text_to_parse.replace('\n', ' ').split('.') if s.strip()]
+            # Filter out very short or generic sentences
+            meaningful_sentences = [s + '.' for s in sentences if len(s) > 20 and not any(x in s.lower() for x in ['hello', 'great to', 'let\'s work'])]
+            insights.extend(meaningful_sentences[:2])
 
         if not insights:
             # Final fallback messages
             fallback_map = {
                 'strengths': ["No AI strengths available yet."],
                 'weaknesses': ["No AI weaknesses available yet."],
-                'study_plan': ["No AI study plan available yet."],
-                'last_test_feedback': ["No AI feedback available yet."]
+                'study_plan': ["No AI study plan available yet."]
             }
             return {
                 'status': 'info',
@@ -645,58 +622,65 @@ def classify_topics(topic_metrics, overall_avg_time, thresholds):
     Returns:
         dict: Classified topics (strengths, weaknesses, improvements)
     """
+    """
+    New classification logic (threshold-free):
+    - Do not skip topics based on attempt counts or configured thresholds.
+    - Classify topics relative to the student's mean accuracy across all topics:
+      * Strengths: accuracy > mean + 10
+      * Weaknesses: accuracy < mean - 10
+      * Improvements: everything else
+
+    This removes the gating behavior of configured thresholds so all attempted
+    topics are considered for LLM analysis and saved insights.
+    """
+
     strengths = []
     weaknesses = []
     improvements = []
-    
-    time_threshold = overall_avg_time * thresholds['time_multiplier']
-    strength_accuracy = thresholds['strength_accuracy']
-    weakness_accuracy = thresholds['weakness_accuracy']
-    min_attempts = thresholds['min_attempts']
-    
+
+    # Build a simple list of accuracies to compute mean
+    accuracies = []
     for topic_key, metrics in topic_metrics.items():
-        # Skip topics with insufficient attempts for reliable analysis
-        if metrics['attempted'] < min_attempts:
+        # Only include topics that have been attempted at least once
+        if metrics.get('attempted', 0) >= 1:
+            accuracies.append(metrics.get('accuracy', 0))
+
+    if not accuracies:
+        # Nothing to classify
+        return {
+            'strength_topics': [],
+            'weak_topics': [],
+            'improvement_topics': []
+        }
+
+    mean_accuracy = sum(accuracies) / len(accuracies)
+    upper_cut = mean_accuracy + 10.0
+    lower_cut = mean_accuracy - 10.0
+
+    for topic_key, metrics in topic_metrics.items():
+        # Include all topics that have at least one attempt
+        if metrics.get('attempted', 0) < 1:
+            # Skip topics with zero attempts entirely
             continue
-            
-        accuracy = metrics['accuracy']
-        avg_time = metrics['avg_time_sec']
-        
-        # Classification logic
-        if accuracy >= strength_accuracy and avg_time <= time_threshold:
-            # Strength: High accuracy AND reasonable time
-            strengths.append({
-                'topic': metrics['topic'],
-                'accuracy': metrics['accuracy'],
-                'avg_time_sec': metrics['avg_time_sec'],
-                'subject': metrics['subject'],
-                'chapter': metrics['chapter']
-                ,
-                'questions': metrics.get('questions', [])
-            })
-        elif accuracy < weakness_accuracy or (accuracy < weakness_accuracy and avg_time > time_threshold):
-            # Weakness: Low accuracy OR low accuracy with high time
-            weaknesses.append({
-                'topic': metrics['topic'],
-                'accuracy': metrics['accuracy'],
-                'avg_time_sec': metrics['avg_time_sec'],
-                'subject': metrics['subject'],
-                'chapter': metrics['chapter']
-                ,
-                'questions': metrics.get('questions', [])
-            })
+
+        accuracy = metrics.get('accuracy', 0)
+
+        entry = {
+            'topic': metrics['topic'],
+            'accuracy': metrics.get('accuracy', 0),
+            'avg_time_sec': metrics.get('avg_time_sec', 0),
+            'subject': metrics.get('subject', ''),
+            'chapter': metrics.get('chapter', ''),
+            'questions': metrics.get('questions', [])
+        }
+
+        if accuracy > upper_cut:
+            strengths.append(entry)
+        elif accuracy < lower_cut:
+            weaknesses.append(entry)
         else:
-            # Area for improvement: Moderate accuracy OR high accuracy but slow
-            improvements.append({
-                'topic': metrics['topic'],
-                'accuracy': metrics['accuracy'],
-                'avg_time_sec': metrics['avg_time_sec'],
-                'subject': metrics['subject'],
-                'chapter': metrics['chapter']
-                ,
-                'questions': metrics.get('questions', [])
-            })
-    
+            improvements.append(entry)
+
     return {
         'strength_topics': strengths,
         'weak_topics': weaknesses,
@@ -733,7 +717,7 @@ def get_unattempted_topics(topic_metrics, unattempted_threshold=5):
     
     return unattempted_topics
 
-def get_last_test_metrics(student_id, thresholds):
+def get_last_test_metrics(student_id):
     """
     Get metrics for the student's most recent test session.
     
@@ -762,19 +746,17 @@ def get_last_test_metrics(student_id, thresholds):
         
         # Format for last test feedback (no classification, just metrics)
         last_test_topics = []
-        min_attempts = thresholds['min_attempts']
-        
+
         for topic_key, metrics in session_metrics['topics'].items():
-            # Include topics even with fewer attempts for last test feedback
-            if metrics['attempted'] >= 1:  # At least 1 attempt
+            # Include any topic with at least one attempt
+            if metrics.get('attempted', 0) >= 1:
                 last_test_topics.append({
                     'topic': metrics['topic'],
                     'accuracy': metrics['accuracy'],
                     'avg_time_sec': metrics['avg_time_sec'],
                     'subject': metrics['subject'],
                     'chapter': metrics['chapter'],
-                    'attempted': metrics['attempted']
-                    ,
+                    'attempted': metrics['attempted'],
                     'questions': metrics.get('questions', [])
                 })
         
@@ -783,6 +765,148 @@ def get_last_test_metrics(student_id, thresholds):
     except Exception as e:
         logger.error(f"Error getting last test metrics for student {student_id}: {str(e)}")
         return {'last_test_topics': []}
+
+
+def is_valid_insight(insight):
+    """
+    Check if an insight is valid (not a fallback/placeholder message).
+    
+    Args:
+        insight: String to validate
+        
+    Returns:
+        bool: True if valid, False if fallback/placeholder
+    """
+    if not insight or not isinstance(insight, str):
+        return False
+    
+    insight_lower = insight.lower().strip()
+    
+    # Filter out insights that are too short
+    if len(insight_lower) < 10:
+        return False
+    
+    # Fallback phrases to exclude (case-insensitive)
+    fallback_phrases = [
+        'no data',
+        'insufficient',
+        'insufficient data',
+        'continue practicing',
+        'additional analysis needed',
+        'no insights',
+        'not available',
+        'not enough',
+        'not sufficient',
+        'no test data',
+        'complete more',
+        'for better insights',
+        'no analysis',
+        'unavailable',
+        'take more tests',
+        'attempt more',
+    ]
+    
+    # Check if any fallback phrase is present
+    for phrase in fallback_phrases:
+        if phrase in insight_lower:
+            return False
+    
+    return True
+
+
+def get_last_test_zone_insights(student_id):
+    """
+    Get zone insights from the student's most recent test by querying TestSubjectZoneInsight.
+    Selects one insight per subject, preferring focus_zone then steady_zone.
+    Filters out LLM fallback/placeholder phrases.
+    
+    Args:
+        student_id: Student ID to analyze
+        
+    Returns:
+        dict: Last test feedback formatted as {'status': ..., 'message': ..., 'insights': [...]}
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..models import TestSubjectZoneInsight
+        
+        # Get the most recent completed test session
+        last_session = TestSession.objects.filter(
+            student_id=student_id,
+            is_completed=True
+        ).order_by('-end_time').first()
+        
+        if not last_session:
+            print(f"⚠️ No completed test sessions found for student {student_id}")
+            return {
+                'status': 'info',
+                'message': 'No completed tests found',
+                'insights': ['Take your first test to get personalized feedback']
+            }
+        
+        # Query zone insights for this test session
+        zone_insights = TestSubjectZoneInsight.objects.filter(
+            test_session_id=last_session.id,
+            student_id=student_id
+        ).order_by('subject')
+        
+        if not zone_insights.exists():
+            print(f"⚠️ No zone insights found for test session {last_session.id}")
+            return {
+                'status': 'info',
+                'message': 'Zone insights not yet generated for latest test',
+                'insights': ['Complete test analysis in progress - check back soon']
+            }
+        
+        # Collect one insight per subject
+        selected_insights = []
+        
+        for zone_record in zone_insights:
+            subject = zone_record.subject
+            selected_insight = None
+            
+            # Prefer focus_zone (areas needing improvement)
+            if zone_record.focus_zone:
+                for insight in zone_record.focus_zone:
+                    if is_valid_insight(insight):
+                        selected_insight = f"{subject}: {insight}"
+                        break
+            
+            # Fallback to steady_zone if no valid focus_zone insight
+            if not selected_insight and zone_record.steady_zone:
+                for insight in zone_record.steady_zone:
+                    if is_valid_insight(insight):
+                        selected_insight = f"{subject}: {insight}"
+                        break
+            
+            # Add to results if we found a valid insight
+            if selected_insight:
+                selected_insights.append(selected_insight)
+        
+        # Return results
+        if selected_insights:
+            print(f"✅ Selected {len(selected_insights)} zone insights for last test feedback (student {student_id})")
+            return {
+                'status': 'success',
+                'message': 'Zone insights from latest test',
+                'insights': selected_insights
+            }
+        else:
+            print(f"⚠️ No valid insights found after filtering for student {student_id}")
+            return {
+                'status': 'info',
+                'message': 'No actionable insights available from latest test',
+                'insights': ['Continue practicing to build more detailed insights']
+            }
+        
+    except Exception as e:
+        logger.error(f"Error getting last test zone insights for student {student_id}: {str(e)}")
+        print(f"❌ Error in get_last_test_zone_insights: {str(e)}")
+        return {
+            'status': 'error',
+            'message': f'Error retrieving zone insights: {str(e)}',
+            'insights': ['Unable to retrieve feedback - please try again']
+        }
 
 @api_view(['POST', 'GET'])
 @permission_classes([IsAuthenticated])
@@ -884,8 +1008,8 @@ def get_student_insights(request):
         # Generate new insights if cache not found or force_regenerate is True
         print(f"🔄 Generating new insights for student {student_id}")
         
-        # Get dynamic thresholds
-        thresholds = get_thresholds(data)
+        # Thresholds concept removed; proceed without configurable thresholds
+        thresholds = {}
         
         # Calculate overall metrics (all tests)
         all_metrics = calculate_topic_metrics(student_id)
@@ -920,19 +1044,39 @@ def get_student_insights(request):
             thresholds
         )
         
-        # Get last test feedback
-        last_test_data = get_last_test_metrics(student_id, thresholds)
+        # Check if classification has any topics - if not, use all topics with lower thresholds
+        if not classification['strength_topics'] and not classification['weak_topics'] and not classification['improvement_topics']:
+            print(f"⚠️ No topics passed classification thresholds, using all topics for analysis")
+            # Use all available topics for analysis with relaxed thresholds
+            all_topics_list = list(all_metrics['topics'].values())
+            if all_topics_list:
+                # Split topics based on accuracy alone (no min_attempts filter)
+                classification['strength_topics'] = [t for t in all_topics_list if t['accuracy'] >= 70]
+                classification['weak_topics'] = [t for t in all_topics_list if t['accuracy'] < 50]
+                classification['improvement_topics'] = [t for t in all_topics_list if 50 <= t['accuracy'] < 70]
         
         # Generate LLM insights for each category
         llm_insights = {}
         
-        # Generate insights for strengths
+        # Generate insights for strengths (even if empty, still call to get fallback)
         if classification['strength_topics']:
             llm_insights['strengths'] = generate_llm_insights('strengths', classification['strength_topics'])
+        else:
+            llm_insights['strengths'] = {
+                'status': 'info',
+                'message': 'No strength topics identified yet',
+                'insights': ['Keep practicing to identify your strong areas!']
+            }
         
-        # Generate insights for weaknesses  
+        # Generate insights for weaknesses (even if empty, still call to get fallback)
         if classification['weak_topics']:
             llm_insights['weaknesses'] = generate_llm_insights('weaknesses', classification['weak_topics'])
+        else:
+            llm_insights['weaknesses'] = {
+                'status': 'info',
+                'message': 'No weak topics identified yet',
+                'insights': ['Continue practicing to identify areas for improvement!']
+            }
         
         # Generate study plan insights
         unattempted_topics = get_unattempted_topics(all_metrics['topics'])
@@ -944,9 +1088,11 @@ def get_student_insights(request):
         }
         llm_insights['study_plan'] = generate_llm_insights('study_plan', study_plan_data)
         
-        # Generate last test feedback
-        if last_test_data['last_test_topics']:
-            llm_insights['last_test_feedback'] = generate_llm_insights('last_test_feedback', last_test_data['last_test_topics'])
+        # Get last test feedback from zone insights (no LLM call needed)
+        llm_insights['last_test_feedback'] = get_last_test_zone_insights(student_id)
+        
+        # Get last test topic metrics (this was missing!)
+        last_test_data = get_last_test_metrics(student_id)
         
         # Prepare summary
         total_topics = len(all_metrics['topics'])
@@ -980,7 +1126,6 @@ def get_student_insights(request):
                 **last_test_data,
                 'unattempted_topics': unattempted_topics,
                 'llm_insights': llm_insights,
-                'thresholds_used': thresholds,
                 'summary': summary,
                 'cached': False
             }

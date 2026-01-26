@@ -41,7 +41,7 @@ def update_subject_scores_on_completion(sender, instance, created, **kwargs):
                         # Prefer asynchronous enqueue via Celery task so this signal handler returns quickly.
                         # If Celery isn't available or enqueuing fails, fall back to the previous synchronous call.
                         try:
-                            from .tasks import generate_insights_task
+                            from .tasks import generate_insights_task, generate_zone_insights_task
                             from .views.insights_views import is_celery_worker_available
                             
                             # Check if Celery workers are available before enqueueing
@@ -49,18 +49,28 @@ def update_subject_scores_on_completion(sender, instance, created, **kwargs):
                                 print(f"⚠️ No active Celery workers detected, falling back to synchronous insights generation for student {instance.student_id}")
                                 raise RuntimeError("No active Celery workers available")
                             else:
-                                # Use the same signature as the view: (student_id, request_data, force_regenerate)
-                                request_data = {'force_regenerate': True}
-                                generate_insights_task.delay(instance.student_id, request_data, True)
-                                print(f"🔄 Enqueued generate_insights_task for student {instance.student_id} after test {instance.id}")
-                                
-                                # Generate zone insights (new feature - independent of existing 4 cards)
+                                # STEP 1: Generate zone insights first (non-blocking, independent)
                                 try:
-                                    from .tasks import generate_zone_insights_task
-                                    generate_zone_insights_task.delay(instance.id)
-                                    print(f"🎯 Enqueued zone insights task for test {instance.id}")
+                                    zone_task = generate_zone_insights_task.delay(instance.id)
+                                    print(f"🎯 Enqueued zone insights task for test {instance.id} (Task ID: {zone_task.id})")
+                                    
+                                    # STEP 2: Chain home page insights generation AFTER zone insights complete
+                                    # This ensures zone insights are available for last_test_feedback
+                                    request_data = {'force_regenerate': True}
+                                    # Use chain or link to execute home insights after zone insights
+                                    from celery import chain
+                                    chain(
+                                        generate_zone_insights_task.si(instance.id),
+                                        generate_insights_task.si(instance.student_id, request_data, True)
+                                    ).apply_async()
+                                    print(f"🔄 Chained: zone insights → home insights for student {instance.student_id}")
+                                    
                                 except Exception as zone_e:
-                                    print(f"⚠️ Failed to enqueue zone insights (non-critical): {zone_e}")
+                                    print(f"⚠️ Failed to enqueue zone insights, falling back to direct insights: {zone_e}")
+                                    # If zone insights fail, still generate home insights
+                                    request_data = {'force_regenerate': True}
+                                    generate_insights_task.delay(instance.student_id, request_data, True)
+                                    print(f"🔄 Enqueued generate_insights_task (without zone insights) for student {instance.student_id}")
                                 
                         except (ImportError, RuntimeError, Exception) as e:
                             # Celery not installed/available in this environment or no workers, fall back to background thread

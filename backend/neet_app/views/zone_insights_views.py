@@ -216,7 +216,6 @@ def get_test_zone_insights(request, test_id):
             {
                 "subject": "Physics",
                 "steady_zone": ["point 1", "point 2"],
-                "edge_zone": ["point 1", "point 2"],
                 "focus_zone": ["point 1", "point 2"]
             },
             ...
@@ -446,7 +445,6 @@ def get_test_zone_insights(request, test_id):
                 logger.error(f"LLM error for test {test_id} subject {subj}: {str(e)}")
                 zones = {
                     'steady_zone': [],
-                    'edge_zone': [],
                     'focus_zone': []
                 }
 
@@ -458,7 +456,6 @@ def get_test_zone_insights(request, test_id):
                     defaults={
                         'student': student_profile,
                         'steady_zone': zones.get('steady_zone', []),
-                        'edge_zone': zones.get('edge_zone', []),
                         'focus_zone': zones.get('focus_zone', []),
                         'questions_analyzed': questions_payload
                     }
@@ -471,20 +468,18 @@ def get_test_zone_insights(request, test_id):
             insights_data.append({
                 'subject': subj_norm,
                 'steady_zone': zones.get('steady_zone', []),
-                'edge_zone': zones.get('edge_zone', []),
                 'focus_zone': zones.get('focus_zone', [])
             })
 
         # Return DB-backed insights so frontend always sees stored results (including previous runs)
         try:
             stored = TestSubjectZoneInsight.objects.filter(test_session=test).values(
-                'subject', 'steady_zone', 'edge_zone', 'focus_zone'
+                'subject', 'steady_zone', 'focus_zone'
             )
             final_insights = [
                 {
                     'subject': normalize_subject_name(s['subject']),
                     'steady_zone': s['steady_zone'] or [],
-                    'edge_zone': s['edge_zone'] or [],
                     'focus_zone': s['focus_zone'] or []
                 }
                 for s in stored
@@ -613,7 +608,6 @@ def get_test_zone_insights_raw(request, test_id):
             insights.append({
                 'subject': row.subject,
                 'steady_zone': row.steady_zone or [],
-                'edge_zone': row.edge_zone or [],
                 'focus_zone': row.focus_zone or [],
                 'questions_analyzed': row.questions_analyzed or [],
                 'created_at': row.created_at.isoformat() if row.created_at else None
