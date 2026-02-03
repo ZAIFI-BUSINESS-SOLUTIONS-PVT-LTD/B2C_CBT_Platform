@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.inzighted.neet",
+      "sha256_cert_fingerprints": [
+        "F5:F7:C8:B8:5C:D2:E4:8E:02:E3:BF:9D:CD:DE:47:54:31:93:E5:61:B3:17:93:08:E3:4F:66:FC:DD:48:25:4C"
+      ]
+    }
+  }
+]
