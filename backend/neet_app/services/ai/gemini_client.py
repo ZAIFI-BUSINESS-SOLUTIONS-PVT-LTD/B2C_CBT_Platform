@@ -92,7 +92,7 @@ class GeminiClient:
                 },
                 safety_settings=safety_settings
             )
-            print(f"Initialized Gemini client with API key {self.current_key_index + 1}")
+            print(f"Initialized Gemini client with API key {self.current_key_index + 1} (***{current_key[-4:]})")
         except Exception as e:
             print(f"Error initializing Gemini client: {e}")
             self.client = None
@@ -102,7 +102,9 @@ class GeminiClient:
         with self.lock:
             old_index = self.current_key_index
             self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
-            print(f"🔄 Rotating from API key {old_index + 1} to API key {self.current_key_index + 1}")
+            old_key = self.api_keys[old_index] if self.api_keys else ''
+            new_key = self.api_keys[self.current_key_index] if self.api_keys else ''
+            print(f"🔄 Rotating from API key {old_index + 1} (***{old_key[-4:]}) to API key {self.current_key_index + 1} (***{new_key[-4:]})")
             self._initialize_client()
     
     def _wait_for_rate_limit(self):
@@ -125,6 +127,12 @@ class GeminiClient:
             return self._get_fallback_response()
         
         for attempt in range(max_retries):
+            # Log which API key is being used (masked)
+            try:
+                current_key_masked = f"***{self.api_keys[self.current_key_index][-4:]}" if self.api_keys else 'None'
+            except Exception:
+                current_key_masked = 'None'
+            print(f"🔑 Attempt {attempt+1}/{max_retries} using API key {self.current_key_index + 1} ({current_key_masked})")
             try:
                 # Rate limiting
                 self._wait_for_rate_limit()
@@ -185,7 +193,8 @@ class GeminiClient:
                     return self._get_fallback_response()
                     
             except Exception as e:
-                error_msg = str(e).lower()
+                orig_err = str(e)
+                error_msg = orig_err.lower()
                 
                 # Check for rate limit or quota errors (more comprehensive)
                 rate_limit_terms = [
@@ -213,11 +222,24 @@ class GeminiClient:
                     continue
                 
                 # Check for authentication errors
-                elif any(term in error_msg for term in ['authentication', 'invalid api key', '401', '403']):
-                    print(f"🔑 Authentication error with API key {self.current_key_index + 1}")
-                    print(f"   Error: {str(e)[:200]}...")
-                    self._rotate_api_key()
-                    continue
+                # Detect authentication / invalid key / expired key errors robustly
+                auth_terms = ['authentication', 'invalid api key', 'invalid_api_key', 'api_key_invalid', 'api key', 'expired', '401', '403']
+                if any(term in error_msg for term in auth_terms):
+                    print(f"🔑 Authentication/Key error with API key {self.current_key_index + 1} ({current_key_masked})")
+                    print(f"   Error: {orig_err[:200]}...")
+                    # Rotate to next key and retry unless we've exhausted attempts
+                    if len(self.api_keys) > 1:
+                        self._rotate_api_key()
+                        # small backoff before retrying
+                        time.sleep(1)
+                        continue
+                    else:
+                        # No other keys to try
+                        print("❌ No alternate API keys available to rotate to.")
+                        if attempt == max_retries - 1:
+                            return self._get_fallback_response()
+                        time.sleep(1)
+                        continue
                 
                 # Other errors
                 else:

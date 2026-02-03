@@ -264,25 +264,29 @@ EMAIL_PROVIDER = os.environ.get('EMAIL_PROVIDER', 'django')  # 'django' | 'smtp'
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
 # Multiple Gemini API Keys for rotation (to avoid rate limits)
-# You can add up to 10 API keys for automatic rotation
+# You can add up to 10 API keys for automatic rotation. Keys MUST be provided via environment variables.
 GEMINI_API_KEYS = [
     key.strip() for key in [
-        os.environ.get('GEMINI_API_KEY_1', 'AIzaSyCiRo7SBPCG7sXcoO3SwKJ83wwS0HjMTms'),
-        os.environ.get('GEMINI_API_KEY_2', 'AIzaSyBE1loGo70z8u5nFpuTTc_9R55sjxjCNhY'),
-        os.environ.get('GEMINI_API_KEY_3', 'AIzaSyABTJVXvysbnjRVhPsVjLZzNktngqtzIgM'),
-        os.environ.get('GEMINI_API_KEY_4', 'AIzaSyAgInt3v8pAqM_12bLWo90-32M56YvDSHY'),
-        os.environ.get('GEMINI_API_KEY_5', 'AIzaSyCocQbZChhFrebz66Go1MQ5Y94imDxtT8g'),
-        os.environ.get('GEMINI_API_KEY_6', 'AIzaSyAVf05frX2D1aXLmNqCindJHeO0hB_DT60'),
-        os.environ.get('GEMINI_API_KEY_7', 'AIzaSyCl1_xxF-BPg7_Tnf7Sw9IDr0tO3TdL6DE'),
-        os.environ.get('GEMINI_API_KEY_8', 'AIzaSyCF7VOs8OE7ADuuIvjw5Aao8L9oDN85u5Q'),
-        os.environ.get('GEMINI_API_KEY_9', 'AIzaSyBp9jYYfQdUASd5nckwT9Xv6oD0_lkNikc'),
-        os.environ.get('GEMINI_API_KEY_10', 'AIzaSyCqhAVgqJqqfpNKpgSJGBF2vTIKPK_77Ok'),
-    ] if key.strip()
+        os.environ.get('GEMINI_API_KEY_1'),
+        os.environ.get('GEMINI_API_KEY_2'),
+        os.environ.get('GEMINI_API_KEY_3'),
+        os.environ.get('GEMINI_API_KEY_4'),
+        os.environ.get('GEMINI_API_KEY_5'),
+        os.environ.get('GEMINI_API_KEY_6'),
+        os.environ.get('GEMINI_API_KEY_7'),
+        os.environ.get('GEMINI_API_KEY_8'),
+        os.environ.get('GEMINI_API_KEY_9'),
+        os.environ.get('GEMINI_API_KEY_10'),
+    ] if key and key.strip()
 ]
 
-# Fallback to single key if no multiple keys are provided
+# Fallback to single key if no multiple keys are provided but a single key exists
 if not GEMINI_API_KEYS and GEMINI_API_KEY:
     GEMINI_API_KEYS = [GEMINI_API_KEY]
+
+if not GEMINI_API_KEYS:
+    # Warn at startup — prevents silent use of embedded or expired keys
+    print("⚠️ No GEMINI_API_KEYS configured in environment; set GEMINI_API_KEY or GEMINI_API_KEY_1..10 in your .env or environment")
 
 # LangChain configuration
 LANGCHAIN_TRACING_V2 = os.environ.get('LANGCHAIN_TRACING_V2', 'false')

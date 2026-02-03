@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, ArrowRight, UserRound, Trophy, ChevronLeft } from "lucide-react";
 import { API_CONFIG } from "@/config/api";
 import { authenticatedFetch } from "@/lib/auth";
-import TestHistory from "@/components/test-history";
+import TestZoneInsights from "@/components/test-zone-insights";
 import MobileDock from "@/components/mobile-dock";
 import { AnalyticsData, InsightsData } from "@/types/dashboard";
 
@@ -75,15 +75,19 @@ export default function LandingDashboard() {
         <div className="sticky top-0 bg-white z-10 border-b border-gray-200">
           {/* Header Section */}
           <header className="sticky top-0 z-10 max-w-7xl mx-auto px-4 py-4 border-b bg-white">
-            <h1 className="text-xl font-bold text-gray-900">Results</h1>
+            <h1 className="text-xl font-bold text-gray-900">Analysis</h1>
           </header>
         </div>
-        <TestHistory />
+        <div className="p-4">
+          <TestZoneInsights />
+        </div>
       </div>
       <MobileDock />
     </div>
   );
 }
+
+
 
 
 

@@ -22,7 +22,7 @@ export default function Topics() {
   });
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white pb-20">
       {/* Page header */}
       <header className="sticky top-0 z-10 max-w-7xl mx-auto px-4 py-4 border-b bg-white">
         <h1 className="text-xl font-bold text-gray-900">Mock Tests & History</h1>
@@ -66,6 +66,11 @@ export default function Topics() {
             accentClass="bg-orange-500/20"
           />
         </div>
+      </div>
+
+      {/* Test History Section */}
+      <div className="mt-6">
+        <TestHistory />
       </div>
 
       <MobileDock />

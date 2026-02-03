@@ -589,6 +589,32 @@ def process_upload(
         # Get unique topics
         topics_used = list(set(q.topic.name for q in created_questions))
         
+        # Trigger async misconception generation task (if Celery available).
+        # If Celery is not available or Redis connection fails, call the task synchronously.
+        try:
+            from ..tasks import generate_misconceptions_task
+            # Try to queue async task via Celery
+            try:
+                generate_misconceptions_task.delay(platform_test.id)
+                logger.info(f"✓ Queued async misconception generation task for test {platform_test.id}")
+            except Exception as queue_error:
+                # Catch Redis connection errors or any Celery queueing failures
+                # and fall back to synchronous execution
+                error_msg = str(queue_error)
+                if 'redis' in error_msg.lower() or 'connection' in error_msg.lower() or 'refused' in error_msg.lower():
+                    logger.warning(f"Redis/Celery not available ({error_msg}), running misconception generation synchronously")
+                else:
+                    logger.warning(f"Failed to queue async task ({error_msg}), falling back to synchronous execution")
+                
+                # Call task synchronously - when called directly without Celery,
+                # the decorator doesn't inject 'self', so just pass test_id
+                generate_misconceptions_task(platform_test.id)
+                logger.info(f"✓ Ran misconception generation synchronously for test {platform_test.id}")
+        except Exception as e:
+            # Don't fail upload if task queueing/execution fails
+            logger.exception(f"Failed to run misconception generation for test {platform_test.id}: {e}")
+            # Still return success for the upload itself
+        
         return {
             'success': True,
             'test_id': platform_test.id,

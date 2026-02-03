@@ -1,0 +1,15 @@
+# Generated icon files (regenerate using generator tools)
+icon-*.png
+
+# Node modules for icon generator
+node_modules/
+package-lock.json
+
+# Source icon (user-provided)
+source-icon.png
+
+# Keep these files in version control:
+# - generate-icons.html
+# - generate-pwa-icons.js
+# - package.json
+# - README.md

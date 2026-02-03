@@ -22,15 +22,7 @@ from ..models import StudentProfile, TestSession, TestAnswer, Question, Topic, S
 
 logger = logging.getLogger(__name__)
 
-# File-based insights cache directory
-INSIGHTS_CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', 'insights_cache')
-
-# Log the cache directory setup
-print(f"🗂️ INSIGHTS_CACHE_SETUP: Cache directory configured as: {INSIGHTS_CACHE_DIR}")
-print(f"🗂️ INSIGHTS_CACHE_SETUP: Absolute cache directory: {os.path.abspath(INSIGHTS_CACHE_DIR)}")
-print(f"🗂️ INSIGHTS_CACHE_SETUP: Current __file__: {__file__}")
-print(f"🗂️ INSIGHTS_CACHE_SETUP: Directory of __file__: {os.path.dirname(__file__)}")
-print(f"🗂️ INSIGHTS_CACHE_SETUP: Cache dir exists at startup: {os.path.exists(INSIGHTS_CACHE_DIR)}")
+# Insights cache moved to database-backed storage; file-cache helpers removed
 
 def is_celery_worker_available():
     """
@@ -84,13 +76,7 @@ def is_celery_worker_available():
         print(f"❌ Error checking Celery workers: {str(e)}")
         return False
 
-def get_insights_file_path(student_id):
-    """Get the file path for storing student insights JSON."""
-    file_path = os.path.join(INSIGHTS_CACHE_DIR, f'insights_{student_id}.json')
-    print(f"📁 PATH_LOG: Cache directory: {INSIGHTS_CACHE_DIR}")
-    print(f"📁 PATH_LOG: Generated file path: {file_path}")
-    print(f"📁 PATH_LOG: Absolute path: {os.path.abspath(file_path)}")
-    return file_path
+# File-based cache helpers removed (use DB-backed `save_insights_to_database` / `load_insights_from_database`)
 
 def save_insights_to_database(student_id, insights_data, test_session_id=None):
     """Save insights data to the database."""
@@ -117,11 +103,10 @@ def save_insights_to_database(student_id, insights_data, test_session_id=None):
             weak_topics=data.get('weak_topics', []),
             improvement_topics=data.get('improvement_topics', []),
             unattempted_topics=data.get('unattempted_topics', []),
-            last_test_topics=data.get('last_test_topics', []),
+            # Note: last_test_topics and llm_last_test_feedback removed by design
             llm_strengths=data.get('llm_insights', {}).get('strengths', {}),
             llm_weaknesses=data.get('llm_insights', {}).get('weaknesses', {}),
             llm_study_plan=data.get('llm_insights', {}).get('study_plan', {}),
-            llm_last_test_feedback=data.get('llm_insights', {}).get('last_test_feedback', {}),
             thresholds_used=data.get('thresholds_used', {}),
             summary=data.get('summary', {}),
             insight_type='overall'
@@ -156,12 +141,11 @@ def load_insights_from_database(student_id):
                 'weak_topics': insight.weak_topics,
                 'improvement_topics': insight.improvement_topics,
                 'unattempted_topics': insight.unattempted_topics,
-                'last_test_topics': insight.last_test_topics,
+                # Note: last_test_topics and last_test_feedback intentionally omitted
                 'llm_insights': {
                     'strengths': insight.llm_strengths,
                     'weaknesses': insight.llm_weaknesses,
-                    'study_plan': insight.llm_study_plan,
-                    'last_test_feedback': insight.llm_last_test_feedback
+                    'study_plan': insight.llm_study_plan
                 },
                 'thresholds_used': insight.thresholds_used,
                 'summary': insight.summary,
@@ -176,86 +160,8 @@ def load_insights_from_database(student_id):
         logger.error(f"Failed to load insights from database for student {student_id}: {e}")
         return None
 
-# Keep the old file functions for backward compatibility during transition
-def save_insights_to_file(student_id, insights_data):
-    """Save insights data to a JSON file."""
-    try:
-        # Ensure the cache directory exists
-        os.makedirs(INSIGHTS_CACHE_DIR, exist_ok=True)
-        
-        file_path = get_insights_file_path(student_id)
-        
-        # Log detailed information about the save operation
-        print(f"💾 SAVE_INSIGHTS_LOG: Starting save operation for student {student_id}")
-        print(f"💾 SAVE_INSIGHTS_LOG: Cache directory: {INSIGHTS_CACHE_DIR}")
-        print(f"💾 SAVE_INSIGHTS_LOG: File path: {file_path}")
-        print(f"💾 SAVE_INSIGHTS_LOG: Directory exists: {os.path.exists(INSIGHTS_CACHE_DIR)}")
-        print(f"💾 SAVE_INSIGHTS_LOG: File exists before save: {os.path.exists(file_path)}")
-        
-        # Check if file exists and get its modification time
-        if os.path.exists(file_path):
-            mod_time_before = os.path.getmtime(file_path)
-            print(f"💾 SAVE_INSIGHTS_LOG: File mod time before save: {mod_time_before}")
-        else:
-            print(f"💾 SAVE_INSIGHTS_LOG: File does not exist, will create new")
-        
-        # Save the file
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(insights_data, f, indent=2, ensure_ascii=False)
-        
-        # Verify the save was successful
-        if os.path.exists(file_path):
-            mod_time_after = os.path.getmtime(file_path)
-            file_size = os.path.getsize(file_path)
-            print(f"💾 SAVE_INSIGHTS_LOG: File successfully saved!")
-            print(f"💾 SAVE_INSIGHTS_LOG: File mod time after save: {mod_time_after}")
-            print(f"💾 SAVE_INSIGHTS_LOG: File size: {file_size} bytes")
-            print(f"💾 SAVE_INSIGHTS_LOG: Data keys saved: {list(insights_data.keys()) if isinstance(insights_data, dict) else 'Not a dict'}")
-        else:
-            print(f"❌ SAVE_INSIGHTS_LOG: File does not exist after save operation!")
-        
-        print(f"💾 Insights saved to file for student {student_id}")
-        return True
-    except Exception as e:
-        print(f"❌ SAVE_INSIGHTS_LOG: Exception during save: {type(e).__name__}: {e}")
-        print(f"❌ Failed to save insights to file for student {student_id}: {e}")
-        logger.error(f"Failed to save insights to file for student {student_id}: {e}")
-        return False
-
-def load_insights_from_file(student_id):
-    """Load insights data from a JSON file."""
-    try:
-        file_path = get_insights_file_path(student_id)
-        
-        # Log detailed information about the load operation
-        print(f"📂 LOAD_INSIGHTS_LOG: Starting load operation for student {student_id}")
-        print(f"📂 LOAD_INSIGHTS_LOG: Cache directory: {INSIGHTS_CACHE_DIR}")
-        print(f"📂 LOAD_INSIGHTS_LOG: File path: {file_path}")
-        print(f"📂 LOAD_INSIGHTS_LOG: Directory exists: {os.path.exists(INSIGHTS_CACHE_DIR)}")
-        print(f"📂 LOAD_INSIGHTS_LOG: File exists: {os.path.exists(file_path)}")
-        
-        if os.path.exists(file_path):
-            file_size = os.path.getsize(file_path)
-            mod_time = os.path.getmtime(file_path)
-            print(f"📂 LOAD_INSIGHTS_LOG: File size: {file_size} bytes")
-            print(f"📂 LOAD_INSIGHTS_LOG: File mod time: {mod_time}")
-            
-            with open(file_path, 'r', encoding='utf-8') as f:
-                insights_data = json.load(f)
-            
-            print(f"📂 LOAD_INSIGHTS_LOG: Data loaded successfully!")
-            print(f"📂 LOAD_INSIGHTS_LOG: Data keys: {list(insights_data.keys()) if isinstance(insights_data, dict) else 'Not a dict'}")
-            print(f"📂 Insights loaded from file for student {student_id}")
-            return insights_data
-        else:
-            print(f"📂 LOAD_INSIGHTS_LOG: File not found, returning None")
-            print(f"📂 No cached insights file found for student {student_id}")
-            return None
-    except Exception as e:
-        print(f"❌ LOAD_INSIGHTS_LOG: Exception during load: {type(e).__name__}: {e}")
-        print(f"❌ Failed to load insights from file for student {student_id}: {e}")
-        logger.error(f"Failed to load insights from file for student {student_id}: {e}")
-        return None
+# File-based cache helpers removed — use database-backed caching via
+# `save_insights_to_database` and `load_insights_from_database` instead.
 
 # Configure Gemini API
 GEMINI_API_KEYS = getattr(settings, 'GEMINI_API_KEYS', [])
@@ -304,27 +210,11 @@ Keep each point to 1-2 sentences. Focus on growth, not shortcomings.
 Important — use the topic metadata and the `questions` array included in each topic (each question has: question_id, options, correct_answer, selected_answer, is_correct, time_taken). Analyze question-by-question to generate candidate insights, rank them by impact and actionability, and return exactly 2 actionable insights ordered most-actionable-first.
 
 Topics data: {data}
-""",
-    
-    'study_plan': """
-Act as a highly personalized NEET and JEE exam tutor. Carefully analyze the provided student data and deliver feedback with a warm, supportive, and individualized touch. Use the topic metadata: if a topic's `subject` is "Math" treat it with JEE framing (math problem-solving strategies and higher quantitative standards); for all other subjects use NEET framing.
-For each metric or insight:
-- Avoid using raw formatting like asterisks (**).
-- Each point must be concise, specific, and limited to 18–20 words.
-- Ensure every suggestion or observation is actionable, encouraging, and tailored to the student's unique strengths and areas for improvement.
-
-You are a strategic NEET exam tutor creating a personalized study plan. Based on the student's performance across topics, provide exactly 2 actionable study suggestions that:
-1. Mix targeted revision for weak topics with speed improvement strategies, and address topics with many unattempted questions (if any)
-2. Include balanced revision to keep strong topics sharp while focusing on avoided or skipped topic areas
-Be specific and practical. Consider unattempted topics as areas needing confidence building. Keep each suggestion to 1-2 sentences.
-
-Important — use the topic metadata and the `questions` arrays provided (each question: question_id, options, correct_answer, selected_answer, is_correct, time_taken). Analyze question-level patterns, prepare candidate study interventions, rank them by likely impact, and return exactly 2 actionable, ranked study suggestions (most actionable first).
-
-Performance data: {data}
 """
 }
 # Thresholds removed: classification no longer depends on configurable thresholds.
 # Previous dynamic thresholds have been removed to avoid gating topics.
+# Note: 'study_plan' prompt removed - now uses misconception-based service in study_plan_service.py
 
 def generate_llm_insights(insight_type, data):
     """
@@ -452,9 +342,7 @@ def generate_llm_insights(insight_type, data):
             'study_plan': [
                 "Currently, there isn’t enough data to design a study plan, but attempting more tests will allow personalized guidance soon."
             ],
-            'last_test_feedback': [
-                "I don’t have sufficient recent test data to provide feedback, but once you attempt another test, insights will be available."
-            ],
+            # 'last_test_feedback' fallback removed (feature deprecated)
             'no_data': [
                 "There’s no test data available yet, but once you take your first test, personalized strengths and weaknesses will be generated."
             ]
@@ -717,54 +605,7 @@ def get_unattempted_topics(topic_metrics, unattempted_threshold=5):
     
     return unattempted_topics
 
-def get_last_test_metrics(student_id):
-    """
-    Get metrics for the student's most recent test session.
-    
-    Args:
-        student_id: Student ID to analyze
-        thresholds: Dict of classification thresholds
-        
-    Returns:
-        dict: Last test topic metrics
-    """
-    try:
-        # Get the most recent completed test session
-        last_session = TestSession.objects.filter(
-            student_id=student_id,
-            is_completed=True
-        ).order_by('-end_time').first()
-        
-        if not last_session:
-            return {'last_test_topics': []}
-        
-        # Calculate metrics for just this session
-        session_metrics = calculate_topic_metrics(student_id, [last_session.id])
-        
-        if not session_metrics or 'topics' not in session_metrics:
-            return {'last_test_topics': []}
-        
-        # Format for last test feedback (no classification, just metrics)
-        last_test_topics = []
-
-        for topic_key, metrics in session_metrics['topics'].items():
-            # Include any topic with at least one attempt
-            if metrics.get('attempted', 0) >= 1:
-                last_test_topics.append({
-                    'topic': metrics['topic'],
-                    'accuracy': metrics['accuracy'],
-                    'avg_time_sec': metrics['avg_time_sec'],
-                    'subject': metrics['subject'],
-                    'chapter': metrics['chapter'],
-                    'attempted': metrics['attempted'],
-                    'questions': metrics.get('questions', [])
-                })
-        
-        return {'last_test_topics': last_test_topics}
-        
-    except Exception as e:
-        logger.error(f"Error getting last test metrics for student {student_id}: {str(e)}")
-        return {'last_test_topics': []}
+# Note: last-test topic metric removed — functionality intentionally omitted.
 
 
 def is_valid_insight(insight):
@@ -814,99 +655,7 @@ def is_valid_insight(insight):
     return True
 
 
-def get_last_test_zone_insights(student_id):
-    """
-    Get zone insights from the student's most recent test by querying TestSubjectZoneInsight.
-    Selects one insight per subject, preferring focus_zone then steady_zone.
-    Filters out LLM fallback/placeholder phrases.
-    
-    Args:
-        student_id: Student ID to analyze
-        
-    Returns:
-        dict: Last test feedback formatted as {'status': ..., 'message': ..., 'insights': [...]}
-    """
-    try:
-        # Import here to avoid circular imports
-        from ..models import TestSubjectZoneInsight
-        
-        # Get the most recent completed test session
-        last_session = TestSession.objects.filter(
-            student_id=student_id,
-            is_completed=True
-        ).order_by('-end_time').first()
-        
-        if not last_session:
-            print(f"⚠️ No completed test sessions found for student {student_id}")
-            return {
-                'status': 'info',
-                'message': 'No completed tests found',
-                'insights': ['Take your first test to get personalized feedback']
-            }
-        
-        # Query zone insights for this test session
-        zone_insights = TestSubjectZoneInsight.objects.filter(
-            test_session_id=last_session.id,
-            student_id=student_id
-        ).order_by('subject')
-        
-        if not zone_insights.exists():
-            print(f"⚠️ No zone insights found for test session {last_session.id}")
-            return {
-                'status': 'info',
-                'message': 'Zone insights not yet generated for latest test',
-                'insights': ['Complete test analysis in progress - check back soon']
-            }
-        
-        # Collect one insight per subject
-        selected_insights = []
-        
-        for zone_record in zone_insights:
-            subject = zone_record.subject
-            selected_insight = None
-            
-            # Prefer focus_zone (areas needing improvement)
-            if zone_record.focus_zone:
-                for insight in zone_record.focus_zone:
-                    if is_valid_insight(insight):
-                        selected_insight = f"{subject}: {insight}"
-                        break
-            
-            # Fallback to steady_zone if no valid focus_zone insight
-            if not selected_insight and zone_record.steady_zone:
-                for insight in zone_record.steady_zone:
-                    if is_valid_insight(insight):
-                        selected_insight = f"{subject}: {insight}"
-                        break
-            
-            # Add to results if we found a valid insight
-            if selected_insight:
-                selected_insights.append(selected_insight)
-        
-        # Return results
-        if selected_insights:
-            print(f"✅ Selected {len(selected_insights)} zone insights for last test feedback (student {student_id})")
-            return {
-                'status': 'success',
-                'message': 'Zone insights from latest test',
-                'insights': selected_insights
-            }
-        else:
-            print(f"⚠️ No valid insights found after filtering for student {student_id}")
-            return {
-                'status': 'info',
-                'message': 'No actionable insights available from latest test',
-                'insights': ['Continue practicing to build more detailed insights']
-            }
-        
-    except Exception as e:
-        logger.error(f"Error getting last test zone insights for student {student_id}: {str(e)}")
-        print(f"❌ Error in get_last_test_zone_insights: {str(e)}")
-        return {
-            'status': 'error',
-            'message': f'Error retrieving zone insights: {str(e)}',
-            'insights': ['Unable to retrieve feedback - please try again']
-        }
+# Note: zone-based last-test feedback removed — function intentionally omitted.
 
 @api_view(['POST', 'GET'])
 @permission_classes([IsAuthenticated])
@@ -1021,7 +770,6 @@ def get_student_insights(request):
                     'strength_topics': [],
                     'weak_topics': [],
                     'improvement_topics': [],
-                    'last_test_topics': [],
                     'unattempted_topics': [],
                     'thresholds_used': thresholds,
                     'summary': {
@@ -1058,9 +806,24 @@ def get_student_insights(request):
         # Generate LLM insights for each category
         llm_insights = {}
         
+        # Filter questions by correctness before sending to LLM
+        # Strengths: only correct questions (is_correct=True)
+        strength_topics_filtered = []
+        for topic in classification['strength_topics']:
+            topic_copy = topic.copy()
+            topic_copy['questions'] = [q for q in topic.get('questions', []) if q.get('is_correct') is True]
+            strength_topics_filtered.append(topic_copy)
+        
+        # Weaknesses: only wrong questions (is_correct=False)
+        weak_topics_filtered = []
+        for topic in classification['weak_topics']:
+            topic_copy = topic.copy()
+            topic_copy['questions'] = [q for q in topic.get('questions', []) if q.get('is_correct') is False]
+            weak_topics_filtered.append(topic_copy)
+        
         # Generate insights for strengths (even if empty, still call to get fallback)
-        if classification['strength_topics']:
-            llm_insights['strengths'] = generate_llm_insights('strengths', classification['strength_topics'])
+        if strength_topics_filtered:
+            llm_insights['strengths'] = generate_llm_insights('strengths', strength_topics_filtered)
         else:
             llm_insights['strengths'] = {
                 'status': 'info',
@@ -1069,8 +832,8 @@ def get_student_insights(request):
             }
         
         # Generate insights for weaknesses (even if empty, still call to get fallback)
-        if classification['weak_topics']:
-            llm_insights['weaknesses'] = generate_llm_insights('weaknesses', classification['weak_topics'])
+        if weak_topics_filtered:
+            llm_insights['weaknesses'] = generate_llm_insights('weaknesses', weak_topics_filtered)
         else:
             llm_insights['weaknesses'] = {
                 'status': 'info',
@@ -1078,21 +841,35 @@ def get_student_insights(request):
                 'insights': ['Continue practicing to identify areas for improvement!']
             }
         
-        # Generate study plan insights
-        unattempted_topics = get_unattempted_topics(all_metrics['topics'])
-        study_plan_data = {
-            'weak_topics': classification['weak_topics'],
-            'improvement_topics': classification['improvement_topics'],
-            'strength_topics': classification['strength_topics'],
-            'unattempted_topics': unattempted_topics
-        }
-        llm_insights['study_plan'] = generate_llm_insights('study_plan', study_plan_data)
+        # Generate study plan insights using new misconception-based approach
+        from neet_app.services.study_plan_service import generate_study_plan_from_misconceptions
+        study_plan_result = generate_study_plan_from_misconceptions(student_id, max_tests=5)
         
-        # Get last test feedback from zone insights (no LLM call needed)
-        llm_insights['last_test_feedback'] = get_last_test_zone_insights(student_id)
+        # Format study plan result to match expected structure
+        if study_plan_result['status'] == 'success':
+            llm_insights['study_plan'] = {
+                'status': 'success',
+                'message': study_plan_result.get('analysis_summary', ''),
+                'insights': [
+                    f"{rec['rank']}. {rec['title']}: {rec['reasoning'][:100]}..."
+                    for rec in study_plan_result.get('recommendations', [])[:5]
+                ],
+                'recommendations': study_plan_result.get('recommendations', [])
+            }
+        elif study_plan_result['status'] == 'insufficient_data':
+            llm_insights['study_plan'] = {
+                'status': 'info',
+                'message': study_plan_result.get('message', 'Not enough data for study plan'),
+                'insights': ['Complete more tests to get personalized study recommendations based on your misconceptions.']
+            }
+        else:
+            llm_insights['study_plan'] = {
+                'status': 'warning',
+                'message': 'Study plan generation temporarily unavailable',
+                'insights': ['Please try again later or contact support if the issue persists.']
+            }
         
-        # Get last test topic metrics (this was missing!)
-        last_test_data = get_last_test_metrics(student_id)
+        # Last-test feedback/metrics removed — not included in insights
         
         # Prepare summary
         total_topics = len(all_metrics['topics'])
@@ -1107,6 +884,9 @@ def get_student_insights(request):
             is_completed=True
         ).order_by('-end_time').first()
         latest_session_id = latest_session.id if latest_session else None
+        
+        # Calculate unattempted topics for summary
+        unattempted_topics = get_unattempted_topics(all_metrics['topics'])
         
         summary = {
             'total_topics_analyzed': total_topics,
@@ -1123,7 +903,6 @@ def get_student_insights(request):
             'status': 'success',
             'data': {
                 **classification,
-                **last_test_data,
                 'unattempted_topics': unattempted_topics,
                 'llm_insights': llm_insights,
                 'summary': summary,
@@ -1310,11 +1089,7 @@ def get_insights_cache(request):
                             'message': 'No cached insights available', 
                             'insights': ['Take some tests to get AI-generated study plans!']
                         },
-                        'last_test_feedback': {
-                            'status': 'info',
-                            'message': 'No cached insights available',
-                            'insights': ['Complete a test to get AI feedback on your performance!']
-                        }
+                        # last_test_feedback intentionally removed from cache response
                     },
                     'summary': {
                         'total_topics_analyzed': 0,
@@ -1406,12 +1181,10 @@ def get_insights_history(request):
                     'weak_topics': insight.weak_topics,
                     'improvement_topics': insight.improvement_topics,
                     'unattempted_topics': insight.unattempted_topics,
-                    'last_test_topics': insight.last_test_topics,
                     'llm_insights': {
                         'strengths': insight.llm_strengths,
                         'weaknesses': insight.llm_weaknesses,
-                        'study_plan': insight.llm_study_plan,
-                        'last_test_feedback': insight.llm_last_test_feedback
+                        'study_plan': insight.llm_study_plan
                     },
                     'thresholds_used': insight.thresholds_used
                 }
@@ -1438,24 +1211,429 @@ def get_insights_history(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+def get_topic_history_by_test(student_id, include='correct', max_tests=None):
+    """
+    Get topic-wise performance history grouped by test.
+    
+    Args:
+        student_id: Student ID to analyze
+        include: 'correct' for strengths (only correct answers) or 'wrong' for weaknesses (only wrong answers)
+        max_tests: Maximum number of tests to include (default: all tests)
+        
+    Returns:
+        list: Topics with metadata and questions grouped by test
+        [
+            {
+                "topic": "Kinematics",
+                "subject": "Physics",
+                "chapter": "Motion",
+                "accuracy": 75.0,
+                "avg_time_sec": 42.5,
+                "total_questions": 20,
+                "unattempted": 5,
+                "tests": [
+                    {
+                        "test_name": "NEET Mock Test 1",
+                        "test_date": "2024-01-15T10:30:00Z",
+                        "questions": [
+                            {
+                                "question_id": 101,
+                                "question": "A particle moves...",
+                                "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
+                                "correct_answer": "B",
+                                "selected_answer": "B",
+                                "is_correct": true,
+                                "time_taken": 35
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    """
+    try:
+        # Get completed test sessions ordered by end_time
+        sessions_query = TestSession.objects.filter(
+            student_id=student_id,
+            is_completed=True
+        ).select_related('platform_test').order_by('end_time')
+        
+        if max_tests:
+            sessions_query = sessions_query[:max_tests]
+        
+        sessions = list(sessions_query)
+        
+        if not sessions:
+            return []
+        
+        session_ids = [s.id for s in sessions]
+        
+        # Get all test answers for these sessions
+        answers_query = TestAnswer.objects.filter(
+            session_id__in=session_ids
+        ).select_related('question__topic', 'session', 'session__platform_test')
+        
+        # Filter by correctness
+        if include == 'correct':
+            answers_query = answers_query.filter(is_correct=True)
+        elif include == 'wrong':
+            answers_query = answers_query.filter(is_correct=False)
+        
+        answers = list(answers_query)
+        
+        if not answers:
+            return []
+        
+        # Group answers by topic and then by test
+        topic_data = defaultdict(lambda: {
+            'topic_name': '',
+            'subject': '',
+            'chapter': '',
+            'total_attempted': 0,
+            'total_correct': 0,
+            'total_time': 0,
+            'tests': defaultdict(list)  # test_id -> list of questions
+        })
+        
+        # Build session metadata map
+        session_map = {}
+        for session in sessions:
+            test_name = session.get_test_name() if hasattr(session, 'get_test_name') else (
+                session.platform_test.test_name if session.platform_test else f"Test {session.id}"
+            )
+            session_map[session.id] = {
+                'test_name': test_name,
+                'test_date': session.end_time.isoformat() if session.end_time else session.start_time.isoformat()
+            }
+        
+        # Process answers
+        for answer in answers:
+            topic = answer.question.topic
+            topic_key = f"{topic.id}_{topic.name}"
+            
+            # Initialize topic metadata
+            if not topic_data[topic_key]['topic_name']:
+                topic_data[topic_key]['topic_name'] = topic.name
+                topic_data[topic_key]['subject'] = topic.subject
+                topic_data[topic_key]['chapter'] = topic.chapter or ''
+            
+            # Track stats for accuracy calculation
+            topic_data[topic_key]['total_attempted'] += 1
+            if answer.is_correct:
+                topic_data[topic_key]['total_correct'] += 1
+            
+            time_taken = answer.time_taken or 0
+            topic_data[topic_key]['total_time'] += time_taken
+            
+            # Build question data
+            q = answer.question
+            options = {
+                'A': q.option_a,
+                'B': q.option_b,
+                'C': q.option_c,
+                'D': q.option_d,
+            }
+            
+            question_entry = {
+                'question_id': q.id,
+                'question': q.question,
+                'options': options,
+                'correct_answer': q.correct_answer if q.correct_answer else None,
+                'selected_answer': answer.selected_answer if answer.selected_answer else None,
+                'is_correct': answer.is_correct if answer.is_correct is not None else None,
+                'time_taken': time_taken
+            }
+            
+            # Group by test
+            topic_data[topic_key]['tests'][answer.session_id].append(question_entry)
+        
+        # Get total questions per topic from database
+        topic_totals = {}
+        topic_ids = [int(k.split('_')[0]) for k in topic_data.keys()]
+        topic_counts = Question.objects.filter(topic_id__in=topic_ids).values('topic_id').annotate(
+            total=Count('id')
+        )
+        for item in topic_counts:
+            topic_totals[item['topic_id']] = item['total']
+        
+        # Build final result
+        result = []
+        for topic_key, data in topic_data.items():
+            topic_id = int(topic_key.split('_')[0])
+            
+            # Calculate metrics
+            accuracy = (data['total_correct'] / data['total_attempted'] * 100) if data['total_attempted'] > 0 else 0
+            avg_time = (data['total_time'] / data['total_attempted']) if data['total_attempted'] > 0 else 0
+            total_questions = topic_totals.get(topic_id, data['total_attempted'])
+            unattempted = max(0, total_questions - data['total_attempted'])
+            
+            # Format tests
+            tests_list = []
+            for session_id, questions in data['tests'].items():
+                if session_id in session_map:
+                    tests_list.append({
+                        'test_name': session_map[session_id]['test_name'],
+                        'test_date': session_map[session_id]['test_date'],
+                        'questions': questions
+                    })
+            
+            # Sort tests by date (chronological order)
+            tests_list.sort(key=lambda x: x['test_date'])
+            
+            result.append({
+                'topic': data['topic_name'],
+                'subject': data['subject'],
+                'chapter': data['chapter'],
+                'accuracy': round(accuracy, 2),
+                'avg_time_sec': round(avg_time, 2),
+                'total_questions': total_questions,
+                'unattempted': unattempted,
+                'tests': tests_list
+            })
+        
+        # Sort by accuracy (descending for strengths, ascending for weaknesses)
+        if include == 'correct':
+            result.sort(key=lambda x: x['accuracy'], reverse=True)
+        else:
+            result.sort(key=lambda x: x['accuracy'])
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in get_topic_history_by_test for student {student_id}: {str(e)}")
+        return []
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_strengths_history(request):
+    """
+    Get strengths history showing correctly answered questions grouped by topic and test.
+    
+    GET /api/insights/strengths-history/?max_tests=10
+    
+    Returns:
+    {
+        "status": "success",
+        "data": [
+            {
+                "topic": "...",
+                "subject": "...",
+                "chapter": "...",
+                "accuracy": 85.5,
+                "avg_time_sec": 42.3,
+                "total_questions": 20,
+                "unattempted": 5,
+                "tests": [
+                    {
+                        "test_name": "...",
+                        "test_date": "...",
+                        "questions": [...]
+                    }
+                ]
+            }
+        ]
+    }
+    """
+    try:
+        # Get authenticated student
+        if not hasattr(request.user, 'student_id'):
+            return Response({
+                'status': 'error',
+                'message': 'User not properly authenticated'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        student_id = request.user.student_id
+        
+        # Get max_tests parameter
+        max_tests = request.GET.get('max_tests', None)
+        if max_tests:
+            try:
+                max_tests = int(max_tests)
+            except ValueError:
+                return Response({
+                    'status': 'error',
+                    'message': 'max_tests must be an integer'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get topic history
+        topics = get_topic_history_by_test(student_id, include='correct', max_tests=max_tests)
+        
+        return Response({
+            'status': 'success',
+            'data': topics,
+            'count': len(topics)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in get_strengths_history: {str(e)}")
+        return Response({
+            'status': 'error',
+            'message': f'Internal server error: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_weaknesses_history(request):
+    """
+    Get weaknesses history showing incorrectly answered questions grouped by topic and test.
+    
+    GET /api/insights/weaknesses-history/?max_tests=10
+    
+    Returns:
+    {
+        "status": "success",
+        "data": [
+            {
+                "topic": "...",
+                "subject": "...",
+                "chapter": "...",
+                "accuracy": 45.2,
+                "avg_time_sec": 38.7,
+                "total_questions": 20,
+                "unattempted": 8,
+                "tests": [
+                    {
+                        "test_name": "...",
+                        "test_date": "...",
+                        "questions": [...]
+                    }
+                ]
+            }
+        ]
+    }
+    """
+    try:
+        # Get authenticated student
+        if not hasattr(request.user, 'student_id'):
+            return Response({
+                'status': 'error',
+                'message': 'User not properly authenticated'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        student_id = request.user.student_id
+        
+        # Get max_tests parameter
+        max_tests = request.GET.get('max_tests', None)
+        if max_tests:
+            try:
+                max_tests = int(max_tests)
+            except ValueError:
+                return Response({
+                    'status': 'error',
+                    'message': 'max_tests must be an integer'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get topic history
+        topics = get_topic_history_by_test(student_id, include='wrong', max_tests=max_tests)
+        
+        return Response({
+            'status': 'success',
+            'data': topics,
+            'count': len(topics)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in get_weaknesses_history: {str(e)}")
+        return Response({
+            'status': 'error',
+            'message': f'Internal server error: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['GET'])
 def get_insights_config(request):
     """
     Get the current default configuration for insights analysis.
     Useful for frontend to know current thresholds.
     
+    Note: Threshold-based classification has been replaced with dynamic classification.
+    This endpoint is maintained for backward compatibility.
+    
     Returns:
     {
         "status": "success",
         "config": {
-            "strength_accuracy": 80.0,
-            "weakness_accuracy": 60.0,
-            "time_multiplier": 1.2,
-            "min_attempts": 3
+            "note": "Dynamic classification is now used instead of fixed thresholds"
         }
     }
     """
     return Response({
         'status': 'success',
-        'config': DEFAULT_THRESHOLDS
+        'config': {
+            'note': 'Dynamic classification is now used instead of fixed thresholds',
+            'features': {
+                'study_plan': 'misconception-based',
+                'strengths_weaknesses': 'dynamic-classification'
+            }
+        }
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_study_plan(request):
+    """
+    Generate a personalized study plan based on the student's misconceptions from recent tests.
+    
+    Analyzes wrong answers from the last N tests (default 5), groups them by topic and test,
+    and uses LLM to identify repeated mistakes and generate top-5 actionable study recommendations.
+    
+    Query Parameters:
+        max_tests (int, optional): Number of recent tests to analyze (default: 5)
+    
+    Returns:
+    {
+        "status": "success" | "insufficient_data" | "error",
+        "analysis_summary": "Brief overview of mistake patterns",
+        "recommendations": [
+            {
+                "rank": 1,
+                "title": "Recommendation title",
+                "reasoning": "Why this is important",
+                "concept_gaps": ["Concept 1", "Concept 2"],
+                "action_steps": ["Step 1", "Step 2", ...],
+                "topics_to_review": ["Topic 1", "Topic 2"],
+                "estimated_time": "2-3 hours",
+                "priority": "high|medium",
+                "affected_questions_count": 5
+            }
+        ],
+        "supporting_data": {
+            "topics": [...],  // Grouped wrong answers by topic and test
+            "total_wrong_questions": int,
+            "tests_analyzed": int
+        }
+    }
+    """
+    from neet_app.services.study_plan_service import generate_study_plan_from_misconceptions
+    
+    try:
+        # Get student ID from authenticated user
+        student = request.user.studentprofile
+        student_id = student.id
+        
+        # Get max_tests parameter from query string (default 5)
+        try:
+            max_tests = int(request.query_params.get('max_tests', 5))
+            if max_tests < 1:
+                max_tests = 5
+            if max_tests > 10:
+                max_tests = 10  # Cap at 10 tests
+        except (ValueError, TypeError):
+            max_tests = 5
+        
+        # Generate study plan
+        result = generate_study_plan_from_misconceptions(student_id, max_tests)
+        
+        return Response(result, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error generating study plan: {str(e)}")
+        return Response({
+            'status': 'error',
+            'message': f'Failed to generate study plan: {str(e)}',
+            'recommendations': [],
+            'supporting_data': {}
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

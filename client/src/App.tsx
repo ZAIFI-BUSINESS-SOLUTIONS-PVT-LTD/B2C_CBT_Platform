@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { NotFound, Home, Test, Results, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, InstitutionTesterPage, InstitutionRegisterPage, InstitutionAdminDashboard, OfflineResultsUpload, AnswerKeyUpload, JSONQuestionUpload, ThankYou, GetNumberPage } from "@/pages";
+import LoadingResultsPage from "@/pages/LoadingResultsPage";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { getPostTestHidden } from '@/lib/postTestHidden';
 
@@ -114,6 +115,7 @@ function Router() {
       <Route path="/scheduled-tests" component={requirePhoneNumber(ScheduledTests)} /> {/* Platform tests page */}
       <Route path="/institution-tests" component={InstitutionTesterPage} /> {/* Institution tests page */}
       <Route path="/dashboard" component={requirePhoneNumber(LandingDashboard)} />  {/* Comprehensive landing dashboard */}
+      <Route path="/loading-results/:sessionId" component={requirePhoneNumber(LoadingResultsPage)} /> {/* Loading results with video */}
       <Route path="/chatbot" component={requirePhoneNumber(Chatbot)} />               {/* AI Chatbot tutor page */}
       <Route path="/auth/callback" component={GoogleAuthCallback} /> {/* Google OAuth callback */}
       <Route path="/auth/google/callback" component={GoogleCallback} /> {/* Google OAuth popup callback */}

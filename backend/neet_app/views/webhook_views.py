@@ -219,7 +219,13 @@ def _handle_refund_event(event, data):
             try:
                 # Compare amounts (paise)
                 if refund_status in ['processed', 'success'] or refund_status == 'processed':
-                    if refund_amount and rp_order.amount and int(refund_amount) >= int(rp_order.amount):
+                    # `refund_amount` from Razorpay is in paise; `rp_order.amount` now stored in rupees
+                    try:
+                        order_amount_paise = int(rp_order.amount) * 100
+                    except Exception:
+                        order_amount_paise = None
+
+                    if refund_amount and rp_order.amount and order_amount_paise is not None and int(refund_amount) >= int(order_amount_paise):
                         rp_order.status = 'refunded'
                         rp_order.save(update_fields=['status', 'updated_at'])
 

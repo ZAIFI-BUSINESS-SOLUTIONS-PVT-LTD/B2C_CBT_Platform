@@ -1,6 +1,6 @@
 import { Input } from '@/components/ui/input';
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, Loader2, FilePen, Mic, Check, Pencil, X, Home } from 'lucide-react';
+import { Send, Bot, User, Loader2, FilePen, Mic, Check, Pencil, X, Home, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
@@ -169,6 +169,8 @@ export default function ChatbotPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+  // Lock chatbot feature until released
+  const [isLocked] = useState(true);
 
   // Shared textarea props to avoid duplication
   const textareaKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

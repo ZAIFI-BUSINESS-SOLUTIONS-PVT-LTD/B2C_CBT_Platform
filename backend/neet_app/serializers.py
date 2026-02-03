@@ -121,6 +121,14 @@ class QuestionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Question
         fields = '__all__'
+    
+    def to_representation(self, instance):
+        """Include misconceptions in the serialized output"""
+        data = super().to_representation(instance)
+        # Ensure misconceptions is included (will be None if not generated yet)
+        if 'misconceptions' not in data:
+            data['misconceptions'] = instance.misconceptions
+        return data
 
 
 class TestSessionSerializer(serializers.ModelSerializer):

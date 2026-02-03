@@ -111,8 +111,8 @@ export default function GoogleSignIn({
       // Call success callback if provided
       onSuccess?.(data);
 
-      // Redirect to dashboard
-      setLocation('/dashboard');
+      // AuthContext.loginWithGoogle handles navigation based on phone number
+      // No manual redirect needed here
 
     } catch (error) {
       console.error('Google sign-in error:', error);
@@ -201,6 +201,8 @@ export default function GoogleSignIn({
       // Use centralized API_BASE_URL that handles dev/prod switching
       const backendEndpoint = `${API_BASE_URL}/auth/google/`;
 
+      const redirectUri = `${window.location.origin}/auth/google/callback`;
+
       const backendResponse = await fetch(backendEndpoint, {
         method: 'POST',
         headers: {
@@ -208,7 +210,8 @@ export default function GoogleSignIn({
         },
         body: JSON.stringify({
           code: code,
-          state: state
+          state: state,
+          redirect_uri: redirectUri
         }),
       });
 
@@ -245,8 +248,14 @@ export default function GoogleSignIn({
       // Call success callback if provided
       onSuccess?.(data);
 
-      // Redirect to dashboard
-      setLocation('/dashboard');
+      // Check phone number and navigate appropriately
+      if (!data.student.phoneNumber) {
+        console.log("Phone number missing, redirecting to get-number");
+        setLocation('/get-number');
+      } else {
+        console.log("Phone number present, redirecting to dashboard");
+        setLocation('/dashboard');
+      }
 
     } catch (error) {
       console.error("Google auth error:", error);

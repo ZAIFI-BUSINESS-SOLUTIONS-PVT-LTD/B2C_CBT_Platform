@@ -59,6 +59,14 @@ class Question(models.Model):
     # Optional image for explanation (kept separate from explanation text)
     explanation_image = models.TextField(null=True, blank=True)
     
+    # Misconceptions for each wrong option (JSON field storing option->misconception mapping)
+    misconceptions = models.JSONField(
+        null=True, 
+        blank=True, 
+        default=None,
+        help_text='JSON mapping of wrong options to misconceptions: {"option_a": "misconception text", ...}'
+    )
+    
     # Institution-specific fields (nullable for backward compatibility)
     institution = models.ForeignKey('Institution', on_delete=models.SET_NULL, null=True, blank=True, db_index=True, related_name='questions')
     institution_test_name = models.TextField(null=True, blank=True, db_index=True)  # Test name from Excel upload
@@ -118,6 +126,21 @@ class PlatformTest(models.Model):
     scheduled_date_time = models.DateTimeField(null=True, blank=True)  # If set, test is time-based; if null, available anytime
     created_at = models.DateTimeField(auto_now_add=True, null=False)
     updated_at = models.DateTimeField(auto_now=True, null=False)
+    
+    # Misconception generation tracking
+    misconception_generation_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending'),
+            ('processing', 'Processing'),
+            ('completed', 'Completed'),
+            ('failed', 'Failed')
+        ],
+        default='pending',
+        null=True,
+        blank=True
+    )
+    misconception_generated_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         db_table = 'platform_tests'
@@ -950,11 +973,12 @@ class StudentInsight(models.Model):
 
 class TestSubjectZoneInsight(models.Model):
     """
-    Stores test-specific, subject-wise zone insights (Steady and Focus).
-    Generated after each test completion alongside overall insights.
-    Provides granular per-test, per-subject analysis with 2 zones (2 points each).
-    - Steady Zone: Identifies correct mental models and understanding patterns
-    - Focus Zone: Identifies misconceptions and conceptual gaps
+    Stores test-specific, subject-wise checkpoints (diagnostic + action plan).
+    Generated after each test completion.
+    Provides granular per-test, per-subject analysis with exactly 2 checkpoints per subject.
+    Each checkpoint contains:
+    - Checklist: What went wrong (diagnostic)
+    - Action Plan: How to fix it (prescriptive)
     """
     id = models.AutoField(primary_key=True)
     
@@ -974,38 +998,37 @@ class TestSubjectZoneInsight(models.Model):
     )
     
     # Subject identification
-    subject = models.CharField(max_length=20)  # Physics, Chemistry, Botany, Zoology
+    subject = models.CharField(max_length=20)  # Physics, Chemistry, Botany, Zoology, Biology, Math
     
-    # Zone insights (each is a list of 2 strings)
-    steady_zone = models.JSONField(default=list, blank=True)  # 2 actionable points - correct mental models
-    edge_zone = models.JSONField(default=list, blank=True)    # DEPRECATED - kept for backward compatibility
-    focus_zone = models.JSONField(default=list, blank=True)   # 2 actionable points - misconceptions/gaps
+    # Checkpoint data (list of 2 checkpoint dicts)
+    # Each checkpoint dict contains: topic, subject, subtopic, accuracy, checklist, action_plan, citation
+    checkpoints = models.JSONField(default=list, blank=True)
+    
+    # Topics analyzed with performance metrics (for debugging/audit)
+    topics_analyzed = models.JSONField(default=list, blank=True)
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     
-    # Question data used for generation (for debugging/audit)
-    questions_analyzed = models.JSONField(default=list, blank=True)
-    
     class Meta:
         db_table = 'test_subject_zone_insights'
-        verbose_name = 'Test Subject Zone Insight'
-        verbose_name_plural = 'Test Subject Zone Insights'
+        verbose_name = 'Test Subject Checkpoint'
+        verbose_name_plural = 'Test Subject Checkpoints'
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['student', 'test_session']),
             models.Index(fields=['test_session', 'subject']),
             models.Index(fields=['created_at']),
         ]
-        # One insight record per test per subject
+        # One checkpoint record per test per subject
         unique_together = [['test_session', 'subject']]
     
     def __str__(self):
-        return f"{self.subject} zones for Test {self.test_session.id} - {self.student.student_id}"
+        return f"{self.subject} checkpoints for Test {self.test_session.id} - {self.student.student_id}"
     
-    def get_total_insights(self):
-        """Get total number of insights across all zones"""
-        return len(self.steady_zone) + len(self.edge_zone) + len(self.focus_zone)
+    def get_total_checkpoints(self):
+        """Get total number of checkpoints"""
+        return len(self.checkpoints)
 
 
 class Notification(models.Model):
@@ -1282,7 +1305,7 @@ class RazorpayOrder(models.Model):
     id = models.BigAutoField(primary_key=True)
     student = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, related_name='razorpay_orders', to_field='student_id', db_column='student_id')
     plan = models.CharField(max_length=50)  # 'basic' or 'pro'
-    amount = models.IntegerField(help_text='Amount in paise')
+    amount = models.IntegerField(help_text='Amount in rupees')
     currency = models.CharField(max_length=10, default='INR')
     razorpay_order_id = models.CharField(max_length=128, null=True, blank=True)
     razorpay_payment_id = models.CharField(max_length=128, null=True, blank=True)

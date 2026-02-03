@@ -26,6 +26,8 @@ export interface StudentProfile {
   institution?: { id: number; name: string; code: string; examTypes: string[] } | null; // Institution details if student is linked
   institutionCode?: string | null; // models.CharField(max_length=50, null=True, blank=True) -> string or null (camelCase from institution_code)
   isInstitutionStudent?: boolean; // models.BooleanField(default=False) -> boolean (camelCase from is_institution_student)
+  subscriptionPlan?: string | null; // models.CharField(max_length=50, null=True, blank=True) -> string or null (camelCase from subscription_plan)
+  subscriptionExpiresAt?: string | null; // models.DateTimeField(null=True, blank=True) -> string or null (camelCase from subscription_expires_at)
 }
 
 /**

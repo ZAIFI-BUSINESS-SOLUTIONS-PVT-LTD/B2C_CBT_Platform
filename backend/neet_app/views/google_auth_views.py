@@ -94,30 +94,31 @@ def verify_google_token(id_token):
             logger.error(f"Public key not found for key ID: {key_id}")
             return None
            
-        # Verify and decode the token
+        # Allow a small leeway for clock skew between Google and this server.
+        # Make this configurable via Django settings (seconds). Default to 120s.
+        leeway = getattr(settings, 'GOOGLE_TOKEN_LEEWAY', 120)
+
+        # Verify and decode the token. PyJWT will validate `exp`, `iat`, `nbf`,
+        # `aud` and `iss` when provided; we pass `leeway` to tolerate small clock skew.
         claims = jwt.decode(
             id_token,
             public_key,
             algorithms=['RS256'],
             audience=GOOGLE_CLIENT_ID,
-            issuer=['https://accounts.google.com', 'accounts.google.com']
+            issuer=['https://accounts.google.com', 'accounts.google.com'],
+            leeway=leeway,
         )
-       
-        # Additional validation
+
+        # Additional validation (aud/iss are already checked by jwt.decode, but
+        # keep lightweight guards in case of library differences)
         if claims.get('aud') != GOOGLE_CLIENT_ID:
             logger.error(f"Invalid audience: {claims.get('aud')}")
             return None
-           
+
         if claims.get('iss') not in ['https://accounts.google.com', 'accounts.google.com']:
             logger.error(f"Invalid issuer: {claims.get('iss')}")
             return None
-           
-        # Check token expiration
-        exp = claims.get('exp')
-        if not exp or exp < timezone.now().timestamp():
-            logger.error("Token expired")
-            return None
-           
+
         logger.info(f"Successfully verified Google token for user: {claims.get('email')}")
         return claims
        
@@ -282,18 +283,22 @@ def google_auth(request):
                
         elif auth_code:
             # Authorization code flow
-            redirect_uri = "http://localhost:5173/auth/google/callback"
-           
+            # Allow frontend to pass the redirect_uri used when initiating the OAuth flow
+            data_body = json.loads(request.body) if request.body else {}
+            redirect_uri = data_body.get('redirect_uri') or "http://localhost:5173/auth/google/callback"
+
             # Exchange code for tokens
             token_data = exchange_code_for_token(auth_code, redirect_uri)
             if not token_data or 'id_token' not in token_data:
+                logger.error(f"Failed token exchange. token_data: {token_data}")
                 return Response({
                     'detail': 'Failed to exchange authorization code'
                 }, status=status.HTTP_400_BAD_REQUEST)
-           
+
             # Verify the ID token
             claims = verify_google_token(token_data['id_token'])
             if not claims:
+                logger.error(f"Invalid ID token after exchange. token_data: {token_data}")
                 return Response({
                     'detail': 'Invalid Google token'
                 }, status=status.HTTP_401_UNAUTHORIZED)

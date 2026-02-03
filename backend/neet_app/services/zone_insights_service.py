@@ -1,7 +1,6 @@
 """
-Zone Insights Service
-Generates test-specific, subject-wise insights with Steady/Edge/Focus zones.
-Each zone contains 2 actionable points for student improvement.
+Zone Insights Service - Checkpoint-based diagnostic system
+Generates subject-wise checkpoints with problem identification and action plans.
 """
 
 import logging
@@ -11,72 +10,148 @@ from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
-# LLM Prompt for zone-based insights
-ZONE_INSIGHT_PROMPT = """
-You are an expert NEET and JEE exam tutor analyzing a student's test performance for {subject}. 
+# LLM Prompt for checkpoint generation (wrong/skipped questions)
+CHECKPOINT_PROMPT = """**Task**: Generate a comprehensive diagnostic and action plan for a NEET student by identifying both problems AND solutions for their weak topics.
+**Context**: You are an AI mentor helping students understand both:
+1. **WHAT went wrong** (diagnostic checklist of problems)
+2. **HOW to fix it** (actionable steps to improve)
+For each checkpoint, you will provide BOTH the problem identification AND the corresponding action plan.
+**Input Data Provided**:
+- Multiple weak topics with performance metrics (accuracy)
+- Wrong questions from each topic including:
+  - Question text, options, selected answer, correct answer
+  - Misconception   
+**Your Task**:
+1. Analyze ALL weak topics and wrong answers provided FOR THIS SUBJECT
+2. Identify the most critical problems across topics IN THIS SUBJECT
+3. For EACH problem, also determine the most impactful action to fix it
+4. Generate a **specific subtopic name** that precisely describes the narrow area of difficulty within the topic
+5. Rank checkpoints by:
+   - **Severity/Impact**: How much this issue affects overall performance
+   - **Actionability**: How clear and achievable the solution is
+6. Select ONLY the **top 2 most critical problem-solution pairs** for THIS SUBJECT
+**Checkpoint Requirements**:
+- Each checklist item must be **10-15 words** maximum
+- Each action plan item must be **10-15 words** maximum
+- **Subtopic** must be a specific, narrow area within the topic.
+- Checklist must identify WHAT went wrong (diagnostic, factual)
+- Action plan must describe HOW to fix it (prescriptive, actionable)
+- Use simple, easy-to-understand Indian-English
+- Each item should be at the reading level of a 10-year-old Indian student. Use only very simple English words. Do NOT use difficult or formal words.
+- Be specific and directly tied to their actual mistakes
+- Reference the specific topic/subject in context
+**Output Format (strict JSON)**:
+[
+  {{
+    "topic": "Topic name",
+    "subject": "Subject name",
+    "subtopic": "Specific narrow area within topic",
+    "accuracy": 0.45,
+    "checklist": "Specific problem or mistake identified (10-15 words)",
+    "action_plan": "Specific action to fix this problem (10-15 words)",
+    "citation": [5, 12, 18]
+  }},
+  {{
+    "topic": "Topic name",
+    "subject": "Subject name",
+    "subtopic": "Specific narrow area within topic",
+    "accuracy": 0.32,
+    "checklist": "Specific problem or mistake identified (10-15 words)",
+    "action_plan": "Specific action to fix this problem (10-15 words)",
+    "citation": [7, 22]
+  }}
+]
+**Citation Requirements**:
+- Each checkpoint MUST include a "citation" field listing the question numbers that support this insight
+- Citation format: array of question numbers, e.g., [5, 12, 18]
+- Include 2-5 question numbers per checkpoint as evidence
+- Select questions that best demonstrate the specific problem identified in the checklist
+- Questions in citation should be from the wrong_questions data provided for that topic
+**Guidelines**:
+- Return EXACTLY 2 checkpoint pairs for THIS SUBJECT (not more, not less)
+- These 2 should be the highest-impact issues for THIS SUBJECT
+- Each checklist-action pair must be logically connected (the action fixes the checklist problem)
+- Checklist uses diagnostic language: "confused", "mistook", "missed", "incorrectly applied"
+- Action plan uses prescriptive language: "practice", "review", "memorize", "understand"
+- Both should directly reflect the student's actual wrong answers
+- Keep tone supportive and constructive
+- Both checkpoints can be from the same topic if they're high-impact
+**Important**:
+- Return ONLY the JSON array of exactly 2 items for THIS SUBJECT
+- No explanations, no notes, no markdown code blocks
+- Strictly follow the format above
+- Ensure checklist and action_plan are paired and related for each item
 
-Analyze the categorized questions below and identify the student's MENTAL MODELS and CONCEPTUAL UNDERSTANDING patterns.
+Subject: {subject}
+Topics Data:
+{topics_json}
+"""
 
-Questions are grouped by performance:
-- CORRECT: {correct_count} questions the student answered correctly
-- WRONG: {wrong_count} questions the student answered incorrectly  
-- SKIPPED: {skipped_count} questions the student did not attempt
+# Fallback prompt for when student has no wrong/skipped questions (all correct)
+CORRECT_UNDERSTANDING_PROMPT = """**Task**: Generate insights about a NEET student's correct understanding and areas for further focus based on their correct answers.
+**Context**: This student answered all questions correctly for this subject. Identify what mental models they demonstrated and what they should focus on to maintain and expand this mastery.
+**Input Data Provided**:
+- Multiple topics with all correct answers
+- Question text, options, selected answer, correct answer for each
+**Your Task**:
+1. Analyze correct answers to identify strong conceptual understanding
+2. Determine which mental models or reasoning patterns led to success
+3. Suggest specific areas within this subject for further deepening
+4. Generate exactly 2 checkpoints focusing on strength reinforcement
+**Checkpoint Requirements**:
+- Each checklist item: describe WHAT the student understood correctly (10-15 words)
+- Each action plan item: suggest HOW to build on this strength (10-15 words)
+- Use simple, easy-to-understand Indian-English
+- Be encouraging and specific
+**Output Format (strict JSON)**:
+[
+  {{
+    "topic": "Topic name",
+    "subject": "Subject name",
+    "subtopic": "Specific area of mastery",
+    "accuracy": 1.0,
+    "checklist": "What the student understood correctly (10-15 words)",
+    "action_plan": "How to deepen or expand this understanding (10-15 words)",
+    "citation": [1, 3, 7]
+  }},
+  {{
+    "topic": "Topic name",
+    "subject": "Subject name",
+    "subtopic": "Specific area of mastery",
+    "accuracy": 1.0,
+    "checklist": "What the student understood correctly (10-15 words)",
+    "action_plan": "How to deepen or expand this understanding (10-15 words)",
+    "citation": [2, 5, 9]
+  }}
+]
+**Important**:
+- Return ONLY the JSON array of exactly 2 items for THIS SUBJECT
+- No explanations, no notes, no markdown code blocks
+- Strictly follow the format above
 
-Your task: Generate insights for 2 zones by analyzing mental models, NOT just listing topics.
-
-🟢 STEADY ZONE (Correct Understanding):
-- Analyze ONLY the CORRECT questions
-- Identify what MENTAL MODELS or CONCEPTUAL FRAMEWORKS the student has mastered
-- Focus on WHY they got questions right - what understanding patterns are working
-- Generate multiple insights, rank them by actionability and impact, then return TOP 2
-- Each insight: 15-25 words, specific, actionable
-- If NO correct questions: return ["Insufficient data for analysis - complete more questions to identify strengths"]
-
-🔴 FOCUS ZONE (Misconceptions & Gaps):
-- Analyze WRONG questions and SKIPPED questions (time_taken > 0 indicates confusion, prioritize these)
-- Identify WRONG MENTAL MODELS, MISCONCEPTIONS, or CONCEPTUAL GAPS
-- Focus on WHY they got questions wrong or skipped - what flawed reasoning patterns exist
-- Generate multiple insights, rank them by actionability and impact, then return TOP 2  
-- Each insight: 15-25 words, specific, actionable
-- If wrong+skipped(time>0) unavailable but skipped(time=0) exists: mention time management issues
-- If NO wrong or skipped questions: return ["Insufficient data for analysis - performance is strong across all questions"]
-
-RULES:
-- Do NOT just list topic/chapter names - explain the UNDERLYING UNDERSTANDING or MISUNDERSTANDING
-- Be specific about the mental model (e.g., "confuses vector addition with scalar addition" not "weak in vectors")
-- Avoid formatting markers like ** or asterisks
-- Be encouraging and constructive
-- All insights must reference academic concepts or test-taking strategy
-- Focus on patterns across multiple questions
-
-Data ({total_questions} questions analyzed):
-{questions_json}
-
-Return EXACTLY this JSON format with TOP 2 insights per zone:
-{{
-  "steady_zone": ["insight 1", "insight 2"],
-  "focus_zone": ["insight 1", "insight 2"]
-}}
+Subject: {subject}
+Topics Data:
+{topics_json}
 """
 
 
-def extract_subject_questions(test_session_id: int, subject: str) -> List[Dict]:
+def extract_wrong_and_skipped_questions(test_session_id: int, subject: str) -> Dict:
     """
-    Extract questions for a specific subject from a test session.
+    Extract wrong and skipped questions for a subject, grouped by topic.
     
     Args:
         test_session_id: ID of the test session
-        subject: Subject name (Physics, Chemistry, Botany, Zoology, Math)
+        subject: Subject name (Physics, Chemistry, Botany, Zoology, Biology, Math)
         
     Returns:
-        List of question dictionaries with answer data
+        Dict with topic-grouped data including accuracy, question count, avg time, and questions array
     """
     try:
-        from ..models import TestSession, TestAnswer
+        from ..models import TestSession, TestAnswer, Topic
         
         test_session = TestSession.objects.get(id=test_session_id)
         
-        # Get subject-specific topic IDs (including Biology and Math)
+        # Get subject-specific topic names
         subject_map = {
             'Physics': test_session.physics_topics,
             'Chemistry': test_session.chemistry_topics,
@@ -86,140 +161,222 @@ def extract_subject_questions(test_session_id: int, subject: str) -> List[Dict]:
             'Math': test_session.math_topics
         }
         
-        topic_ids = subject_map.get(subject, [])
+        topic_names = subject_map.get(subject, [])
+        
+        if not topic_names:
+            print(f"⚠️ No topics found for {subject} in test {test_session_id}")
+            return {}
+        
+        # Convert topic names to IDs
+        topic_objects = Topic.objects.filter(name__in=topic_names)
+        topic_ids = list(topic_objects.values_list('id', flat=True))
         
         if not topic_ids:
-            print(f"⚠️ No topics found for {subject} in test {test_session_id}")
-            return []
+            print(f"⚠️ Could not find topic IDs for {subject} topics: {topic_names}")
+            return {}
         
-        # Get answers for those topics
-        answers = TestAnswer.objects.filter(
+        # Get ALL answers for those topics
+        all_answers = TestAnswer.objects.filter(
             session_id=test_session_id,
             question__topic_id__in=topic_ids
         ).select_related('question', 'question__topic').order_by('id')
         
-    # Format questions for LLM (include all subject answers)
-        questions_data = []
-        for answer in answers:
+        # Group by topic and separate wrong/skipped from all
+        from collections import defaultdict
+        topic_data = defaultdict(lambda: {
+            'topic_name': '',
+            'total_questions': 0,
+            'correct_count': 0,
+            'wrong_skipped_questions': [],
+            'total_time': 0,
+            'question_count': 0
+        })
+        
+        for answer in all_answers:
             q = answer.question
+            topic = q.topic
+            topic_name = topic.name
             
-            # Prepare options dict
-            options = {
-                'A': q.option_a,
-                'B': q.option_b,
-                'C': q.option_c,
-                'D': q.option_d,
-            }
+            # Track overall metrics
+            topic_data[topic_name]['topic_name'] = topic_name
+            topic_data[topic_name]['total_questions'] += 1
             
+            # Count correct answers for accuracy calculation
+            if answer.is_correct:
+                topic_data[topic_name]['correct_count'] += 1
+                continue  # Skip correct answers for checkpoint generation
+            
+            # Extract misconception for wrong answer
+            misconception_text = None
+            if not answer.is_correct and answer.selected_answer:
+                # Get misconception from Question.misconceptions JSON
+                misconceptions = q.misconceptions or {}
+                # misconceptions format: {"option_a": "text", "option_b": "text", ...}
+                selected_option = answer.selected_answer.upper()
+                misconception_text = misconceptions.get(f"option_{selected_option.lower()}", None)
+            
+            # Build question data for wrong/skipped questions
             question_entry = {
                 'question_id': q.id,
-                        # Include full question text (do not truncate) so LLM sees complete context
                 'question': q.question if q.question else '',
-                'options': options,
+                'options': {
+                    'A': q.option_a,
+                    'B': q.option_b,
+                    'C': q.option_c,
+                    'D': q.option_d,
+                },
                 'correct_answer': q.correct_answer if q.correct_answer else None,
                 'selected_answer': answer.selected_answer if answer.selected_answer else None,
                 'is_correct': answer.is_correct,
                 'time_taken': answer.time_taken or 0,
-                # 'topic' intentionally omitted from LLM payload to avoid leaking explicit topic labels
+                'misconception': misconception_text
             }
             
-            questions_data.append(question_entry)
+            topic_data[topic_name]['wrong_skipped_questions'].append(question_entry)
+            topic_data[topic_name]['total_time'] += (answer.time_taken or 0)
+            topic_data[topic_name]['question_count'] += 1
         
-        total_questions = len(questions_data)
-        # Enforce maximum of 45 questions to keep LLM prompt size bounded
-        if total_questions > 45:
-            logger.info(
-                "Truncating %d questions to first 45 for subject %s in test %d",
-                total_questions,
-                subject,
-                test_session_id
-            )
-            questions_data = questions_data[:45]
-
-        print(f"📊 Extracted {len(questions_data)} questions for {subject} from test {test_session_id}")
-        return questions_data
+        # Calculate accuracy and avg time for each topic
+        result = []
+        for topic_name, data in topic_data.items():
+            if data['total_questions'] == 0:
+                continue
+                
+            accuracy = data['correct_count'] / data['total_questions']
+            avg_time = data['total_time'] / data['question_count'] if data['question_count'] > 0 else 0
+            
+            # Limit questions per topic to avoid huge payloads
+            questions = data['wrong_skipped_questions'][:20]
+            
+            result.append({
+                'topic': topic_name,
+                'accuracy': round(accuracy, 2),
+                'no_of_questions': data['total_questions'],
+                'avg_time': round(avg_time, 1),
+                'questions': questions
+            })
+        
+        print(f"📊 Extracted {len(result)} topics with wrong/skipped questions for {subject}")
+        return {'topics': result}
         
     except Exception as e:
-        logger.error(f"Error extracting questions for {subject} in test {test_session_id}: {str(e)}")
-        return []
+        logger.error(f"Error extracting wrong/skipped questions for {subject} in test {test_session_id}: {str(e)}")
+        return {}
 
 
-def generate_zone_insights_for_subject(subject: str, questions: List[Dict]) -> Dict[str, List[str]]:
+def extract_correct_questions(test_session_id: int, subject: str) -> Dict:
     """
-    Generate zone insights for a subject using LLM.
-    Groups questions by correct/wrong/skipped and analyzes mental models.
+    Extract correct questions when no wrong/skipped questions exist.
+    
+    Args:
+        test_session_id: ID of the test session
+        subject: Subject name
+        
+    Returns:
+        Dict with topic-grouped correct questions
+    """
+    try:
+        from ..models import TestSession, TestAnswer, Topic
+        
+        test_session = TestSession.objects.get(id=test_session_id)
+        
+        # Get subject-specific topic names
+        subject_map = {
+            'Physics': test_session.physics_topics,
+            'Chemistry': test_session.chemistry_topics,
+            'Botany': test_session.botany_topics,
+            'Zoology': test_session.zoology_topics,
+            'Biology': test_session.biology_topics,
+            'Math': test_session.math_topics
+        }
+        
+        topic_names = subject_map.get(subject, [])
+        
+        if not topic_names:
+            return {}
+        
+        # Convert topic names to IDs
+        topic_objects = Topic.objects.filter(name__in=topic_names)
+        topic_ids = list(topic_objects.values_list('id', flat=True))
+        
+        if not topic_ids:
+            print(f"⚠️ Could not find topic IDs for {subject} topics: {topic_names}")
+            return {}
+        
+        # Get only correct answers
+        correct_answers = TestAnswer.objects.filter(
+            session_id=test_session_id,
+            question__topic_id__in=topic_ids,
+            is_correct=True
+        ).select_related('question', 'question__topic').order_by('id')[:20]
+        
+        from collections import defaultdict
+        topic_data = defaultdict(lambda: {
+            'topic_name': '',
+            'questions': []
+        })
+        
+        for answer in correct_answers:
+            q = answer.question
+            topic_name = q.topic.name
+            
+            topic_data[topic_name]['topic_name'] = topic_name
+            topic_data[topic_name]['questions'].append({
+                'question_id': q.id,
+                'question': q.question if q.question else '',
+                'options': {
+                    'A': q.option_a,
+                    'B': q.option_b,
+                    'C': q.option_c,
+                    'D': q.option_d,
+                },
+                'correct_answer': q.correct_answer,
+                'selected_answer': answer.selected_answer,
+                'is_correct': True,
+                'time_taken': answer.time_taken or 0
+            })
+        
+        result = []
+        for topic_name, data in topic_data.items():
+            result.append({
+                'topic': topic_name,
+                'accuracy': 1.0,
+                'no_of_questions': len(data['questions']),
+                'avg_time': sum(q['time_taken'] for q in data['questions']) / len(data['questions']) if data['questions'] else 0,
+                'questions': data['questions']
+            })
+        
+        print(f"📊 Extracted {len(result)} topics with correct questions for {subject}")
+        return {'topics': result}
+        
+    except Exception as e:
+        logger.error(f"Error extracting correct questions for {subject}: {str(e)}")
+        return {}
+
+
+def generate_checkpoints_for_subject(subject: str, topics_data: Dict) -> List[Dict]:
+    """
+    Generate checkpoints for a subject using LLM.
     
     Args:
         subject: Subject name
-        questions: List of question dictionaries
+        topics_data: Dict with 'topics' array containing topic data
         
     Returns:
-        Dict with steady_zone, focus_zone (each containing 2 points)
+        List of checkpoint dicts (exactly 2 items)
     """
     try:
-        if not questions:
-            print(f"⚠️ No questions provided for {subject}")
-            return get_fallback_zones(subject, "No questions available")
+        if not topics_data or not topics_data.get('topics'):
+            print(f"⚠️ No topics data provided for {subject}")
+            return get_fallback_checkpoints(subject)
         
-        # Categorize questions by performance
-        correct_questions = []
-        wrong_questions = []
-        skipped_questions = []
+        topics = topics_data['topics']
         
-        for q in questions:
-            sel = q.get('selected_answer')
-            is_correct = q.get('is_correct', False)
-            time_taken = q.get('time_taken', 0)
-            
-            # If no selection or empty selection, it's skipped
-            if sel is None or (isinstance(sel, str) and sel.strip() == ''):
-                skipped_questions.append(q)
-            elif is_correct:
-                correct_questions.append(q)
-            else:
-                wrong_questions.append(q)
-        
-        # Sort skipped by priority: time_taken > 0 first (indicates confusion)
-        skipped_with_time = [q for q in skipped_questions if q.get('time_taken', 0) > 0]
-        skipped_no_time = [q for q in skipped_questions if q.get('time_taken', 0) == 0]
-        skipped_sorted = skipped_with_time + skipped_no_time
-        
-        print(f"📊 {subject}: {len(correct_questions)} correct, {len(wrong_questions)} wrong, {len(skipped_questions)} skipped ({len(skipped_with_time)} with time)")
-
-        # Ensure we send at most 45 questions and truncate overly long question text
-        def _truncate_questions_for_prompt(qs: List[Dict], max_questions: int = 45, max_text_len: int = 1000) -> List[Dict]:
-            total = len(qs)
-            if total > max_questions:
-                logger.info(
-                    "Truncating questions payload from %d to %d for subject %s",
-                    total,
-                    max_questions,
-                    subject,
-                )
-                qs = qs[:max_questions]
-
-            # Truncate long text fields to avoid extremely large prompts
-            for q in qs:
-                if 'question' in q and isinstance(q['question'], str) and len(q['question']) > max_text_len:
-                    q['question'] = q['question'][:max_text_len] + '...'
-                if 'options' in q and isinstance(q['options'], dict):
-                    for k, v in list(q['options'].items()):
-                        if isinstance(v, str) and len(v) > max_text_len:
-                            q['options'][k] = v[:max_text_len] + '...'
-            return qs
-        
-        # Limit each category but prioritize having both correct and wrong/skipped
-        max_per_category = 20
-        correct_questions = _truncate_questions_for_prompt(correct_questions, max_per_category)
-        wrong_questions = _truncate_questions_for_prompt(wrong_questions, max_per_category)
-        skipped_sorted = _truncate_questions_for_prompt(skipped_sorted, max_per_category)
-        
-        # Build grouped structure for prompt
-        grouped_questions = {
-            "correct": correct_questions,
-            "wrong": wrong_questions,
-            "skipped": skipped_sorted
-        }
+        # Check if we have wrong/skipped questions or only correct
+        has_wrong_or_skipped = any(
+            topic.get('questions') and len(topic.get('questions', [])) > 0
+            for topic in topics
+        )
         
         # Import GeminiClient
         try:
@@ -230,183 +387,164 @@ def generate_zone_insights_for_subject(subject: str, questions: List[Dict]) -> D
         client = GeminiClient()
         
         if not client.is_available():
-            print(f"❌ Gemini client not available for {subject} zone insights")
-            return get_fallback_zones(subject, "AI service unavailable")
+            print(f"❌ Gemini client not available for {subject} checkpoints")
+            return get_fallback_checkpoints(subject)
         
-        # Build prompt with grouped questions
-        questions_json = json.dumps(grouped_questions, indent=2)
-        total_q = len(correct_questions) + len(wrong_questions) + len(skipped_sorted)
-        prompt = ZONE_INSIGHT_PROMPT.format(
+        # Choose appropriate prompt
+        if has_wrong_or_skipped:
+            prompt_template = CHECKPOINT_PROMPT
+        else:
+            prompt_template = CORRECT_UNDERSTANDING_PROMPT
+        
+        # If we have wrong/skipped questions, send only topics that include those questions.
+        # Otherwise (all correct) send the correct-questions topics as-is.
+        if has_wrong_or_skipped:
+            prompt_topics = [t for t in topics if t.get('questions') and len(t.get('questions', [])) > 0]
+        else:
+            prompt_topics = topics
+
+        if not prompt_topics:
+            print(f"⚠️ No relevant topics to send to LLM for {subject}")
+            return get_fallback_checkpoints(subject)
+
+        topics_json = json.dumps(prompt_topics, indent=2)
+        prompt = prompt_template.format(
             subject=subject,
-            total_questions=total_q,
-            correct_count=len(correct_questions),
-            wrong_count=len(wrong_questions),
-            skipped_count=len(skipped_sorted),
-            questions_json=questions_json
+            topics_json=topics_json
         )
+
+        logger.info(f"🚀 Using {'CHECKPOINT' if has_wrong_or_skipped else 'CORRECT_UNDERSTANDING'} prompt for {subject} with {len(prompt_topics)} topics")
         
-        logger.info(f"🚀 Generating zone insights for {subject} using {client.model_name}")
+        logger.info(f"🚀 Generating checkpoints for {subject} using {client.model_name}")
         
-        # Call LLM (guard against lower-level errors from gRPC / client libraries)
+        # Call LLM
         try:
             llm_response = client.generate_response(prompt)
         except BaseException as e:
-            # Catch BaseException to handle fatal errors originating from gRPC C extensions
-            logger.error(
-                "LLM client raised a fatal error for subject %s: %s",
-                subject,
-                str(e)
-            )
-            return get_fallback_zones(subject, f"LLM call failed: {str(e)}")
+            logger.error(f"LLM client raised error for subject {subject}: {str(e)}")
+            return get_fallback_checkpoints(subject)
         
         if not llm_response:
             print(f"❌ Empty response from LLM for {subject}")
-            return get_fallback_zones(subject, "Empty LLM response")
+            return get_fallback_checkpoints(subject)
         
         # Parse response
-        zones = parse_llm_zone_response(llm_response, subject)
+        checkpoints = parse_checkpoint_response(llm_response, subject)
         
-        print(f"✅ Zone insights generated for {subject}")
-        return zones
+        print(f"✅ Checkpoints generated for {subject}")
+        return checkpoints
         
     except Exception as e:
-        logger.error(f"Error generating zone insights for {subject}: {str(e)}")
-        return get_fallback_zones(subject, f"Error: {str(e)}")
+        logger.error(f"Error generating checkpoints for {subject}: {str(e)}")
+        return get_fallback_checkpoints(subject)
 
 
-def parse_llm_zone_response(llm_response: str, subject: str) -> Dict[str, List[str]]:
+def parse_checkpoint_response(llm_response: str, subject: str) -> List[Dict]:
     """
-    Parse LLM response to extract zone insights (steady and focus only).
+    Parse LLM response to extract checkpoint array.
     
     Args:
         llm_response: Raw LLM response text
         subject: Subject name (for logging)
         
     Returns:
-        Dict with steady_zone, focus_zone
+        List of checkpoint dicts (exactly 2 items)
     """
     try:
-        # Try to parse as JSON first
         response_text = llm_response.strip()
         
         # Remove markdown code blocks if present
         if response_text.startswith('```'):
             lines = response_text.split('\n')
-            # Remove first and last lines (``` markers)
             response_text = '\n'.join(lines[1:-1] if len(lines) > 2 else lines)
             response_text = response_text.strip()
+            if response_text.startswith('json'):
+                response_text = response_text[4:].strip()
         
         # Try direct JSON parse
         try:
-            zones = json.loads(response_text)
+            checkpoints = json.loads(response_text)
             
-            # Validate structure (only steady and focus now)
-            if all(key in zones for key in ['steady_zone', 'focus_zone']):
-                # Ensure each zone has exactly 2 points
-                for zone_key in ['steady_zone', 'focus_zone']:
-                    if not isinstance(zones[zone_key], list):
-                        zones[zone_key] = [str(zones[zone_key])]
-                    
-                    # Truncate to 2 points
-                    zones[zone_key] = zones[zone_key][:2]
-                    
-                    # Pad with fallback if less than 2
-                    while len(zones[zone_key]) < 2:
-                        zones[zone_key].append(f"Additional analysis needed for {subject}")
+            # Validate structure
+            if isinstance(checkpoints, list) and len(checkpoints) >= 2:
+                # Ensure exactly 2 checkpoints
+                checkpoints = checkpoints[:2]
                 
-                print(f"✅ Successfully parsed zone insights for {subject}")
-                return zones
-        except json.JSONDecodeError:
-            pass
+                # Validate required fields
+                required_fields = ['topic', 'subject', 'subtopic', 'accuracy', 'checklist', 'action_plan', 'citation']
+                for cp in checkpoints:
+                    if not all(field in cp for field in required_fields):
+                        print(f"⚠️ Checkpoint missing required fields for {subject}")
+                        return get_fallback_checkpoints(subject)
+                    
+                    # Ensure citation is a list
+                    if not isinstance(cp.get('citation'), list):
+                        cp['citation'] = []
+                
+                print(f"✅ Successfully parsed {len(checkpoints)} checkpoints for {subject}")
+                return checkpoints
+        except json.JSONDecodeError as e:
+            print(f"⚠️ JSON parse error for {subject}: {str(e)}")
         
-        # Fallback: Try to extract zones from text format
-        zones = {
-            'steady_zone': [],
-            'focus_zone': []
-        }
-        
-        lines = response_text.split('\n')
-        current_zone = None
-        
-        for line in lines:
-            line = line.strip()
-            
-            # Detect zone headers (only steady and focus now)
-            if 'steady' in line.lower() or '🟢' in line:
-                current_zone = 'steady_zone'
-                continue
-            elif 'focus' in line.lower() or '🔴' in line:
-                current_zone = 'focus_zone'
-                continue
-            
-            # Extract points (bullets, numbers, or plain text)
-            if current_zone and line:
-                # Remove bullet points, numbers, etc.
-                clean_line = line.lstrip('•-*0123456789.').strip()
-                if clean_line and len(clean_line) > 10:  # Minimum meaningful length
-                    zones[current_zone].append(clean_line)
-        
-        # Ensure exactly 2 points per zone
-        for zone_key in ['steady_zone', 'focus_zone']:
-            zones[zone_key] = zones[zone_key][:2]
-            while len(zones[zone_key]) < 2:
-                zones[zone_key].append(f"Continue practicing {subject} for better insights")
-        
-        if any(len(z) > 0 for z in zones.values()):
-            print(f"✅ Parsed zone insights from text format for {subject}")
-            return zones
-        
-        # If all parsing fails, return fallback
+        # If parsing fails, return fallback
         print(f"⚠️ Could not parse LLM response for {subject}, using fallback")
-        return get_fallback_zones(subject, "Parsing failed")
+        return get_fallback_checkpoints(subject)
         
     except Exception as e:
-        logger.error(f"Error parsing zone response for {subject}: {str(e)}")
-        return get_fallback_zones(subject, f"Parse error: {str(e)}")
+        logger.error(f"Error parsing checkpoint response for {subject}: {str(e)}")
+        return get_fallback_checkpoints(subject)
 
 
-def get_fallback_zones(subject: str, reason: str) -> Dict[str, List[str]]:
+def get_fallback_checkpoints(subject: str) -> List[Dict]:
     """
-    Generate fallback zone insights when LLM is unavailable or fails.
+    Generate fallback checkpoints when LLM is unavailable or fails.
     
     Args:
         subject: Subject name
-        reason: Reason for fallback
         
     Returns:
-        Dict with fallback zone insights
+        List of 2 fallback checkpoint dicts
     """
-    print(f"⚠️ Using fallback zones for {subject}: {reason}")
+    print(f"⚠️ Using fallback checkpoints for {subject}")
     
-    return {
-        'steady_zone': [
-            f"Your {subject} performance is being analyzed for strong mental models.",
-            f"Complete more {subject} questions to identify conceptual strengths."
-        ],
-        'focus_zone': [
-            f"Certain {subject} areas need deeper conceptual understanding and practice.",
-            f"Focus on identifying and correcting misconceptions in {subject}."
-        ]
-    }
+    return [
+        {
+            'topic': subject,
+            'subject': subject,
+            'subtopic': 'General concepts',
+            'accuracy': 0.5,
+            'checklist': f'Review {subject} fundamentals to identify weak areas',
+            'action_plan': f'Practice {subject} questions systematically from basics',
+            'citation': []
+        },
+        {
+            'topic': subject,
+            'subject': subject,
+            'subtopic': 'Problem-solving',
+            'accuracy': 0.5,
+            'checklist': f'Strengthen {subject} problem-solving approach',
+            'action_plan': f'Solve previous year {subject} questions with time limits',
+            'citation': []
+        }
+    ]
 
 
-def generate_all_subject_zones(test_session_id: int) -> Dict[str, Dict[str, List[str]]]:
+def generate_all_subject_checkpoints(test_session_id: int) -> Dict[str, List[Dict]]:
     """
-    Generate zone insights for all subjects in a test session.
-    This is the main orchestrator function - dynamically detects which subjects are in the test.
+    Generate checkpoints for all subjects in a test session.
     
     Args:
         test_session_id: ID of the test session
         
     Returns:
-        Dict mapping subject names to their zone insights
+        Dict mapping subject names to their checkpoint lists
     """
     try:
         from ..models import TestSession, TestSubjectZoneInsight
         
         test_session = TestSession.objects.get(id=test_session_id)
         
-        # Dynamically determine which subjects are present in this test (including Biology and Math)
+        # Determine which subjects are present
         subjects_to_process = []
         
         if test_session.physics_topics:
@@ -426,51 +564,56 @@ def generate_all_subject_zones(test_session_id: int) -> Dict[str, Dict[str, List
             print(f"⚠️ No subjects found in test {test_session_id}")
             return {}
         
-        print(f"🎯 Generating zone insights for test {test_session_id}")
+        print(f"🎯 Generating checkpoints for test {test_session_id}")
         print(f"📚 Subjects to process: {', '.join(subjects_to_process)}")
         
         results = {}
         
         for subject in subjects_to_process:
             try:
-                # Extract questions for this subject
-                questions = extract_subject_questions(test_session_id, subject)
+                # Extract wrong/skipped questions
+                topics_data = extract_wrong_and_skipped_questions(test_session_id, subject)
                 
-                if not questions:
+                # If no wrong/skipped, try correct questions
+                if not topics_data or not topics_data.get('topics'):
+                    print(f"ℹ️ No wrong/skipped questions for {subject}, checking correct answers")
+                    topics_data = extract_correct_questions(test_session_id, subject)
+                
+                if not topics_data or not topics_data.get('topics'):
                     print(f"⚠️ No questions found for {subject}, skipping")
                     continue
                 
-                # Generate zone insights
-                zones = generate_zone_insights_for_subject(subject, questions)
+                # Generate checkpoints
+                checkpoints = generate_checkpoints_for_subject(subject, topics_data)
                 
-                # Save to database (edge_zone removed)
+                # Save to database
                 insight, created = TestSubjectZoneInsight.objects.update_or_create(
                     test_session_id=test_session_id,
                     subject=subject,
                     defaults={
                         'student_id': test_session.student_id,
-                        'steady_zone': zones['steady_zone'],
-                        'focus_zone': zones['focus_zone'],
-                        'questions_analyzed': questions  # Store for debugging
+                        'checkpoints': checkpoints,
+                        'topics_analyzed': topics_data.get('topics', [])
                     }
                 )
                 
                 action = "Created" if created else "Updated"
-                print(f"💾 {action} zone insights for {subject} in test {test_session_id}")
+                print(f"💾 {action} checkpoints for {subject} in test {test_session_id}")
                 
-                results[subject] = zones
+                results[subject] = checkpoints
                 
             except Exception as e:
                 logger.error(f"Error processing {subject} for test {test_session_id}: {str(e)}")
                 print(f"❌ Failed to process {subject}: {str(e)}")
                 continue
         
-        print(f"✅ Zone insights generation complete for test {test_session_id}")
+        print(f"✅ Checkpoint generation complete for test {test_session_id}")
         print(f"📊 Processed {len(results)}/{len(subjects_to_process)} subjects successfully")
         
         return results
         
     except Exception as e:
-        logger.error(f"Error in generate_all_subject_zones for test {test_session_id}: {str(e)}")
-        print(f"❌ Failed to generate zone insights: {str(e)}")
+        logger.error(f"Error in generate_all_subject_checkpoints for test {test_session_id}: {str(e)}")
+        print(f"❌ Failed to generate checkpoints: {str(e)}")
         return {}
+

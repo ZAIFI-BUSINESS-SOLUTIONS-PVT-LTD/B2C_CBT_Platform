@@ -267,15 +267,15 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         }
       });
 
-      // Redirect directly to the results page for this session
-      // (Previously redirected to a Thank You page; that behavior is disabled.)
+      // Redirect to loading results page where video plays while insights generate
+      // Once insights are ready, loading page will redirect to dashboard
       try {
         // Clear any post-test UI flags rather than setting them so UI remains functional
         setPostTestHidden(false);
       } catch (e) {
         console.warn('Could not clear post test hidden flag', e);
       }
-      navigate(`/results/${sessionId}`);
+      navigate(`/loading-results/${sessionId}`);
       // Clean up state after navigation
       setIsSubmitting(false);
       setSuppressFullscreenExitDialog(false);
@@ -1153,8 +1153,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 px-4">
           <div className="text-center px-4 py-6 max-w-sm rounded-lg">
             <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
-            <h2 className="text-lg font-semibold text-gray-900">Preparing your results...</h2>
-            <p className="text-xs text-gray-600 mt-2">We are finalizing your test results. This may take a few seconds.</p>
+            <h2 className="text-lg font-semibold text-gray-900">Submitting test...</h2>
+            <p className="text-xs text-gray-600 mt-2">Redirecting to dashboard...</p>
           </div>
         </div>
       )}

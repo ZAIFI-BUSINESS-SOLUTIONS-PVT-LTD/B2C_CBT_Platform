@@ -184,41 +184,20 @@ def get_student_tests(request):
 @permission_classes([IsAuthenticated])
 def get_test_zone_insights(request, test_id):
     """
-    Get zone insights for a specific test.
-    Returns test summary and subject-wise zone insights (Steady, Edge, Focus).
+    Get checkpoint insights for a specific test.
+    Returns test summary and subject-wise checkpoints.
     
     URL: /api/zone-insights/test/<test_id>/
     
     Returns:
     {
         "status": "success",
-        "test_info": {
-            "id": 123,
-            "test_name": "Custom Test",
-            "start_time": "2025-11-11T10:00:00Z",
-            "end_time": "2025-11-11T13:00:00Z",
-            "total_marks": 440,
-            "max_marks": 720,
-            "percentage": 61.11,
-            "subject_marks": {
-                "Physics": {
-                    "score": 75.5,
-                    "correct": 30,
-                    "incorrect": 10,
-                    "unanswered": 5,
-                    "marks": 110,
-                    "max_marks": 180
-                },
-                ...
-            }
-        },
-        "zone_insights": [
+        "test_info": {...},
+        "checkpoints": [
             {
                 "subject": "Physics",
-                "steady_zone": ["point 1", "point 2"],
-                "focus_zone": ["point 1", "point 2"]
-            },
-            ...
+                "checkpoints": [...]
+            }
         ]
     }
     """
@@ -365,132 +344,32 @@ def get_test_zone_insights(request, test_id):
                 'max_marks': max_m
             }
 
-        # BUILD INSIGHTS: simplify per your request
-        # 1) detect which subjects are present in this test by reading TestAnswer -> Question -> Topic.subject
-        # 2) for each subject, gather all answers for that subject, build question payload and call LLM once
-
-        answers_qs = TestAnswer.objects.filter(session_id=test_id).select_related('question__topic')
-
-        # Group answers by normalized subject name
-        def normalize_subject_name(s: str) -> str:
-            if not s:
-                return 'Other'
-            s_low = s.lower()
-            if 'physics' in s_low:
-                return 'Physics'
-            if 'chemistry' in s_low:
-                return 'Chemistry'
-            if 'botany' in s_low or 'plant' in s_low or 'biology' in s_low:
-                # make Botany default for plant biology
-                return 'Botany'
-            if 'zoology' in s_low or 'animal' in s_low:
-                return 'Zoology'
-            if 'math' in s_low or 'algebra' in s_low or 'geometry' in s_low:
-                return 'Math'
-            return s.strip()
-
-        grouped = {}
-        for a in answers_qs:
-            q = a.question
-            topic = getattr(q, 'topic', None)
-            subj_raw = getattr(topic, 'subject', None) if topic else None
-            subj = normalize_subject_name(subj_raw)
-            grouped.setdefault(subj, []).append(a)
-
-        # Use existing service to generate insights per subject
-        from ..services.zone_insights_service import generate_zone_insights_for_subject
-
-        # Only generate insights for subjects that are not already stored.
-        # This avoids re-calling the LLM every time the user clicks the test.
-        insights_data = []
-        # Normalize existing subjects from DB so we compare case-insensitively
-        raw_existing = TestSubjectZoneInsight.objects.filter(test_session=test).values_list('subject', flat=True)
-        existing_subjects = set([normalize_subject_name(s) for s in raw_existing if s])
-        logger.debug(f"Existing stored subjects for test {test_id}: {existing_subjects}")
-        for subj, ans_list in grouped.items():
-            # Build question payloads from answers
-            questions_payload = []
-            for a in ans_list:  # include all answers for the subject
-                q = a.question
-                topic = getattr(q, 'topic', None)
-                options = {
-                    'A': getattr(q, 'option_a', None),
-                    'B': getattr(q, 'option_b', None),
-                    'C': getattr(q, 'option_c', None),
-                    'D': getattr(q, 'option_d', None),
-                }
-                questions_payload.append({
-                    'question_id': q.id,
-                    # Include full question text (do not truncate) for richer LLM context
-                    'question': (q.question if getattr(q, 'question', None) else ''),
-                    'options': options,
-                    'correct_answer': getattr(q, 'correct_answer', None),
-                    'selected_answer': a.selected_answer if a.selected_answer else None,
-                    'is_correct': a.is_correct,
-                    'time_taken': a.time_taken or 0,
-                    # 'topic' intentionally omitted from LLM payload
-                })
-            # Normalize subject for storage/lookup
-            subj_norm = normalize_subject_name(subj)
-
-            # If insights for this subject already exist, skip generation
-            if subj_norm in existing_subjects:
-                logger.debug(f"Skipping generation for subject {subj_norm} (already stored)")
-                continue
-
-            # Call LLM once per subject (only for missing subjects)
-            try:
-                zones = generate_zone_insights_for_subject(subj, questions_payload)
-            except Exception as e:
-                logger.error(f"LLM error for test {test_id} subject {subj}: {str(e)}")
-                zones = {
-                    'steady_zone': [],
-                    'focus_zone': []
-                }
-
-            # Persist zones to DB (create or update)
-            try:
-                TestSubjectZoneInsight.objects.update_or_create(
-                    test_session=test,
-                    subject=subj_norm,
-                    defaults={
-                        'student': student_profile,
-                        'steady_zone': zones.get('steady_zone', []),
-                        'focus_zone': zones.get('focus_zone', []),
-                        'questions_analyzed': questions_payload
-                    }
-                )
-                # mark as stored so subsequent loop iterations in same request won't regenerate
-                existing_subjects.add(subj_norm)
-            except Exception as e:
-                logger.error(f"Failed to save zone insights for test {test_id} subject {subj}: {e}")
-
-            insights_data.append({
-                'subject': subj_norm,
-                'steady_zone': zones.get('steady_zone', []),
-                'focus_zone': zones.get('focus_zone', [])
-            })
-
-        # Return DB-backed insights so frontend always sees stored results (including previous runs)
-        try:
-            stored = TestSubjectZoneInsight.objects.filter(test_session=test).values(
-                'subject', 'steady_zone', 'focus_zone'
-            )
-            final_insights = [
-                {
-                    'subject': normalize_subject_name(s['subject']),
-                    'steady_zone': s['steady_zone'] or [],
-                    'focus_zone': s['focus_zone'] or []
-                }
-                for s in stored
-            ]
-            # If DB had entries, prefer them; otherwise return generated insights
-            if final_insights:
-                insights_data = final_insights
-        except Exception as e:
-            logger.error(f"Failed to load stored insights for test {test_id}: {e}")
+        # BUILD CHECKPOINTS: use new checkpoint generation service
+        # Check if checkpoints already exist for this test
+        existing_checkpoints = TestSubjectZoneInsight.objects.filter(test_session=test)
         
-        logger.info(f"Returning {len(insights_data)} zone insights for test {test_id}")
+        checkpoints_data = []
+        
+        if not existing_checkpoints.exists():
+            # Generate checkpoints for all subjects
+            logger.info(f"Generating checkpoints for test {test_id}")
+            from ..services.zone_insights_service import generate_all_subject_checkpoints
+            
+            try:
+                generate_all_subject_checkpoints(test_id)
+                # Reload from DB after generation
+                existing_checkpoints = TestSubjectZoneInsight.objects.filter(test_session=test)
+            except Exception as e:
+                logger.error(f"Failed to generate checkpoints for test {test_id}: {str(e)}")
+        
+        # Load checkpoints from DB
+        for checkpoint_obj in existing_checkpoints:
+            checkpoints_data.append({
+                'subject': checkpoint_obj.subject,
+                'checkpoints': checkpoint_obj.checkpoints or []
+            })
+        
+        logger.info(f"Returning {len(checkpoints_data)} checkpoints for test {test_id}")
         response_data = {
             'status': 'success',
             'test_info': {
@@ -503,9 +382,9 @@ def get_test_zone_insights(request, test_id):
                 'percentage': round(percentage, 2),
                 'subject_marks': subject_marks
             },
-            'zone_insights': insights_data
+            'checkpoints': checkpoints_data
         }
-        logger.debug(f"Response data: test_name={test_name}, total_marks={total_marks}, insights_count={len(insights_data)}")
+        logger.debug(f"Response data: test_name={test_name}, total_marks={total_marks}, checkpoints_count={len(checkpoints_data)}")
         return Response(response_data)
         
     except TestSession.DoesNotExist:
@@ -587,7 +466,7 @@ def get_zone_insights_status(request, test_id):
 @permission_classes([IsAuthenticated])
 def get_test_zone_insights_raw(request, test_id):
     """
-    Raw DB-backed zone insights for a test session.
+    Raw DB-backed checkpoint insights for a test session.
     Returns rows from `test_subject_zone_insights` for the given test_id.
 
     URL: /api/zone-insights/raw/<test_id>/
@@ -607,9 +486,8 @@ def get_test_zone_insights_raw(request, test_id):
         for row in insights_qs:
             insights.append({
                 'subject': row.subject,
-                'steady_zone': row.steady_zone or [],
-                'focus_zone': row.focus_zone or [],
-                'questions_analyzed': row.questions_analyzed or [],
+                'checkpoints': row.checkpoints or [],
+                'topics_analyzed': row.topics_analyzed or [],
                 'created_at': row.created_at.isoformat() if row.created_at else None
             })
 

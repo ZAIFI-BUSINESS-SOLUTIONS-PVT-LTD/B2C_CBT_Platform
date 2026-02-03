@@ -444,7 +444,9 @@ def get_test_details(request, test_id):
                 'scheduled_date_time': test.scheduled_date_time.isoformat() if test.scheduled_date_time else None,
                 'total_questions': test.total_questions,
                 'is_active': test.is_active,
-                'created_at': test.created_at.isoformat()
+                'created_at': test.created_at.isoformat(),
+                'misconception_generation_status': test.misconception_generation_status,
+                'misconception_generated_at': test.misconception_generated_at.isoformat() if test.misconception_generated_at else None
             },
             'questions': questions_data,
             'statistics': statistics
@@ -568,4 +570,110 @@ def upload_offline_results(request):
         return JsonResponse({
             'error': 'SERVER_ERROR',
             'message': 'An unexpected error occurred during upload'
+        }, status=500)
+
+
+@csrf_exempt
+@institution_admin_required
+@require_http_methods(["POST"])
+def generate_misconceptions(request, test_id):
+    """
+    Manually trigger misconception generation for a test.
+    
+    POST /api/institution-admin/tests/<test_id>/generate-misconceptions/
+    
+    Returns: {
+        "success": true,
+        "message": "Misconception generation started",
+        "test_id": 123,
+        "status": "processing"
+    }
+    """
+    try:
+        institution = request.institution
+        
+        # Get test
+        try:
+            test = PlatformTest.objects.get(
+                id=test_id,
+                institution=institution,
+                is_institution_test=True
+            )
+        except PlatformTest.DoesNotExist:
+            return JsonResponse({
+                'error': 'NOT_FOUND',
+                'message': 'Test not found'
+            }, status=404)
+        
+        # Check if test has MCQ questions
+        mcq_questions_count = Question.objects.filter(
+            institution=institution,
+            institution_test_name=test.test_name,
+            exam_type=test.exam_type,
+            question_type='MCQ'
+        ).count()
+        
+        if mcq_questions_count == 0:
+            return JsonResponse({
+                'error': 'NO_MCQ_QUESTIONS',
+                'message': 'No MCQ questions found for this test'
+            }, status=400)
+        
+        # Update status to processing
+        test.misconception_generation_status = 'processing'
+        test.save(update_fields=['misconception_generation_status', 'updated_at'])
+        
+        # Trigger async task or run synchronously if Redis/Celery unavailable
+        try:
+            from neet_app.tasks import generate_misconceptions_task
+            # Try async queueing first
+            try:
+                generate_misconceptions_task.delay(test.id)
+                logger.info(f"✓ Manually queued async misconception generation for test {test.id}")
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Misconception generation started (async)',
+                    'test_id': test.id,
+                    'status': 'processing',
+                    'mcq_questions_count': mcq_questions_count,
+                    'execution_mode': 'async'
+                }, status=200)
+            except Exception as queue_error:
+                # Redis/Celery not available, run synchronously
+                error_msg = str(queue_error)
+                logger.warning(f"Redis/Celery not available ({error_msg}), running misconception generation synchronously")
+                
+                # Call task synchronously - when called directly without Celery,
+                # the decorator doesn't inject 'self', so just pass test_id
+                result = generate_misconceptions_task(test.id)
+                
+                logger.info(f"✓ Manually ran misconception generation synchronously for test {test.id}")
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Misconception generation completed (synchronous fallback)',
+                    'test_id': test.id,
+                    'status': test.misconception_generation_status,
+                    'mcq_questions_count': mcq_questions_count,
+                    'execution_mode': 'synchronous',
+                    'result': result
+                }, status=200)
+            
+        except Exception as e:
+            logger.error(f"Failed to run misconception generation for test {test.id}: {e}")
+            # Revert status
+            test.misconception_generation_status = 'failed'
+            test.save(update_fields=['misconception_generation_status', 'updated_at'])
+            
+            return JsonResponse({
+                'error': 'TASK_QUEUE_ERROR',
+                'message': 'Failed to start misconception generation'
+            }, status=500)
+        
+    except Exception as e:
+        logger.exception("Error in generate_misconceptions")
+        return JsonResponse({
+            'error': 'SERVER_ERROR',
+            'message': 'An unexpected error occurred'
         }, status=500)

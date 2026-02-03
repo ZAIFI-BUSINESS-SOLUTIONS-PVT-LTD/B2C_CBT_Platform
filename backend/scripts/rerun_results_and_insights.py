@@ -169,7 +169,6 @@ for idx, student_id in enumerate(students_to_regen, 1):
                     'strength_topics': [],
                     'weak_topics': [],
                     'improvement_topics': [],
-                    'last_test_topics': [],
                     'unattempted_topics': [],
                     'thresholds_used': thresholds,
                     'summary': {
@@ -192,9 +191,6 @@ for idx, student_id in enumerate(students_to_regen, 1):
             thresholds
         )
         
-        # Get last test data
-        last_test_data = insights_views.get_last_test_metrics(student_id, thresholds)
-        
         # Get unattempted topics
         unattempted_topics = insights_views.get_unattempted_topics(all_metrics['topics'])
         
@@ -215,10 +211,7 @@ for idx, student_id in enumerate(students_to_regen, 1):
                 'strength_topics': classification.get('strength_topics', []),
                 'unattempted_topics': unattempted_topics
             })
-            if last_test_data.get('last_test_topics'):
-                llm_insights['last_test_feedback'] = insights_views.generate_llm_insights(
-                    'last_test_feedback', last_test_data['last_test_topics']
-                )
+            # last-test feedback removed; skipping generation
         except Exception as llm_error:
             print(f"    ⚠️ LLM insight generation skipped: {llm_error}")
             llm_insights = {}
@@ -247,7 +240,6 @@ for idx, student_id in enumerate(students_to_regen, 1):
             'status': 'success',
             'data': {
                 **classification,
-                **last_test_data,
                 'unattempted_topics': unattempted_topics,
                 'llm_insights': llm_insights,
                 'thresholds_used': thresholds,

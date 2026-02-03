@@ -9,14 +9,19 @@ import Login from "@/assets/images/login.png";
 * Redirects to home if already authenticated
 */
 export default function LoginPage() {
-    const { isAuthenticated, loading } = useAuth();
+    const { isAuthenticated, loading, student } = useAuth();
     const [, navigate] = useLocation();
 
     useEffect(() => {
         if (!loading && isAuthenticated) {
-            navigate("/");
+            // If already authenticated, check where to redirect
+            if (!student?.phoneNumber) {
+                navigate("/get-number");
+            } else {
+                navigate("/dashboard");
+            }
         }
-    }, [loading, isAuthenticated, navigate]);
+    }, [loading, isAuthenticated, student, navigate]);
 
     return (
         <>

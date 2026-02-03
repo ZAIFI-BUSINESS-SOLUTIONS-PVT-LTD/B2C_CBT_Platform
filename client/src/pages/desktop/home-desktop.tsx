@@ -9,7 +9,7 @@ import HeaderDesktop from "@/components/header-desktop";
 import Carousel from '@/components/carousel-desktop';
 import MiniChatbot from '@/components/mini-chatbot-desktop';
 import MiniDashboard from '@/components/mini-dashboard-desktop';
-import { ArrowRight, History, NotebookPen, Trophy, AlertTriangle, Lock, Copy, Share2, Target, BookOpen } from "lucide-react";
+import { ArrowRight, NotebookPen, Trophy, AlertTriangle, Lock, Copy, Share2, Target, BookOpen } from "lucide-react";
 import { AnalyticsData, InsightsData } from "@/components/insight-card";
 
 // =============================================================================
@@ -451,14 +451,7 @@ export default function Home() {
             sections.push({ title: 'Study Plan', items: ['Take tests to get AI-generated study plans!'], icon: <NotebookPen className="w-4 h-4" /> });
         }
 
-        // Last Test
-        if (insights?.data?.llmInsights?.lastTestFeedback?.insights && insights.data.llmInsights.lastTestFeedback.insights.length > 0) {
-            sections.push({ title: 'Last Test Recommendations', items: insights.data.llmInsights.lastTestFeedback.insights.map((s: any) => s?.text ?? s), icon: <History className="w-4 h-4" />, subtitle: 'AI feedback on your last test' });
-        } else if (insights?.data?.lastTestTopics && insights.data.lastTestTopics.length > 0) {
-            sections.push({ title: 'Last Test Recommendations', items: insights.data.lastTestTopics.slice(0, 5).map((t: any) => `${t.topic} — ${t.accuracy}%`), icon: <History className="w-4 h-4" /> });
-        } else {
-            sections.push({ title: 'Last Test Recommendations', items: ['Complete a test to get AI feedback!'], icon: <History className="w-4 h-4" /> });
-        }
+        // Last Test section removed: backend no longer provides last-test topics or LLM feedback
 
         // Strengths
         if (insights?.data?.llmInsights?.strengths?.insights && insights.data.llmInsights.strengths.insights.length > 0) {

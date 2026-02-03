@@ -245,7 +245,7 @@ export default function InstitutionAdminDashboard() {
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       {/* Header */}
       <div className="max-w-4xl mx-auto mb-6">
-        <div className="flex items-center justify-between bg-white p-4 rounded-lg shadow">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between bg-white p-4 rounded-lg shadow">
           <div className="flex items-center gap-3">
             <Building2 className="h-8 w-8 text-blue-600" />
             <div>
@@ -253,7 +253,7 @@ export default function InstitutionAdminDashboard() {
               <p className="text-sm text-gray-600">Code: {adminData.institution.code}</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 mt-3 md:mt-0">
             <Button variant="outline" onClick={() => navigate('/offline-results-upload')}>
               <FileText className="h-4 w-4 mr-2" />
               Upload Offline Results

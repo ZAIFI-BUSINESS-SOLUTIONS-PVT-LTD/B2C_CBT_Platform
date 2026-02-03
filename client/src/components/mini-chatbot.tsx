@@ -6,7 +6,7 @@ import { getAccessToken } from "@/lib/auth";
 import { API_CONFIG } from "@/config/api";
 import { SPEECH_CONFIG } from "@/config/speech";
 import { useLocation } from "wouter";
-import { MessageSquareMore, Mic, MicOff, Send, Loader2 } from "lucide-react";
+import { MessageSquareMore, Mic, MicOff, Send, Loader2, Lock } from "lucide-react";
 import { ShineBorder } from "@/components/shine-border";
 
 interface MiniChatbotProps {
@@ -15,6 +15,9 @@ interface MiniChatbotProps {
 
 export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
     const [, navigate] = useLocation();
+
+    // Chatbot locked flag — when true, UI is blurred and interactions disabled
+    const isChatbotLocked = true;
 
     // Chat functionality states
     const [inputMessage, setInputMessage] = useState('');
@@ -188,28 +191,41 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
                     <div className="space-y-4">
                         <div className="flex items-center gap-3">
                             <div className="flex-1 relative group">
-                                <Input
-                                    value={inputMessage}
-                                    onChange={(e) => setInputMessage(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                            e.preventDefault();
-                                            if (inputMessage.trim()) {
-                                                handleChatSend(inputMessage.trim());
+                                <div className="relative">
+                                    <Input
+                                        value={inputMessage}
+                                        onChange={(e) => { if (!isChatbotLocked) setInputMessage(e.target.value); }}
+                                        onKeyDown={(e) => {
+                                            if (isChatbotLocked) { e.preventDefault(); return; }
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                if (inputMessage.trim()) {
+                                                    handleChatSend(inputMessage.trim());
+                                                }
                                             }
-                                        }
-                                    }}
-                                    placeholder="Ask anything..."
-                                    disabled={isChatLoading}
-                                    className="border-slate-200/80 rounded-full text-sm focus:border-blue-300 focus:ring-blue-100 focus:ring-1 shadow-sm transition-all duration-200 bg-white/80 backdrop-blur-sm group-hover:shadow-md pl-4 pr-20"
-                                />
+                                        }}
+                                        placeholder="Ask anything..."
+                                        disabled={isChatLoading || isChatbotLocked}
+                                        className="border-slate-200/80 rounded-full text-sm focus:border-blue-300 focus:ring-blue-100 focus:ring-1 shadow-sm transition-all duration-200 bg-white/80 backdrop-blur-sm group-hover:shadow-md pl-4 pr-20"
+                                    />
+                                    {isChatbotLocked && (
+                                        <div className="absolute inset-0 rounded-full bg-white/70 backdrop-blur-md flex items-center justify-center pointer-events-auto">
+                                            <div className="flex flex-col items-center gap-1">
+                                                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100">
+                                                    <Lock className="w-4 h-4 text-blue-600" />
+                                                </div>
+                                                <span className="text-xs text-gray-600">Coming soon</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1.5">{speechSupported && (
                                     <Button
                                         type="button"
                                         size="sm"
                                         variant="ghost"
-                                        onClick={toggleSpeechRecognition}
-                                        disabled={isChatLoading}
+                                        onClick={() => { if (!isChatbotLocked) toggleSpeechRecognition(); }}
+                                        disabled={isChatLoading || isChatbotLocked}
                                         className={`h-8 w-8 p-0 rounded-full transition-all duration-200 hover:scale-105 ${isRecording
                                             ? 'text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100'
                                             : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
@@ -222,11 +238,12 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
                                         type="button"
                                         size="sm"
                                         onClick={() => {
+                                            if (isChatbotLocked) return;
                                             if (inputMessage.trim()) {
                                                 handleChatSend(inputMessage.trim());
                                             }
                                         }}
-                                        disabled={!inputMessage.trim() || isChatLoading}
+                                        disabled={!inputMessage.trim() || isChatLoading || isChatbotLocked}
                                         className="h-8 w-8 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
                                     >
                                         {isChatLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

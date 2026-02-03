@@ -44,11 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setStudent(studentData);
           setIsAuthenticated(true);
           
-          // Check if phone number is missing and redirect to get-number page
-          if (!studentData.phoneNumber) {
-            console.log("AuthContext: Phone number missing on app load, redirecting to get-number");
-            navigate("/get-number");
-          }
+          // Do NOT navigate here - let the page components handle navigation
+          // based on their own logic (e.g., LoginPage redirects auth users, Home requires auth)
+          console.log("AuthContext: Authentication state loaded from token");
         } catch (error) {
           console.error("Failed to verify existing authentication:", error);
           clearTokens();
@@ -85,6 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!response.student.phoneNumber) {
         console.log("AuthContext: Phone number missing, redirecting to get-number");
         navigate("/get-number");
+      } else {
+        console.log("AuthContext: Phone number present, redirecting to dashboard");
+        navigate("/dashboard");
       }
       
       // Return response in expected LoginResponse format
@@ -138,6 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!data.student.phoneNumber) {
         console.log("AuthContext: Phone number missing, redirecting to get-number");
         navigate("/get-number");
+      } else {
+        console.log("AuthContext: Phone number present, redirecting to dashboard");
+        navigate("/dashboard");
       }
       
       return data;

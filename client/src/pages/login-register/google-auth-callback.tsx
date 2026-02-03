@@ -9,11 +9,10 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
-import { API_BASE_URL } from "@/config/google-auth";
 
 export default function GoogleAuthCallback() {
   const [, setLocation] = useLocation();
-  const { setStudent } = useAuth();
+  const { loginWithGoogle } = useAuth();
   const [processing, setProcessing] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,36 +62,18 @@ export default function GoogleAuthCallback() {
 
     const processGoogleToken = async (idToken: string) => {
       try {
-        // Use centralized API_BASE_URL that handles dev/prod switching
-        const response = await fetch(`${API_BASE_URL}/auth/google/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ idToken }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.detail || 'Authentication failed');
-        }
-
-        // Store tokens and user data  
-        localStorage.setItem('access_token', data.access);
-        localStorage.setItem('refresh_token', data.refresh);
-        localStorage.setItem('user', JSON.stringify(data.student));
-
-        // Set authentication state directly
-        setStudent(data.student);
+        // Use centralized loginWithGoogle from AuthContext
+        // This handles token storage with correct keys (accessToken/refreshToken)
+        // and automatically redirects to /get-number if phone is missing
+        await loginWithGoogle(idToken);
 
         toast({
           title: "Welcome!",
           description: "Successfully signed in with Google.",
         });
 
-        // Redirect to dashboard
-        setLocation('/dashboard');
+        // AuthContext handles redirect based on phone number presence
+        // No need for manual redirect here
 
       } catch (error) {
         console.error('Token processing error:', error);
@@ -101,7 +82,7 @@ export default function GoogleAuthCallback() {
     };
 
     handleGoogleCallback();
-  }, [setStudent, setLocation]);
+  }, [loginWithGoogle, setLocation]);
 
   if (error) {
     return (

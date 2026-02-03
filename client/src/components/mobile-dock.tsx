@@ -1,5 +1,6 @@
 import React from "react";
 import { Home, NotepadText, FileChartPie, MessageSquareMore, School, Lock } from "lucide-react";
+import { Button } from '@/components/ui/button';
 import { useLocation } from "wouter";
 import { getPostTestHidden } from '@/lib/postTestHidden';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 export default function MobileDock() {
     const [location, navigate] = useLocation();
     const { student } = useAuth();
+    const [showComingSoon, setShowComingSoon] = React.useState(false);
 
     const isActive = (path: string) => {
         try {
@@ -72,7 +74,15 @@ export default function MobileDock() {
                         return (
                             <li key={it.key} className="flex-1 relative">
                                 <button
-                                    onClick={() => { if (!isDisabled) navigate(it.href); }}
+                                    onClick={() => {
+                                        if (isDisabled) return;
+                                        // Show coming soon for chatbot on mobile instead of navigating
+                                        if (it.key === 'chatbot') {
+                                            setShowComingSoon(true);
+                                            return;
+                                        }
+                                        navigate(it.href);
+                                    }}
                                     aria-current={active ? "page" : undefined}
                                     aria-label={it.label}
                                     aria-disabled={isDisabled}
@@ -104,6 +114,25 @@ export default function MobileDock() {
                     })}
                 </ul>
             </div>
+
+                {/* Coming soon modal for mobile chatbot click */}
+                {showComingSoon && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowComingSoon(false)} />
+                        <div className="relative bg-white rounded-2xl shadow-xl border border-gray-200 p-6 w-[90%] max-w-sm z-60">
+                            <div className="flex flex-col items-center gap-4">
+                                <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100">
+                                    <Lock className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <h3 className="text-lg font-semibold">Coming soon</h3>
+                                <p className="text-sm text-gray-600 text-center">The Chatbot is being rolled out soon. It will be available for students shortly.</p>
+                                <div className="pt-2">
+                                    <Button onClick={() => setShowComingSoon(false)}>Got it</Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
         </nav>
     );
 }

@@ -1,0 +1,12 @@
+{
+  "name": "pwa-icon-generator",
+  "version": "1.0.0",
+  "description": "Generate PWA icons from a source image",
+  "type": "module",
+  "scripts": {
+    "generate-icons": "node generate-pwa-icons.js"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.0"
+  }
+}

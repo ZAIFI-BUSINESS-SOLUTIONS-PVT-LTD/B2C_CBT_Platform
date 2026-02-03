@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 # Define server-side plan pricing (INR)
 PLANS = {
-    "basic": 1,  # rupees
-    "pro": 25,
+    "basic": 720,  # rupees
+    "pro": 7200,
 }
 
 @api_view(['POST'])
@@ -55,7 +55,7 @@ def create_order_view(request):
             "available_plans": list(PLANS.keys())
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    # Get pricing for the plan
+    # Get pricing for the plan (server stores whole rupees)
     amount_rupees = PLANS[plan]
     amount_paise = int(amount_rupees * 100)
 
@@ -66,10 +66,11 @@ def create_order_view(request):
         # We'll create the local DB record first to get the id
         
         # Create local order record first
+        # Store amount in the DB as whole rupees (per request)
         rp_order = RazorpayOrder.objects.create(
             student=request.user,
             plan=plan,
-            amount=amount_paise,
+            amount=amount_rupees,
             currency='INR',
             status='initiated'  # initiated -> created -> paid/failed
         )
@@ -129,9 +130,10 @@ def create_order_view(request):
                 "details": "Payment service temporarily unavailable"
             }, status=status.HTTP_502_BAD_GATEWAY)
 
+        # Return amount to frontend in paise (gateway expects smallest currency unit)
         return Response({
             "order_id": rp_order.razorpay_order_id,
-            "amount": rp_order.amount,
+            "amount": amount_paise,
             "currency": rp_order.currency,
             "key_id": settings.RAZORPAY_KEY_ID,
             # Also return `key` for frontend convenience (Razorpay expects `key` in JS options)
@@ -207,10 +209,16 @@ def verify_payment_view(request):
                     
                     # Find recent orders (within 1 hour) with matching amount
                     one_hour_ago = timezone.now() - timedelta(hours=1)
-                    
+
+                    # `payment_amount` is in paise from Razorpay; convert to whole rupees
+                    try:
+                        payment_amount_rupees = int(int(payment_amount) // 100)
+                    except Exception:
+                        payment_amount_rupees = None
+
                     rp_order = RazorpayOrder.objects.filter(
                         student=request.user,
-                        amount=payment_amount,
+                        amount=payment_amount_rupees,
                         created_at__gte=one_hour_ago,
                         status__in=['initiated', 'created']  # Not already paid
                     ).order_by('-created_at').first()

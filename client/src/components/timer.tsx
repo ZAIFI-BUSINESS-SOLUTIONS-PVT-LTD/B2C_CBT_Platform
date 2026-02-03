@@ -34,12 +34,34 @@ export function Timer({ initialMinutes, onTimeUp, className = "", paused = false
   // === TIMER STATE ===
   const [timeLeft, setTimeLeft] = useState((initialMinutes || 0) * 60);  // Time left in seconds
   const intervalRef = useRef<number | null>(null);
+  const bellRef = useRef<HTMLAudioElement | null>(null);
+  const bellPlayedRef = useRef(false);
 
   // === TIMER LOGIC ===
   // Initialize timeLeft when initialMinutes changes (e.g. on mount)
   useEffect(() => {
     setTimeLeft((initialMinutes || 0) * 60);
   }, [initialMinutes]);
+
+  // Prepare bell audio once on mount
+  useEffect(() => {
+    try {
+      const audio = new Audio('/sounds/bell.mp3');
+      audio.preload = 'auto';
+      audio.volume = 0.8; // reasonable default volume
+      bellRef.current = audio;
+    } catch (e) {
+      // If Audio is not available for any reason, silently ignore
+      bellRef.current = null;
+    }
+    return () => {
+      // cleanup reference
+      if (bellRef.current) {
+        try { bellRef.current.pause(); } catch {};
+        bellRef.current = null;
+      }
+    };
+  }, []);
 
   // Manage the ticking interval. The interval is only created/cleared when
   // paused state changes (or on unmount). This prevents the interval from
@@ -79,6 +101,17 @@ export function Timer({ initialMinutes, onTimeUp, className = "", paused = false
         intervalRef.current = null;
       }
       onTimeUp();
+    }
+    // Play bell once when entering the last 4 seconds (and not at zero)
+    if (timeLeft > 0 && timeLeft <= 4 && !bellPlayedRef.current) {
+      const audio = bellRef.current;
+      if (audio) {
+        // Attempt to play; browsers may block autoplay until user interacts.
+        audio.play().catch(() => {
+          // Autoplay blocked — do nothing (UI should still function). Optionally show visual cue elsewhere.
+        });
+      }
+      bellPlayedRef.current = true;
     }
   }, [timeLeft, onTimeUp]);
 

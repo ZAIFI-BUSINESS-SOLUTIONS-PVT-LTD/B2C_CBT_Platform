@@ -190,9 +190,9 @@ class TestAnswerAdmin(admin.ModelAdmin):
 
 @admin.register(StudentInsight)
 class StudentInsightAdmin(admin.ModelAdmin):
-    list_display = ['student', 'test_session', 'llm_strengths','llm_study_plan','llm_weaknesses','llm_last_test_feedback','created_at']
+    list_display = ['student', 'test_session', 'llm_strengths','llm_study_plan','llm_weaknesses','created_at']
     list_filter = ['student']
-    search_fields = ['student__full_name', 'test_session__id', 'llm_strengths', 'llm_study_plan', 'llm_weaknesses', 'llm_last_test_feedback']
+    search_fields = ['student__full_name', 'test_session__id', 'llm_strengths', 'llm_study_plan', 'llm_weaknesses']
     ordering = ['-created_at']
 
 @admin.register(PasswordReset)

@@ -21,11 +21,12 @@ class StudentJWTAuthentication(JWTAuthentication):
             # Extract student_id from token payload
             student_id = validated_token.get('student_id')
             if not student_id:
-                sentry_sdk.capture_message(
-                    "JWT Authentication - No student_id in token payload",
-                    level="warning",
-                    extra={"token_payload": validated_token}
-                )
+                with sentry_sdk.push_scope() as scope:
+                    scope.set_extra("token_payload", str(validated_token))
+                    sentry_sdk.capture_message(
+                        "JWT Authentication - No student_id in token payload",
+                        level="warning"
+                    )
                 print(f"❌ JWT Authentication - No student_id in token payload")
                 return None
                 
@@ -41,11 +42,12 @@ class StudentJWTAuthentication(JWTAuthentication):
             student = StudentProfile.objects.get(student_id=student_id)
             
             if not student.is_active:
-                sentry_sdk.capture_message(
-                    "JWT Authentication - Student account not active",
-                    level="warning",
-                    extra={"student_id": student_id}
-                )
+                with sentry_sdk.push_scope() as scope:
+                    scope.set_extra("student_id", student_id)
+                    sentry_sdk.capture_message(
+                        "JWT Authentication - Student account not active",
+                        level="warning"
+                    )
                 print(f"❌ JWT Authentication - Student {student_id} is not active")
                 return None
             
@@ -90,17 +92,18 @@ class StudentJWTAuthentication(JWTAuthentication):
             return StudentUser(student)
             
         except StudentProfile.DoesNotExist:
-            sentry_sdk.capture_message(
-                "JWT Authentication - Student not found in database",
-                level="warning",
-                extra={"student_id": student_id}
-            )
+            with sentry_sdk.push_scope() as scope:
+                scope.set_extra("student_id", student_id)
+                sentry_sdk.capture_message(
+                    "JWT Authentication - Student not found in database",
+                    level="warning"
+                )
             print(f"❌ JWT Authentication - Student {student_id} not found in database")
             return None
         except (KeyError, TypeError) as e:
-            sentry_sdk.capture_exception(e, extra={
-                "action": "jwt_token_validation",
-                "token_payload": validated_token
-            })
+            with sentry_sdk.push_scope() as scope:
+                scope.set_extra("action", "jwt_token_validation")
+                scope.set_extra("token_payload", str(validated_token))
+                sentry_sdk.capture_exception(e)
             print(f"❌ JWT Authentication - Token format error: {e}")
             return None

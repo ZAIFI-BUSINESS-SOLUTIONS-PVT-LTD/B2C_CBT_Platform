@@ -43,34 +43,45 @@ def update_subject_scores_on_completion(sender, instance, created, **kwargs):
                         try:
                             from .tasks import generate_insights_task, generate_zone_insights_task
                             from .views.insights_views import is_celery_worker_available
+                            from .models import TestSubjectZoneInsight
+                            
+                            # Check if zone insights already exist (they were generated synchronously in submit)
+                            zone_exists = TestSubjectZoneInsight.objects.filter(test_session_id=instance.id).exists()
                             
                             # Check if Celery workers are available before enqueueing
                             if not is_celery_worker_available():
                                 print(f"⚠️ No active Celery workers detected, falling back to synchronous insights generation for student {instance.student_id}")
                                 raise RuntimeError("No active Celery workers available")
                             else:
-                                # STEP 1: Generate zone insights first (non-blocking, independent)
-                                try:
-                                    zone_task = generate_zone_insights_task.delay(instance.id)
-                                    print(f"🎯 Enqueued zone insights task for test {instance.id} (Task ID: {zone_task.id})")
-                                    
-                                    # STEP 2: Chain home page insights generation AFTER zone insights complete
-                                    # This ensures zone insights are available for last_test_feedback
-                                    request_data = {'force_regenerate': True}
-                                    # Use chain or link to execute home insights after zone insights
-                                    from celery import chain
-                                    chain(
-                                        generate_zone_insights_task.si(instance.id),
-                                        generate_insights_task.si(instance.student_id, request_data, True)
-                                    ).apply_async()
-                                    print(f"🔄 Chained: zone insights → home insights for student {instance.student_id}")
-                                    
-                                except Exception as zone_e:
-                                    print(f"⚠️ Failed to enqueue zone insights, falling back to direct insights: {zone_e}")
-                                    # If zone insights fail, still generate home insights
+                                # Zone insights should already exist from synchronous generation in submit
+                                # Only generate student insights (home page analytics)
+                                if zone_exists:
+                                    print(f"✅ Zone insights already exist for test {instance.id}, skipping zone generation")
+                                    # Generate only student insights
                                     request_data = {'force_regenerate': True}
                                     generate_insights_task.delay(instance.student_id, request_data, True)
-                                    print(f"🔄 Enqueued generate_insights_task (without zone insights) for student {instance.student_id}")
+                                    print(f"🔄 Enqueued student insights generation for student {instance.student_id}")
+                                else:
+                                    # Fallback: if zone insights don't exist, generate them async
+                                    print(f"⚠️ Zone insights not found for test {instance.id}, generating async")
+                                    try:
+                                        zone_task = generate_zone_insights_task.delay(instance.id)
+                                        print(f"🎯 Enqueued zone insights task for test {instance.id} (Task ID: {zone_task.id})")
+                                        
+                                        # Chain student insights after zone insights
+                                        request_data = {'force_regenerate': True}
+                                        from celery import chain
+                                        chain(
+                                            generate_zone_insights_task.si(instance.id),
+                                            generate_insights_task.si(instance.student_id, request_data, True)
+                                        ).apply_async()
+                                        print(f"🔄 Chained: zone insights → student insights for student {instance.student_id}")
+                                        
+                                    except Exception as zone_e:
+                                        print(f"⚠️ Failed to enqueue zone insights, falling back to direct insights: {zone_e}")
+                                        request_data = {'force_regenerate': True}
+                                        generate_insights_task.delay(instance.student_id, request_data, True)
+                                        print(f"🔄 Enqueued generate_insights_task (without zone insights) for student {instance.student_id}")
                                 
                         except (ImportError, RuntimeError, Exception) as e:
                             # Celery not installed/available in this environment or no workers, fall back to background thread

@@ -6,7 +6,7 @@ import { getAccessToken } from "@/lib/auth";
 import { API_CONFIG } from "@/config/api";
 import { SPEECH_CONFIG } from "@/config/speech";
 import { useLocation } from "wouter";
-import { MessageSquareMore, Mic, MicOff, Send, Loader2 } from "lucide-react";
+import { MessageSquareMore, Mic, MicOff, Send, Loader2, Lock } from "lucide-react";
 import { ShineBorder } from "@/components/shine-border";
 
 interface MiniChatbotProps {
@@ -15,6 +15,9 @@ interface MiniChatbotProps {
 
 export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
     const [, navigate] = useLocation();
+
+    // Chatbot locked flag — when true, UI is blurred and navigation disabled
+    const isChatbotLocked = true;
 
     const quickPrompts = [
         'How can I improve my algebra?', 'Create a 2-week study plan', 'Time management tips for exams'
@@ -172,7 +175,7 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
 
     return (
         <div className={`w-full h-full ${className}`}>
-            <Card className="bg-gradient-to-br from-white via-white to-slate-50/50 rounded-2xl shadow-xl backdrop-blur-sm h-full flex flex-col">
+            <Card className="relative bg-gradient-to-br from-white via-white to-slate-50/50 rounded-2xl shadow-xl backdrop-blur-sm h-full flex flex-col">
                 <ShineBorder shineColor={["#a855f7", "#3b82f6", "#0ea5e9"]} />
 
                 {/* Minimalistic subtle background pattern (diagonal lines + soft gradient) */}
@@ -227,8 +230,20 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
                             ) : (
                                 // Quick Prompts and Button to full Chatbot
                                 <div className="w-full max-w-sm text-center">
-                                    <div className="mt-3">
-                                        <Button size="lg" variant="default" onClick={() => navigate('/chatbot')} className="rounded-xl px-4">Go to Chatbot</Button>
+                                    <div className="mt-3 relative">
+                                        <Button size="lg" variant="default" onClick={() => { if (!isChatbotLocked) navigate('/chatbot'); }} className="rounded-xl px-4">Go to Chatbot</Button>
+                                        {isChatbotLocked && (
+                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
+                                                <div className="w-full h-full rounded-xl bg-white/60 backdrop-blur-sm flex items-center justify-center">
+                                                    <div className="flex flex-col items-center gap-2">
+                                                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100">
+                                                            <Lock className="w-5 h-5 text-blue-600" />
+                                                        </div>
+                                                        <span className="text-xs text-gray-600">Coming soon</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="mt-3 flex flex-wrap justify-center gap-2">
                                         {quickPrompts.map((p) => (
@@ -236,8 +251,9 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
                                                 key={p}
                                                 size="sm"
                                                 variant="ghost"
-                                                onClick={() => createNewSessionAndRedirect(p)}
+                                                onClick={() => { if (!isChatbotLocked) createNewSessionAndRedirect(p); }}
                                                 className="rounded-xl border px-3 py-2 text-sm min-w-[10rem] max-w-xs truncate"
+                                                disabled={isChatbotLocked}
                                             >
                                                 {p}
                                             </Button>
@@ -254,8 +270,9 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
                             <div className="flex-1 relative group">
                                 <Input
                                     value={inputMessage}
-                                    onChange={(e) => setInputMessage(e.target.value)}
+                                    onChange={(e) => { if (!isChatbotLocked) setInputMessage(e.target.value); }}
                                     onKeyDown={(e) => {
+                                        if (isChatbotLocked) { e.preventDefault(); return; }
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
                                             if (inputMessage.trim()) {
@@ -264,7 +281,7 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
                                         }
                                     }}
                                     placeholder="Ask anything..."
-                                    disabled={isChatLoading}
+                                    disabled={isChatLoading || isChatbotLocked}
                                     className="border-slate-200/80 rounded-full text-sm focus:border-blue-300 focus:ring-blue-100 focus:ring-1 shadow-sm transition-all duration-200 bg-white/80 backdrop-blur-sm group-hover:shadow-md pl-4 pr-20 h-12"
                                 />
                                 <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-2">{speechSupported && (
@@ -272,8 +289,8 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
                                         type="button"
                                         size="icon"
                                         variant="ghost"
-                                        onClick={toggleSpeechRecognition}
-                                        disabled={isChatLoading}
+                                        onClick={() => { if (!isChatbotLocked) toggleSpeechRecognition(); }}
+                                        disabled={isChatLoading || isChatbotLocked}
                                         className={`h-10 w-10 p-0 rounded-full transition-all duration-200 hover:scale-105 ${isRecording
                                             ? 'text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100'
                                             : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
@@ -286,11 +303,12 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
                                         type="button"
                                         size="icon"
                                         onClick={() => {
+                                            if (isChatbotLocked) return;
                                             if (inputMessage.trim()) {
                                                 handleChatSend(inputMessage.trim());
                                             }
                                         }}
-                                        disabled={!inputMessage.trim() || isChatLoading}
+                                        disabled={!inputMessage.trim() || isChatLoading || isChatbotLocked}
                                         className="h-10 w-10 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
                                     >
                                         {isChatLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -300,6 +318,21 @@ export default function MiniChatbot({ className = "" }: MiniChatbotProps) {
                         </div>
                     </div>
                 </CardContent>
+
+                {/* Full-card overlay when locked to block interaction and blur the card */}
+                {isChatbotLocked && (
+                    <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-auto">
+                        <div className="w-full h-full rounded-2xl bg-white/60 backdrop-blur-sm border border-gray-200 flex items-center justify-center p-6">
+                            <div className="flex flex-col items-center gap-3">
+                                <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100">
+                                    <Lock className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <h4 className="text-sm font-semibold text-gray-900">Coming soon</h4>
+                                <p className="text-xs text-gray-600 max-w-xs text-center">The Chatbot is being rolled out soon. It will be available for students shortly.</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </Card>
         </div>
     );

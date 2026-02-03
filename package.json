@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "tsc"
+    "check": "tsc",
+    "pwa:check": "node -e \"console.log('\\n📋 PWA Checklist:\\n'); const fs=require('fs'); const icons=['72','96','128','144','152','192','384','512']; icons.forEach(s=>{try{fs.accessSync('client/public/icons/icon-'+s+'.png');console.log('✅ icon-'+s+'.png')}catch{console.log('❌ icon-'+s+'.png - MISSING')}}); console.log('\\n👉 Generate icons: Open client/public/icons/generate-icons.html\\n')\"",
+    "pwa:verify": "node pwa-verify.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

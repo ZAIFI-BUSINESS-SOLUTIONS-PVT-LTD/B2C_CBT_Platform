@@ -89,6 +89,7 @@ export default function HeaderDesktop() {
     const { student } = useAuth();
     const [sessions, setSessions] = useState<ChatSession[]>([]);
     const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+    const [showComingSoon, setShowComingSoon] = useState(false);
 
     const getAuthHeaders = () => {
         const token = getAccessToken();
@@ -134,22 +135,14 @@ export default function HeaderDesktop() {
         { to: '/dashboard', text: 'Analysis', icon: <FileChartPie className="h-5 w-5" />, activePattern: /^\/dashboard/ },
         {
             to: '/chatbot', text: 'Chatbot', icon: <MessageSquareMore className="h-5 w-5" />, activePattern: /^\/chatbot/, onClick: () => {
-                // If already on chatbot page, just toggle expansion
-                if (path.startsWith('/chatbot')) {
-                    setExpandedItems(prev => {
-                        const newSet = new Set(prev);
-                        if (newSet.has('chatbot')) {
-                            newSet.delete('chatbot');
-                        } else {
-                            newSet.add('chatbot');
-                        }
-                        return newSet;
-                    });
-                } else {
-                    // Navigate to chatbot page and expand
-                    navigate('/chatbot');
-                    setExpandedItems(prev => new Set([...prev, 'chatbot']));
-                }
+                // Show coming soon and then redirect to dashboard instead of navigating to /chatbot
+                setShowComingSoon(true);
+                setTimeout(() => {
+                    setShowComingSoon(false);
+                    navigate('/dashboard');
+                }, 1400);
+                // Ensure the sidebar shows chatbot as expanded visually for moment
+                setExpandedItems(prev => new Set([...prev, 'chatbot']));
             }, expandable: true, expanded: expandedItems.has('chatbot'), lockedForInstitution: true
         },
     ];
@@ -233,7 +226,14 @@ export default function HeaderDesktop() {
                                         {sessions.map((session) => (
                                             <button
                                                 key={session.chatSessionId}
-                                                onClick={() => navigate(`/chatbot?session=${session.chatSessionId}`)}
+                                                onClick={() => {
+                                                    // show coming soon and redirect to dashboard
+                                                    setShowComingSoon(true);
+                                                    setTimeout(() => {
+                                                        setShowComingSoon(false);
+                                                        navigate('/dashboard');
+                                                    }, 1400);
+                                                }}
                                                 className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg truncate"
                                             >
                                                 {session.sessionTitle || `Chat ${session.id}`}
@@ -258,6 +258,25 @@ export default function HeaderDesktop() {
                 </nav>
 
             </aside>
+
+            {/* Coming soon modal for Chatbot click */}
+            {showComingSoon && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowComingSoon(false)} />
+                    <div className="relative bg-white rounded-2xl shadow-xl border border-gray-200 p-6 w-[90%] max-w-sm z-60">
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100">
+                                <Lock className="w-6 h-6 text-blue-600" />
+                            </div>
+                            <h3 className="text-lg font-semibold">Coming soon</h3>
+                            <p className="text-sm text-gray-600 text-center">The Chatbot is being rolled out soon. It will be available for students shortly.</p>
+                            <div className="pt-2">
+                                <Button onClick={() => setShowComingSoon(false)}>Got it</Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }

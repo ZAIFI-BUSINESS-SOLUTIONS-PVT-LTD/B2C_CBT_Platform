@@ -19,7 +19,8 @@ from .views.test_views import (
     create_test_session, system_status
 )
 from .views.insights_views import (
-    get_student_insights, get_topic_details, get_insights_config, get_insights_cache
+    get_student_insights, get_topic_details, get_insights_config, get_insights_cache,
+    get_strengths_history, get_weaknesses_history, get_study_plan
 )
 from .views.zone_insights_views import (
     get_student_tests, get_test_zone_insights, get_zone_insights_status, get_test_zone_insights_raw
@@ -40,7 +41,8 @@ from .views.platform_admin_views import (
 from .views.institution_admin_views import (
     institution_admin_login, get_exam_types, upload_test, 
     list_institution_tests as admin_list_institution_tests,
-    toggle_test_status, get_test_details, upload_offline_results
+    toggle_test_status, get_test_details, upload_offline_results,
+    generate_misconceptions
 )
 from .views.institution_answer_key_views import upload_answer_key
 from .views.institution_json_update_views import upload_json_updates
@@ -127,6 +129,9 @@ urlpatterns = [
     path('insights/cache/', get_insights_cache, name='insights-cache'),
     path('insights/topics/', get_topic_details, name='topic-details'),
     path('insights/config/', get_insights_config, name='insights-config'),
+    path('insights/strengths-history/', get_strengths_history, name='strengths-history'),
+    path('insights/weaknesses-history/', get_weaknesses_history, name='weaknesses-history'),
+    path('insights/study-plan/', get_study_plan, name='study-plan'),
     
     # Zone insights endpoints (test-specific, subject-wise insights)
     path('zone-insights/tests/', get_student_tests, name='zone-insights-tests'),
@@ -164,6 +169,7 @@ urlpatterns = [
     path('institution-admin/tests/', admin_list_institution_tests, name='institution-admin-list-tests'),
     path('institution-admin/tests/<int:test_id>/', get_test_details, name='institution-admin-test-details'),
     path('institution-admin/tests/<int:test_id>/toggle/', toggle_test_status, name='institution-admin-toggle-test'),
+    path('institution-admin/tests/<int:test_id>/generate-misconceptions/', generate_misconceptions, name='institution-admin-generate-misconceptions'),
     
     # Institution Student endpoints
     path('institutions/verify-code/', verify_institution_code, name='verify-institution-code'),

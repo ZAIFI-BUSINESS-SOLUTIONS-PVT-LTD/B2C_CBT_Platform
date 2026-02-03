@@ -79,14 +79,7 @@ export interface InsightsData {
       subject: string;
       chapter: string;
     }>;
-    lastTestTopics: Array<{
-      topic: string;
-      accuracy: number;
-      avgTimeSec: number;
-      subject: string;
-      chapter: string;
-      attempted: number;
-    }>;
+    // lastTestTopics removed: backend no longer provides last-test topic list
     llmInsights: {
       strengths?: {
         status: string;
@@ -103,11 +96,7 @@ export interface InsightsData {
         message: string;
         insights: string[];
       };
-      lastTestFeedback?: {
-        status: string;
-        message: string;
-        insights: string[];
-      };
+      // lastTestFeedback removed: backend no longer provides last-test LLM feedback
     };
     summary: {
       totalTopicsAnalyzed: number;

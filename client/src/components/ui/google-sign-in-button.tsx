@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { toast } from "@/hooks/use-toast";
-import { API_BASE_URL } from "@/config/google-auth";
+import { useAuth } from "@/contexts/AuthContext";
 
 declare global {
   interface Window {
@@ -42,6 +42,7 @@ export function GoogleSignInButton({
   onError 
 }: GoogleSignInButtonProps) {
   const [, setLocation] = useLocation();
+  const { loginWithGoogle } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [googleLoaded, setGoogleLoaded] = useState(false);
 
@@ -89,29 +90,10 @@ export function GoogleSignInButton({
     try {
       const idToken = response.credential;
       
-  // Resolve API base URL: prefer VITE_API_BASE_URL, fall back to relative '/api'
-  const envBase = import.meta.env.VITE_API_BASE_URL || '/api';
-  const resolvedBase = envBase.startsWith('/') ? `${window.location.origin}${envBase.replace(/\/$/, '')}` : envBase.replace(/\/$/, '');
-
-  // Send ID token to backend
-  const backendResponse = await fetch(`${resolvedBase}/auth/google/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ idToken }),
-      });
-
-      const data = await backendResponse.json();
-
-      if (!backendResponse.ok) {
-        throw new Error(data.detail || 'Authentication failed');
-      }
-
-      // Store tokens
-      localStorage.setItem('access_token', data.access);
-      localStorage.setItem('refresh_token', data.refresh);
-      localStorage.setItem('user', JSON.stringify(data.student));
+      // Use centralized loginWithGoogle from AuthContext
+      // This handles token storage with correct keys (accessToken/refreshToken)
+      // and automatically redirects to /get-number if phone is missing
+      const data = await loginWithGoogle(idToken);
 
       toast({
         title: "Welcome!",
@@ -120,8 +102,8 @@ export function GoogleSignInButton({
 
       onSuccess?.();
       
-      // Redirect to dashboard
-      setLocation('/dashboard');
+      // AuthContext handles redirect based on phone number presence
+      // No need for manual redirect here
 
     } catch (error) {
       console.error('Google sign-in error:', error);

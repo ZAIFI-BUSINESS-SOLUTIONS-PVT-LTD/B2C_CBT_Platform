@@ -573,6 +573,21 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             'detailed_answers': detailed_answers
         }
 
+        # Generate zone insights synchronously before returning
+        # Student insights will be generated asynchronously via signals
+        try:
+            from ..services.zone_insights_service import generate_all_subject_zones
+            print(f"🎯 Starting synchronous zone insights generation for test {session.id}")
+            zone_results = generate_all_subject_zones(session.id)
+            if zone_results:
+                print(f"✅ Zone insights generated for {len(zone_results)} subjects")
+            else:
+                print(f"⚠️ No zone insights generated for test {session.id}")
+        except Exception as e:
+            # Don't fail submission if zone insights fail
+            logger.exception(f"Failed to generate zone insights for session {session.id}: {e}")
+            print(f"❌ Zone insights generation failed: {e}")
+
         # Send test result email asynchronously (best-effort)
         try:
             student_profile = None

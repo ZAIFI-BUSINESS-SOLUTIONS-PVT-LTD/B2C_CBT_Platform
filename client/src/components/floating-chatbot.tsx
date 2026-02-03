@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageCircle, X, Bot } from 'lucide-react';
+import { MessageCircle, X, Bot, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from 'wouter';
@@ -8,6 +8,7 @@ export function FloatingChatbot() {
   const { isAuthenticated } = useAuth();
   const [location, navigate] = useLocation();
   const [showTooltip, setShowTooltip] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(false);
 
   // Debug log to check if component is rendering
   console.log('FloatingChatbot - isAuthenticated:', isAuthenticated, 'location:', location);
@@ -22,7 +23,12 @@ export function FloatingChatbot() {
   console.log('FloatingChatbot - Rendering chatbot icon');
 
   const handleChatbotClick = () => {
-    navigate('/chatbot');
+    // Show coming soon and redirect to dashboard
+    setShowComingSoon(true);
+    setTimeout(() => {
+      setShowComingSoon(false);
+      navigate('/dashboard');
+    }, 1400);
   };
 
   return (
@@ -62,6 +68,20 @@ export function FloatingChatbot() {
           </div> */}
         </Button>
       </div>
+      {showComingSoon && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowComingSoon(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl border border-gray-200 p-6 w-[90%] max-w-sm z-60">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center border border-blue-100">
+                <Lock className="w-6 h-6 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-semibold">Coming soon</h3>
+              <p className="text-sm text-gray-600 text-center">The Chatbot is being rolled out soon. It will be available for students shortly.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

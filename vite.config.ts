@@ -61,6 +61,12 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      // Ensure service worker is not bundled
+      input: {
+        main: path.resolve(import.meta.dirname, "client", "index.html"),
+      },
+    },
   },
     publicDir: path.resolve(import.meta.dirname, "client", "public"),
   server: {
