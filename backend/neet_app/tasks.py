@@ -107,3 +107,72 @@ def generate_misconceptions_task(self, test_id: int):
             'processed': 0,
             'failed': 0
         }
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_kwargs={"max_retries": 2},
+    retry_backoff=True,
+    soft_time_limit=300,  # 5 minutes
+    time_limit=600,  # 10 minutes
+    name='neet_app.tasks.generate_zone_insights_task'
+)
+def generate_zone_insights_task(self, session_id: int):
+    """
+    Generate zone insights for a completed test session.
+    Runs asynchronously after test submission to avoid blocking the submit endpoint.
+    
+    Args:
+        session_id: TestSession ID
+        
+    Returns:
+        Dict with processing statistics
+    """
+    from .models import TestSession
+    
+    try:
+        # Verify session exists
+        try:
+            session = TestSession.objects.get(id=session_id)
+        except TestSession.DoesNotExist:
+            logger.error(f'TestSession {session_id} not found')
+            return {'status': 'error', 'error': 'Session not found'}
+        
+        from .services.zone_insights_service import generate_all_subject_zones
+        
+        logger.info(f'🎯 Generating zone insights for test session {session_id}')
+        print(f"🎯 Starting zone insights generation for session {session_id}")
+        
+        # Generate zone insights for all subjects
+        zone_results = generate_all_subject_zones(session_id)
+        
+        if zone_results:
+            logger.info(
+                f'✅ Zone insights generated for session {session_id}: '
+                f'{len(zone_results)} subjects processed'
+            )
+            print(f"✅ Zone insights complete: {len(zone_results)} subjects processed")
+            return {
+                'status': 'success',
+                'session_id': session_id,
+                'subjects_processed': len(zone_results),
+                'subjects': [r.get('subject') for r in zone_results if isinstance(r, dict)]
+            }
+        else:
+            logger.warning(f'⚠️ No zone insights generated for session {session_id}')
+            print(f"⚠️ No zone insights generated for session {session_id}")
+            return {
+                'status': 'warning',
+                'session_id': session_id,
+                'message': 'No zone insights generated'
+            }
+        
+    except Exception as e:
+        logger.exception(f'generate_zone_insights_task failed for session {session_id}')
+        print(f"❌ Zone insights generation failed: {e}")
+        return {
+            'status': 'error',
+            'error': str(e),
+            'session_id': session_id
+        }

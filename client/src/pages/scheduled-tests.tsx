@@ -8,6 +8,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getAvailablePlatformTests, startPlatformTest } from '@/config/api';
 import { PlatformTest, AvailablePlatformTestsResponse } from '@/types/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { APIError } from '@/lib/queryClient';
+import SubscriptionRequiredModal from '@/components/SubscriptionRequiredModal';
 
 export default function ScheduledTestsPage() {
   const [platformTests, setPlatformTests] = useState<AvailablePlatformTestsResponse | null>(null);
@@ -20,6 +22,8 @@ export default function ScheduledTestsPage() {
   const [pendingTestToStart, setPendingTestToStart] = useState<PlatformTest | null>(null);
   const [showCompletedModal, setShowCompletedModal] = useState(false);
   const [completedSessionInfo, setCompletedSessionInfo] = useState<{ sessionId?: number | null; completedAt?: string | null; message?: string | null }>({ sessionId: null, completedAt: null, message: null });
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [subscriptionMessage, setSubscriptionMessage] = useState<string>('Active subscription required to access this test.');
   const [activeTab, setActiveTab] = useState<'open' | 'upcoming'>('open');
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
@@ -52,6 +56,7 @@ export default function ScheduledTestsPage() {
   const handleStartTest = async (testId: number, passcode?: string) => {
     try {
       setPasscodeError(null);
+      setError(null); // Clear any previous errors
       setStartingTest(testId);
       const response = await (startPlatformTest as any)({ testId, passcode });
       // Navigate to test interface with session ID
@@ -59,52 +64,59 @@ export default function ScheduledTestsPage() {
       setLocation(`/test/${response.session.id}`);
     } catch (err) {
       console.error('Error starting test:', err);
-      // Special-case: backend may return 409 with existing session info when a session already exists
-      if (err instanceof Error && /^\s*409\s*:/.test(err.message)) {
-        try {
-          const bodyText = err.message.replace(/^\s*\d+\s*:\s*/, '');
-          const parsed = JSON.parse(bodyText);
-          const existingSessionId = parsed.sessionId || (parsed.session && parsed.session.id);
-          if (existingSessionId) {
-            // Navigate to existing session
-            setLocation(`/test/${existingSessionId}`);
-            return;
-          }
-        } catch (parseErr) {
-          console.error('Failed to parse 409 response body:', parseErr);
-        }
+
+      // Try to detect standardized error shapes even when the thrown value
+      // is not an `APIError` instance (network libs or fetch wrappers may
+      // return plain objects or nested shapes). Inspect common locations
+      // where `details` or `error` might live.
+      const maybeDetails = (err && (
+        (err as any).details ||
+        (err as any).error?.details ||
+        (err as any).response?.data?.error?.details ||
+        (err as any).response?.data?.details ||
+        (err as any).data?.error?.details ||
+        (err as any).data?.details
+      )) as any | undefined;
+
+      const requiresSubscription = !!(maybeDetails?.requires_subscription || maybeDetails?.requiresSubscription || (err as any)?.requires_subscription || (err as any)?.requiresSubscription);
+      if (requiresSubscription) {
+        console.log('Subscription required (non-APIError shape) - showing modal');
+        const message = (err as any)?.message || (err as any)?.error?.message || 'Active subscription required to access this test.';
+        setSubscriptionMessage(message);
+        setShowSubscriptionModal(true);
+        return;
       }
 
-      // If backend returned 403 with "already completed" message, show modal instead of generic error
-      if (err instanceof Error && /^\s*403\s*:/.test(err.message)) {
-        try {
-          const bodyText = err.message.replace(/^\s*\d+\s*:\s*/, '');
-          const parsed = JSON.parse(bodyText);
-          const completedSessionId = parsed.completed_session_id || parsed.completedSessionId || (parsed.completed_session && parsed.completed_session.id);
-          const completedAt = parsed.completed_at || parsed.completedAt || null;
-          const message = parsed.error || parsed.message || 'You have already completed this test.';
-          setCompletedSessionInfo({ sessionId: completedSessionId ?? null, completedAt: completedAt ?? null, message });
+      // If it's an APIError instance, keep the original handling logic
+      if (err instanceof APIError) {
+        // Handle "already completed" case
+        if (err.details?.completed_session_id || err.details?.completed_at) {
+          const completedSessionId = err.details.completed_session_id || err.details.completedSessionId || null;
+          const completedAt = err.details.completed_at || err.details.completedAt || null;
+          setCompletedSessionInfo({ sessionId: completedSessionId, completedAt, message: err.message });
           setShowCompletedModal(true);
           return;
-        } catch (parseErr) {
-          console.error('Failed to parse 403 response body:', parseErr);
         }
-      }
 
-      // If backend returned 401/403 for invalid passcode, surface the error back to the passcode modal
-      if (err instanceof Error && (/^\s*401\s*:/.test(err.message) || /^\s*403\s*:/.test(err.message)) && pendingTestToStart) {
-        try {
-          const bodyText = err.message.replace(/^\s*\d+\s*:\s*/, '');
-          const parsed = JSON.parse(bodyText);
-          const message = parsed.error || parsed.message || 'Invalid passcode.';
-          setPasscodeError(message);
+        // Handle existing session (409 conflict)
+        if (err.status === 409 && err.details?.sessionId) {
+          setLocation(`/test/${err.details.sessionId}`);
+          return;
+        }
+
+        // Handle invalid passcode (401/403 with passcode context)
+        if ((err.status === 401 || err.status === 403) && pendingTestToStart && err.details?.institution_code_required) {
+          setPasscodeError(err.message || 'Invalid passcode.');
           setShowPasscodeModal(true);
           return;
-        } catch (parseErr) {
-          console.error('Failed to parse auth error response body:', parseErr);
         }
+
+        // Only NOW set error for other API errors
+        setError(err.message || 'Failed to start test. Please try again.');
+        return;
       }
 
+      // Fallback for non-APIError instances
       setError('Failed to start test. Please try again.');
     } finally {
       setStartingTest(null);
@@ -165,17 +177,23 @@ export default function ScheduledTestsPage() {
     return status === 'active' || status === 'open';
   };
 
-  const TestCard = ({ test }: { test: PlatformTest }) => (
-    <Card className="h-full shadow-md">
+  const TestCard = ({ test, isFirst }: { test: PlatformTest; isFirst?: boolean }) => (
+    <Card className="h-full shadow-md" {...(isFirst ? { 'data-tour-demo-test': 'true' } : {})}>
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <CardTitle className="text-base leading-tight">{test.testName}</CardTitle>
               {/* Render exam-type badge if present (try common fields) */}
-              {((test as any).examType || (test as any).testType || (test as any).exam_type) && (
-                <Badge variant="outline" className="text-xs ml-1 uppercase">{(test as any).examType ?? (test as any).testType ?? (test as any).exam_type}</Badge>
-              )}
+              {(() => {
+                const examRaw = (test as any).examType ?? (test as any).testType ?? (test as any).exam_type ?? null;
+                if (!examRaw) return null;
+                const exam = String(examRaw).trim();
+                if (exam.toUpperCase() === 'INSTITUTION TEST') return null;
+                return (
+                  <Badge variant="outline" className="text-xs ml-1 uppercase">{exam}</Badge>
+                );
+              })()}
               {/* Show a small passcode badge if this test requires one */}
               {requiresPasscode(test) && (
                 <Badge variant="secondary" className="text-xs ml-1">Passcode</Badge>
@@ -183,9 +201,27 @@ export default function ScheduledTestsPage() {
             </div>
             <CardDescription className="mt-1 text-sm">{test.description}</CardDescription>
           </div>
-          <div className="ml-2 flex-shrink-0">
-            {getStatusBadge(test)}
-          </div>
+                <div className="ml-2 flex-shrink-0" style={{ minWidth: 120 }}>
+                  <div className="w-full flex justify-end">
+                    <div>{getStatusBadge(test)}</div>
+                  </div>
+
+                  {(() => {
+                    // Defensive: try multiple possible institution fields returned by backend
+                    const instRaw = (test as any).institutionName ?? (test as any).institution?.name ?? (test as any).institution ?? (test as any).institution_name ?? null;
+                    if (!instRaw) return null;
+                    const inst = String(instRaw).trim();
+                    // Hide placeholder or generic institution label if backend sets a default value
+                    if (inst.toUpperCase() === 'INSTITUTION TEST') return null;
+                    return (
+                      <div className="w-full flex justify-end mt-2">
+                        <div className="text-xs bg-white border rounded-full px-3 py-1 shadow-sm text-gray-700 whitespace-nowrap">
+                          {inst.toUpperCase()}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
@@ -207,12 +243,18 @@ export default function ScheduledTestsPage() {
             </div>
           )}
 
-          {test.testType && (
-            <div className="flex items-center text-sm text-gray-600">
-              <Users className="w-4 h-4 mr-2 flex-shrink-0" />
-              <span className="truncate">{test.testType}</span>
-            </div>
-          )}
+          {(() => {
+            const ttRaw = test.testType ?? (test as any).test_type ?? null;
+            if (!ttRaw) return null;
+            const tt = String(ttRaw).trim();
+            if (tt.toUpperCase() === 'INSTITUTION TEST') return null;
+            return (
+              <div className="flex items-center text-sm text-gray-600">
+                <Users className="w-4 h-4 mr-2 flex-shrink-0" />
+                <span className="truncate">{tt}</span>
+              </div>
+            );
+          })()}
 
           <Button
             onClick={() => {
@@ -305,6 +347,20 @@ export default function ScheduledTestsPage() {
     );
   }
 
+  // Show subscription modal if needed (takes priority over error display)
+  if (showSubscriptionModal) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <SubscriptionRequiredModal
+          open={showSubscriptionModal}
+          onOpenChange={setShowSubscriptionModal}
+          message={subscriptionMessage}
+          autoRedirectSeconds={5}
+        />
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -374,8 +430,8 @@ export default function ScheduledTestsPage() {
           <div className="mt-4">
             {openAvailableTests.length > 0 ? (
               <div className="grid grid-cols-1 gap-4">
-                {openAvailableTests.map((test) => (
-                  <TestCard key={test.id} test={test} />
+                {openAvailableTests.map((test, idx) => (
+                  <TestCard key={test.id} test={test} isFirst={idx === 0} />
                 ))}
               </div>
             ) : (
@@ -392,8 +448,8 @@ export default function ScheduledTestsPage() {
           <div className="mt-4">
             {upcomingTests.length > 0 ? (
               <div className="grid grid-cols-1 gap-4">
-                {upcomingTests.map((test) => (
-                  <TestCard key={test.id} test={test} />
+                {upcomingTests.map((test, idx) => (
+                  <TestCard key={test.id} test={test} isFirst={idx === 0} />
                 ))}
               </div>
             ) : (
@@ -498,6 +554,14 @@ export default function ScheduledTestsPage() {
               </div>
             </div>
           )}
+
+          {/* Subscription Required Modal: shown when test requires active subscription */}
+          <SubscriptionRequiredModal
+            open={showSubscriptionModal}
+            onOpenChange={setShowSubscriptionModal}
+            message={subscriptionMessage}
+            autoRedirectSeconds={5}
+          />
       </div>
     </div>
   );

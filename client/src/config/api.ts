@@ -221,3 +221,11 @@ export async function deleteChatMemory(memoryId: string) {
 export async function triggerMemorySummarization(sessionId: string) {
   return await apiRequest(API_CONFIG.ENDPOINTS.CHAT_MEMORY_TRIGGER_SUMMARIZATION, "POST", { session_id: sessionId });
 }
+
+/**
+ * Mark the first-login onboarding tour as completed for the current student.
+ * POST /api/students/complete-tour/
+ */
+export async function completeTour() {
+  return await apiRequest("/api/students/complete-tour/", "POST");
+}

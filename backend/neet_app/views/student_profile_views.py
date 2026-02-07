@@ -100,6 +100,31 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         except StudentProfile.DoesNotExist:
             raise NotFoundError(code=ErrorCodes.NOT_FOUND if hasattr(ErrorCodes, 'NOT_FOUND') else ErrorCodes.SERVER_ERROR, message='Student profile not found')
 
+    @action(detail=False, methods=['post'], url_path='complete-tour', permission_classes=[IsAuthenticated])
+    def complete_tour(self, request):
+        """
+        Mark the first-login onboarding tour as completed.
+        Sets is_first_login = False for the authenticated student.
+        POST /api/students/complete-tour/
+        """
+        if not hasattr(request.user, 'student_id'):
+            raise AppValidationError(
+                code=ErrorCodes.AUTH_REQUIRED if hasattr(ErrorCodes, 'AUTH_REQUIRED') else ErrorCodes.INVALID_INPUT,
+                message='User not properly authenticated'
+            )
+
+        updated = StudentProfile.objects.filter(
+            student_id=request.user.student_id
+        ).update(is_first_login=False)
+
+        if not updated:
+            raise NotFoundError(
+                code=ErrorCodes.NOT_FOUND if hasattr(ErrorCodes, 'NOT_FOUND') else ErrorCodes.SERVER_ERROR,
+                message='Student profile not found'
+            )
+
+        return Response({'message': 'Tour completed successfully', 'is_first_login': False})
+
     @action(detail=False, methods=['put', 'patch'], url_path='update/(?P<student_id>[^/.]+)')
     def update_by_student_id(self, request, student_id=None):
         """

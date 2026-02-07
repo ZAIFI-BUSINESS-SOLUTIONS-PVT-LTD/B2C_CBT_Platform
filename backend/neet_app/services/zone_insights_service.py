@@ -417,22 +417,55 @@ def generate_checkpoints_for_subject(subject: str, topics_data: Dict) -> List[Di
         
         logger.info(f"🚀 Generating checkpoints for {subject} using {client.model_name}")
         
-        # Call LLM
-        try:
-            llm_response = client.generate_response(prompt)
-        except BaseException as e:
-            logger.error(f"LLM client raised error for subject {subject}: {str(e)}")
-            return get_fallback_checkpoints(subject)
+        # Retry logic: 10 attempts with exponential backoff
+        max_retries = 10
+        for attempt in range(1, max_retries + 1):
+            try:
+                print(f"🔑 Attempt {attempt}/{max_retries} for {subject}")
+                
+                # Call LLM
+                llm_response = client.generate_response(prompt)
+                
+                if not llm_response:
+                    print(f"❌ Empty response from LLM for {subject} on attempt {attempt}")
+                    if attempt < max_retries:
+                        import time
+                        wait_time = min(2 ** (attempt - 1), 30)  # Exponential backoff, max 30s
+                        print(f"⏳ Waiting {wait_time}s before retry...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        return get_fallback_checkpoints(subject)
+                
+                # Parse response
+                checkpoints = parse_checkpoint_response(llm_response, subject)
+                
+                # If parsing succeeded, return checkpoints
+                if checkpoints is not None:
+                    print(f"✅ Checkpoints generated for {subject} on attempt {attempt}")
+                    return checkpoints
+                
+                # Parsing failed, retry
+                print(f"⚠️ Parse failed for {subject} on attempt {attempt}, retrying...")
+                if attempt < max_retries:
+                    import time
+                    wait_time = min(2 ** (attempt - 1), 30)
+                    print(f"⏳ Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                    continue
+                    
+            except BaseException as e:
+                logger.error(f"LLM client error for {subject} on attempt {attempt}: {str(e)}")
+                if attempt < max_retries:
+                    import time
+                    wait_time = min(2 ** (attempt - 1), 30)
+                    print(f"⏳ Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                    continue
         
-        if not llm_response:
-            print(f"❌ Empty response from LLM for {subject}")
-            return get_fallback_checkpoints(subject)
-        
-        # Parse response
-        checkpoints = parse_checkpoint_response(llm_response, subject)
-        
-        print(f"✅ Checkpoints generated for {subject}")
-        return checkpoints
+        # All retries exhausted, use fallback
+        print(f"❌ All {max_retries} attempts failed for {subject}, using fallback")
+        return get_fallback_checkpoints(subject)
         
     except Exception as e:
         logger.error(f"Error generating checkpoints for {subject}: {str(e)}")
@@ -485,14 +518,16 @@ def parse_checkpoint_response(llm_response: str, subject: str) -> List[Dict]:
                 return checkpoints
         except json.JSONDecodeError as e:
             print(f"⚠️ JSON parse error for {subject}: {str(e)}")
+            # Return None to trigger retry in calling function
+            return None
         
-        # If parsing fails, return fallback
-        print(f"⚠️ Could not parse LLM response for {subject}, using fallback")
-        return get_fallback_checkpoints(subject)
+        # If parsing fails, return None to trigger retry
+        print(f"⚠️ Could not parse LLM response for {subject}")
+        return None
         
     except Exception as e:
         logger.error(f"Error parsing checkpoint response for {subject}: {str(e)}")
-        return get_fallback_checkpoints(subject)
+        return None
 
 
 def get_fallback_checkpoints(subject: str) -> List[Dict]:

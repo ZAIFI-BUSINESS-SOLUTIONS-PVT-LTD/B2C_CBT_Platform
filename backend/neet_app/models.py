@@ -684,6 +684,8 @@ class StudentProfile(models.Model):
     # Subscription fields
     subscription_plan = models.CharField(max_length=50, null=True, blank=True)  # 'basic' or 'pro'
     subscription_expires_at = models.DateTimeField(null=True, blank=True)
+    # Onboarding flag: true until user completes first-time onboarding/tour
+    is_first_login = models.BooleanField(default=True)
 
     class Meta:
         db_table = 'student_profiles'

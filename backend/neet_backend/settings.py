@@ -419,3 +419,8 @@ CELERY_BEAT_SCHEDULE = {
 # Institution Tests Feature Flag
 # ----------------------
 FEATURE_INSTITUTION_TESTS = os.environ.get('FEATURE_INSTITUTION_TESTS', 'True') == 'True'
+
+# ----------------------
+# TTS Service Configuration
+# ----------------------
+TTS_SERVICE_URL = os.environ.get('TTS_SERVICE_URL', 'http://localhost:3001')

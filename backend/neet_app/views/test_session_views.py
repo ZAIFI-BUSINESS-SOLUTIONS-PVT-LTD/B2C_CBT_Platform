@@ -573,20 +573,19 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             'detailed_answers': detailed_answers
         }
 
-        # Generate zone insights synchronously before returning
+        # Generate zone insights asynchronously to avoid blocking the submit endpoint
+        # This allows the loading video page to show while insights are being processed
         # Student insights will be generated asynchronously via signals
         try:
-            from ..services.zone_insights_service import generate_all_subject_zones
-            print(f"🎯 Starting synchronous zone insights generation for test {session.id}")
-            zone_results = generate_all_subject_zones(session.id)
-            if zone_results:
-                print(f"✅ Zone insights generated for {len(zone_results)} subjects")
-            else:
-                print(f"⚠️ No zone insights generated for test {session.id}")
+            from ..tasks import generate_zone_insights_task
+            print(f"🎯 Enqueuing zone insights generation task for test {session.id}")
+            # Use apply_async to run task in background (non-blocking)
+            task = generate_zone_insights_task.apply_async(args=[session.id])
+            print(f"✅ Zone insights task enqueued with ID: {task.id}")
         except Exception as e:
-            # Don't fail submission if zone insights fail
-            logger.exception(f"Failed to generate zone insights for session {session.id}: {e}")
-            print(f"❌ Zone insights generation failed: {e}")
+            # Don't fail submission if task enqueue fails - log and continue
+            logger.exception(f"Failed to enqueue zone insights task for session {session.id}: {e}")
+            print(f"❌ Zone insights task enqueue failed: {e}")
 
         # Send test result email asynchronously (best-effort)
         try:

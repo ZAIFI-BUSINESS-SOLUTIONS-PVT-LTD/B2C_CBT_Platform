@@ -56,6 +56,7 @@ export default function Topics() {
             bgClass="bg-purple-50"
             accentClass="bg-purple-500/20"
             href="/scheduled-tests"
+            dataTourId="scheduled-tests"
           />
 
           <TestCard
@@ -127,17 +128,22 @@ interface TestCardProps {
   bgClass?: string;
   /** Tailwind class for the thin left accent (eg: 'bg-blue-500/20') */
   accentClass?: string;
+  /** Optional data attribute id for the onboarding tour spotlight */
+  dataTourId?: string;
 }
 
-function TestCard({ title, subtitle, icon, href, onClick, bgClass, accentClass }: TestCardProps) {
+function TestCard({ title, subtitle, icon, href, onClick, bgClass, accentClass, dataTourId }: TestCardProps) {
   const [, navigate] = useLocation();
   const handleClick = () => {
     if (href) navigate(href);
     else if (onClick) onClick();
   };
 
+  const extraProps: Record<string, string> = {};
+  if (dataTourId) extraProps[`data-tour-${dataTourId}`] = 'true';
+
   return (
-    <Card onClick={handleClick} className="rounded-2xl border cursor-pointer h-24 overflow-hidden relative">
+    <Card onClick={handleClick} className="rounded-2xl border cursor-pointer h-24 overflow-hidden relative" {...extraProps}>
       <CardContent className="p-3">
         {/* subtle left accent */}
         <div className={`absolute left-0 top-3 bottom-3 w-1 rounded-l-2xl ${accentClass ?? 'bg-gray-100'}`} aria-hidden />

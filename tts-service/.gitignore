@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Audio files (generated at runtime)
+public/audio/*.mp3
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

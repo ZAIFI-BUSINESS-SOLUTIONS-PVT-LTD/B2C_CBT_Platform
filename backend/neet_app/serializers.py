@@ -395,7 +395,8 @@ class StudentProfileSerializer(serializers.ModelSerializer):
             'school_name', 'target_exam_year', 'is_active', 'is_verified', 'last_login',
             'created_at', 'updated_at', 'total_tests', 'recent_tests',
             'google_sub', 'google_email', 'email_verified', 'google_picture', 'auth_provider',
-            'institution', 'institution_code', 'is_institution_student'
+            'institution', 'institution_code', 'is_institution_student',
+            'is_first_login',
         ]
         read_only_fields = [
             'student_id', 'created_at', 'updated_at', 'last_login', 'google_sub', 'google_email', 'auth_provider'

@@ -28,6 +28,7 @@ export interface StudentProfile {
   isInstitutionStudent?: boolean; // models.BooleanField(default=False) -> boolean (camelCase from is_institution_student)
   subscriptionPlan?: string | null; // models.CharField(max_length=50, null=True, blank=True) -> string or null (camelCase from subscription_plan)
   subscriptionExpiresAt?: string | null; // models.DateTimeField(null=True, blank=True) -> string or null (camelCase from subscription_expires_at)
+  isFirstLogin?: boolean; // models.BooleanField(default=True) -> boolean (camelCase from is_first_login)
 }
 
 /**

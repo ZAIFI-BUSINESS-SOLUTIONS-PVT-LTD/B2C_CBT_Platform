@@ -45,43 +45,40 @@ def update_subject_scores_on_completion(sender, instance, created, **kwargs):
                             from .views.insights_views import is_celery_worker_available
                             from .models import TestSubjectZoneInsight
                             
-                            # Check if zone insights already exist (they were generated synchronously in submit)
-                            zone_exists = TestSubjectZoneInsight.objects.filter(test_session_id=instance.id).exists()
-                            
                             # Check if Celery workers are available before enqueueing
                             if not is_celery_worker_available():
                                 print(f"⚠️ No active Celery workers detected, falling back to synchronous insights generation for student {instance.student_id}")
                                 raise RuntimeError("No active Celery workers available")
                             else:
-                                # Zone insights should already exist from synchronous generation in submit
-                                # Only generate student insights (home page analytics)
+                                # IMPORTANT: Zone insights (checkpoints) must be generated FIRST before student insights
+                                # Check if zone insights already exist
+                                zone_exists = TestSubjectZoneInsight.objects.filter(test_session_id=instance.id).exists()
+                                
                                 if zone_exists:
-                                    print(f"✅ Zone insights already exist for test {instance.id}, skipping zone generation")
-                                    # Generate only student insights
+                                    print(f"✅ Zone insights already exist for test {instance.id}")
+                                    # Generate student insights AFTER zone insights are confirmed ready
                                     request_data = {'force_regenerate': True}
                                     generate_insights_task.delay(instance.student_id, request_data, True)
                                     print(f"🔄 Enqueued student insights generation for student {instance.student_id}")
                                 else:
-                                    # Fallback: if zone insights don't exist, generate them async
-                                    print(f"⚠️ Zone insights not found for test {instance.id}, generating async")
+                                    # Zone insights don't exist yet - MUST generate them FIRST, then chain student insights
+                                    print(f"⚠️ Zone insights not found for test {instance.id}, generating in priority order")
                                     try:
-                                        zone_task = generate_zone_insights_task.delay(instance.id)
-                                        print(f"🎯 Enqueued zone insights task for test {instance.id} (Task ID: {zone_task.id})")
-                                        
-                                        # Chain student insights after zone insights
+                                        # Chain: zone insights (checkpoints) → student insights (strengths/weaknesses/study plan)
+                                        # This ensures checkpoints complete BEFORE other insights start
                                         request_data = {'force_regenerate': True}
                                         from celery import chain
-                                        chain(
+                                        workflow = chain(
                                             generate_zone_insights_task.si(instance.id),
                                             generate_insights_task.si(instance.student_id, request_data, True)
-                                        ).apply_async()
-                                        print(f"🔄 Chained: zone insights → student insights for student {instance.student_id}")
+                                        )
+                                        workflow.apply_async()
+                                        print(f"✅ Chained workflow: zone insights (checkpoints) FIRST → then student insights for student {instance.student_id}")
                                         
                                     except Exception as zone_e:
-                                        print(f"⚠️ Failed to enqueue zone insights, falling back to direct insights: {zone_e}")
-                                        request_data = {'force_regenerate': True}
-                                        generate_insights_task.delay(instance.student_id, request_data, True)
-                                        print(f"🔄 Enqueued generate_insights_task (without zone insights) for student {instance.student_id}")
+                                        print(f"⚠️ Failed to chain tasks, enqueueing zone insights only: {zone_e}")
+                                        generate_zone_insights_task.delay(instance.id)
+                                        print(f"🎯 Enqueued zone insights task only for test {instance.id}")
                                 
                         except (ImportError, RuntimeError, Exception) as e:
                             # Celery not installed/available in this environment or no workers, fall back to background thread
