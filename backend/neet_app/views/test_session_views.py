@@ -573,19 +573,20 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             'detailed_answers': detailed_answers
         }
 
-        # Generate zone insights asynchronously to avoid blocking the submit endpoint
-        # This allows the loading video page to show while insights are being processed
-        # Student insights will be generated asynchronously via signals
+        # Enqueue complete test processing pipeline on Celery workers
+        # This orchestrator chains: compute_results → zone_insights → student_insights
+        # Frontend shows loading video and polls for completion
         try:
-            from ..tasks import generate_zone_insights_task
-            print(f"🎯 Enqueuing zone insights generation task for test {session.id}")
-            # Use apply_async to run task in background (non-blocking)
-            task = generate_zone_insights_task.apply_async(args=[session.id])
-            print(f"✅ Zone insights task enqueued with ID: {task.id}")
+            from ..tasks import process_test_submission_task
+            print(f"🚀 Enqueuing test submission pipeline for session {session.id}")
+            # Enqueue the orchestrator which will chain all processing tasks
+            task = process_test_submission_task.apply_async(args=[session.id])
+            print(f"✅ Pipeline orchestrator enqueued with ID: {task.id}")
         except Exception as e:
             # Don't fail submission if task enqueue fails - log and continue
-            logger.exception(f"Failed to enqueue zone insights task for session {session.id}: {e}")
-            print(f"❌ Zone insights task enqueue failed: {e}")
+            # The synchronous computation above ensures results are available
+            logger.exception(f"Failed to enqueue pipeline orchestrator for session {session.id}: {e}")
+            print(f"❌ Pipeline orchestrator enqueue failed: {e}")
 
         # Send test result email asynchronously (best-effort)
         try:

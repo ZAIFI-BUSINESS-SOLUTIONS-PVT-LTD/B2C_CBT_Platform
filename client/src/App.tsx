@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from "react";
+import React, { useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -10,7 +10,8 @@ import LoadingResultsPage from "@/pages/LoadingResultsPage";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { getPostTestHidden } from '@/lib/postTestHidden';
 import AppTourOverlay from "@/components/AppTourOverlay";
-import { completeTour } from "@/config/api";
+import { API_BASE_URL } from "@/config/google-auth";
+import { getAccessToken } from "@/lib/auth";
 
 // Simple wrapper to prevent access to routes when post-test hidden flag is set
 function protect(Component: any) {
@@ -133,68 +134,45 @@ function Router() {
 }
 
 
-/** Per-user localStorage prefix so the guard is scoped to each student. */
-const TOUR_DONE_PREFIX = 'neet_tour_completed_';
+function AppInner() {
+  const { student, setStudent } = useAuth();
 
-/** Routes where the mobile dock exists and the tour can safely start. */
-const TOUR_START_ROUTES = ['/', '/dashboard', '/topics'];
-
-/**
- * TourWrapper — shows the onboarding overlay on first login.
- * Renders inside AuthProvider so it has access to `useAuth()`.
- *
- * Guards (belt-and-suspenders):
- *   1. Backend: is_first_login on StudentProfile (source of truth)
- *   2. localStorage: TOUR_DONE_PREFIX + studentId (per-user client-side check)
- *   3. Route check: tour only *starts* on pages that have the mobile dock;
- *      once running it stays visible as the user navigates (Step 2 → /topics etc.)
- */
-function TourWrapper() {
-  const { student, isAuthenticated, setStudent } = useAuth();
-  const [showTour, setShowTour] = useState(false);
-  const [location] = useLocation();
-
-  useEffect(() => {
-    // Once tour is already showing, don't re-evaluate (the tour itself handles navigation)
-    if (showTour) return;
-
-    if (!isAuthenticated || !student?.studentId) return;
-
-    // CRITICAL: Only start tour AFTER phone number is set (phone form must be completed first)
-    if (!student?.phoneNumber) return;
-
-    // Only START the tour on pages with the mobile dock
-    if (!TOUR_START_ROUTES.includes(location)) return;
-
-    const localDone = localStorage.getItem(TOUR_DONE_PREFIX + student.studentId) === 'true';
-    if (student.isFirstLogin === true && !localDone) {
-      setShowTour(true);
-    }
-  }, [isAuthenticated, student?.isFirstLogin, student?.studentId, student?.phoneNumber, location, showTour]);
-
-  const handleTourComplete = useCallback(async () => {
-    // 1. Per-user localStorage guard — prevents re-show even if API is slow/fails
-    if (student?.studentId) {
-      localStorage.setItem(TOUR_DONE_PREFIX + student.studentId, 'true');
-    }
-
-    // 2. Persist to backend (source of truth)
+  const handleTourComplete = async () => {
+    console.log("Tour completed, marking first login as complete");
+    
     try {
-      await completeTour();
-    } catch (err) {
-      console.error('Failed to persist tour completion to server:', err);
+      // Call backend to mark tour as completed
+      const response = await fetch(`${API_BASE_URL}/student-profile/complete-tour/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${getAccessToken()}`
+        }
+      });
+
+      if (response.ok) {
+        console.log("Tour completion saved to backend");
+      }
+    } catch (error) {
+      console.error("Failed to mark tour as complete:", error);
     }
 
-    // 3. Update local React state so overlay hides immediately
+    // Update local student state to hide tour immediately
     if (student) {
       setStudent({ ...student, isFirstLogin: false });
     }
-    setShowTour(false);
-  }, [student, setStudent]);
+  };
 
-  if (!showTour) return null;
+  // Show tour when: user is authenticated, has phone number, and is first login
+  const shouldShowTour = student?.phoneNumber && student?.isFirstLogin === true;
 
-  return <AppTourOverlay onTourComplete={handleTourComplete} />;
+  return (
+    <>
+      <Toaster />
+      {shouldShowTour && <AppTourOverlay onTourComplete={handleTourComplete} />}
+      <Router />
+    </>
+  );
 }
 
 function App() {
@@ -203,11 +181,7 @@ function App() {
       <AuthProvider>
         <ErrorBoundary>
           <TooltipProvider>
-            <Toaster />
-            {/* floating chatbot removed */}
-            <Router />
-            {/* First-login onboarding tour overlay */}
-            <TourWrapper />
+            <AppInner />
           </TooltipProvider>
         </ErrorBoundary>
       </AuthProvider>

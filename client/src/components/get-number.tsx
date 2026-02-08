@@ -42,8 +42,8 @@ export function GetNumber() {
 
             console.log("Phone number submitted:", phoneNumber);
 
-            // Navigate to dashboard after successful submission
-            navigate("/dashboard");
+            // Navigate to home after successful submission (tour will start if first login)
+            navigate("/");
         } catch (err: any) {
             setError(err.message || "Failed to save phone number");
         } finally {

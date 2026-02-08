@@ -1,9 +1,22 @@
 // API Configuration for NEET Practice Platform
+// Normalize VITE_API_BASE_URL so callers can provide either the host or include
+// the "/api" suffix. We expect endpoints in `ENDPOINTS` to include the
+// leading `/api/...` path, therefore `BASE_URL` must be the origin without
+// the `/api` suffix. If no env var is provided, fall back to the previous
+// defaults (localhost in dev, testapi in prod).
+const _envApiBase = (import.meta as any).env?.VITE_API_BASE_URL;
+const normalizedBase = (() => {
+  if (_envApiBase) {
+    const asStr = String(_envApiBase).replace(/\/+$/g, ''); // remove trailing slashes
+    // If the provided value ends with '/api', strip that so endpoints don't double-up
+    return asStr.endsWith('/api') ? asStr.slice(0, -4) : asStr;
+  }
+  return import.meta.env.DEV ? 'http://localhost:8000' : 'https://testapi.inzighted.com';
+})();
+
 export const API_CONFIG = {
-  // Use environment-based URLs for proper dev/production switching
-  BASE_URL: import.meta.env.DEV
-    ? 'http://localhost:8000'
-    : 'https://testapi.inzighted.com',
+  // Use environment-based URL (normalized) so all callers use the same base
+  BASE_URL: normalizedBase,
 
   // API endpoints
   ENDPOINTS: {
@@ -220,12 +233,4 @@ export async function deleteChatMemory(memoryId: string) {
  */
 export async function triggerMemorySummarization(sessionId: string) {
   return await apiRequest(API_CONFIG.ENDPOINTS.CHAT_MEMORY_TRIGGER_SUMMARIZATION, "POST", { session_id: sessionId });
-}
-
-/**
- * Mark the first-login onboarding tour as completed for the current student.
- * POST /api/students/complete-tour/
- */
-export async function completeTour() {
-  return await apiRequest("/api/students/complete-tour/", "POST");
 }
