@@ -13,7 +13,17 @@ _processed_sessions = set()
 @receiver(post_save, sender=TestSession)
 def update_subject_scores_on_completion(sender, instance, created, **kwargs):
     """
-    Automatically update subject scores when a test session is marked as completed
+    Automatically update subject scores when a test session is marked as completed.
+    
+    **Important**: This signal now has minimal responsibility. The main test processing
+    pipeline (compute results → zone insights → student insights) is handled by the
+    process_test_submission_task orchestrator enqueued from the submit() endpoint.
+    
+    This signal only:
+    1. Updates subject-level scores for the session
+    2. Skips duplicate processing using in-process cache
+    
+    The orchestrator task in tasks.py handles all heavy processing on workers.
     """
     # Create unique key for this session and operation
     session_key = f"scores_{instance.id}_{instance.is_completed}"
@@ -31,96 +41,11 @@ def update_subject_scores_on_completion(sender, instance, created, **kwargs):
                 print(f"🔄 Auto-updating subject scores for completed session {instance.id}")
                 instance.calculate_and_update_subject_scores()
                 print(f"✅ Subject scores updated for session {instance.id}")
-
-                # Generate insights after score calculation (only once per completion)
-                insights_key = f"insights_{instance.id}_{instance.student_id}"
-                if insights_key not in _processed_sessions:
-                    _processed_sessions.add(insights_key)
-                    
-                    try:
-                        # Prefer asynchronous enqueue via Celery task so this signal handler returns quickly.
-                        # If Celery isn't available or enqueuing fails, fall back to the previous synchronous call.
-                        try:
-                            from .tasks import generate_insights_task, generate_zone_insights_task
-                            from .views.insights_views import is_celery_worker_available
-                            from .models import TestSubjectZoneInsight
-                            
-                            # Check if Celery workers are available before enqueueing
-                            if not is_celery_worker_available():
-                                print(f"⚠️ No active Celery workers detected, falling back to synchronous insights generation for student {instance.student_id}")
-                                raise RuntimeError("No active Celery workers available")
-                            else:
-                                # IMPORTANT: Zone insights (checkpoints) must be generated FIRST before student insights
-                                # Check if zone insights already exist
-                                zone_exists = TestSubjectZoneInsight.objects.filter(test_session_id=instance.id).exists()
-                                
-                                if zone_exists:
-                                    print(f"✅ Zone insights already exist for test {instance.id}")
-                                    # Generate student insights AFTER zone insights are confirmed ready
-                                    request_data = {'force_regenerate': True}
-                                    generate_insights_task.delay(instance.student_id, request_data, True)
-                                    print(f"🔄 Enqueued student insights generation for student {instance.student_id}")
-                                else:
-                                    # Zone insights don't exist yet - MUST generate them FIRST, then chain student insights
-                                    print(f"⚠️ Zone insights not found for test {instance.id}, generating in priority order")
-                                    try:
-                                        # Chain: zone insights (checkpoints) → student insights (strengths/weaknesses/study plan)
-                                        # This ensures checkpoints complete BEFORE other insights start
-                                        request_data = {'force_regenerate': True}
-                                        from celery import chain
-                                        workflow = chain(
-                                            generate_zone_insights_task.si(instance.id),
-                                            generate_insights_task.si(instance.student_id, request_data, True)
-                                        )
-                                        workflow.apply_async()
-                                        print(f"✅ Chained workflow: zone insights (checkpoints) FIRST → then student insights for student {instance.student_id}")
-                                        
-                                    except Exception as zone_e:
-                                        print(f"⚠️ Failed to chain tasks, enqueueing zone insights only: {zone_e}")
-                                        generate_zone_insights_task.delay(instance.id)
-                                        print(f"🎯 Enqueued zone insights task only for test {instance.id}")
-                                
-                        except (ImportError, RuntimeError, Exception) as e:
-                            # Celery not installed/available in this environment or no workers, fall back to background thread
-                            if isinstance(e, ImportError):
-                                print("⚠️ Celery not available, falling back to background insights generation")
-                            else:
-                                print(f"⚠️ Celery issue ({str(e)}), falling back to background insights generation")
-                                
-                            # Run insights generation in background thread to avoid blocking response
-                            import threading
-                            
-                            def generate_insights_background():
-                                try:
-                                    from rest_framework.test import APIRequestFactory
-                                    import json
-                                    factory = APIRequestFactory()
-                                    request_data = {'force_regenerate': True}
-                                    request = factory.post('/api/insights/student/', data=json.dumps(request_data), content_type='application/json')
-
-                                    class MockUser:
-                                        def __init__(self, student_id):
-                                            self.student_id = student_id
-                                            self.is_authenticated = True
-                                            self.is_active = True
-                                    request.user = MockUser(instance.student_id)
-
-                                    print(f"🔄 Background thread: Generating insights for student {instance.student_id} after test {instance.id}")
-                                    response = get_student_insights(request)
-                                    if response.status_code == 200:
-                                        print(f"✅ Background insights generated and cached for student {instance.student_id} after test completion.")
-                                    else:
-                                        print(f"⚠️ Background insights generation returned status {response.status_code} for student {instance.student_id}")
-                                except Exception as bg_e:
-                                    print(f"❌ Background insights generation failed for student {instance.student_id}: {bg_e}")
-                            
-                            # Start background thread (daemon=True so it doesn't block app shutdown)
-                            thread = threading.Thread(target=generate_insights_background, daemon=True)
-                            thread.start()
-                            print(f"🚀 Started background insights generation for student {instance.student_id} after test {instance.id}")
-                    except Exception as e:
-                        # Catch any unexpected exception from enqueue or synchronous call and log, but don't raise
-                        print(f"❌ Failed to trigger insights for student {instance.student_id}: {e}")
+                
+                # NOTE: Insights generation is now handled by process_test_submission_task
+                # orchestrator enqueued from submit() endpoint. We don't duplicate that here
+                # to avoid race conditions and duplicate work.
+                print(f"ℹ️ Insights pipeline will be handled by orchestrator task for session {instance.id}")
             else:
                 print(f"⚠️ No answers found for session {instance.id}, skipping score calculation")
                 
