@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { NotFound, Home, Test, Results, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, InstitutionTesterPage, InstitutionRegisterPage, InstitutionAdminDashboard, OfflineResultsUpload, AnswerKeyUpload, JSONQuestionUpload, ThankYou, GetNumberPage } from "@/pages";
 import LoadingResultsPage from "@/pages/LoadingResultsPage";
+import BookmarkedQuestions from "@/pages/BookmarkedQuestions";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { getPostTestHidden } from '@/lib/postTestHidden';
 import AppTourOverlay from "@/components/AppTourOverlay";
@@ -124,6 +125,7 @@ function Router() {
       <Route path="/auth/google/callback" component={GoogleCallback} /> {/* Google OAuth popup callback */}
       <Route path="/test/:sessionId" component={Test} />           {/* Test taking interface */}
       <Route path="/results/:sessionId" component={Results} />     {/* Test results and analytics */}
+      <Route path="/bookmarks" component={requirePhoneNumber(BookmarkedQuestions)} /> {/* Bookmarked questions page */}
       <Route path="/test-history" component={TestHistory} />
       <Route path="/thank-you" component={ThankYou} />
       <Route path="/error" component={ErrorPageRoute} />               {/* Error page for critical errors */}

@@ -65,7 +65,7 @@ export default function TestHeader({
                   <Timer
                     initialMinutes={timeLimit}
                     onTimeUp={onTimeUp}
-                    className="bg-yellow-400 text-gray-900 px-2 py-1 rounded-md text-sm font-bold shadow-md h-9 flex items-center justify-center"
+                    className="text-gray-900 px-2 py-1 rounded-md text-sm font-bold shadow-md h-9 flex items-center justify-center"
                     paused={paused}
                   />
                 ) : (

@@ -20,7 +20,7 @@ import { useLocation } from "wouter";
 import { StudentProfile } from "@/components/profile-avatar";
 import Logo from "@/assets/images/logo.svg";
 import MiniChatbot from '@/components/mini-chatbot';
-import { ArrowRight, History, NotebookPen, Trophy, AlertTriangle, Crown, Lock, GraduationCap, Timer, HelpCircle, FileText, ChevronRight, ClipboardList } from "lucide-react";
+import { ArrowRight, History, NotebookPen, Trophy, AlertTriangle, Crown, Lock, GraduationCap, Timer, HelpCircle, FileText, ChevronRight, ClipboardList, Bookmark } from "lucide-react";
 import MobileDock from "@/components/mobile-dock";
 import { AnalyticsData, InsightsData } from "@/components/insight-card";
 import NeetCountdown from '@/components/coundown';
@@ -669,6 +669,41 @@ export default function Home() {
                       <div className="ml-3">
                         <div className="p-2 rounded-xl bg-blue-50 border border-blue-100">
                           <ClipboardList className="w-6 h-6 text-blue-600" />
+                        </div>
+                      </div>
+
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* NEW: Bookmarked Questions Card */}
+                <Card
+                  onClick={() => navigate('/bookmarks')}
+                  className="rounded-2xl border-2 border-amber-200"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+
+                      {/* LEFT SIDE */}
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1 group">
+                          <h3 className="text-lg font-semibold text-amber-900">
+                            Bookmarked Questions
+                          </h3>
+
+                          {/* Micro-interaction arrow */}
+                          <ChevronRight className="w-4 h-4 text-gray-700 transition-transform duration-200 group-hover:translate-x-0.5" />
+                        </div>
+
+                        <p className="text-sm text-gray-600">
+                          Review questions you bookmarked during tests
+                        </p>
+                      </div>
+
+                      {/* RIGHT-SIDE ICON */}
+                      <div className="ml-3">
+                        <div className="p-2 rounded-xl bg-amber-50 border border-amber-100">
+                          <Bookmark className="w-6 h-6 text-amber-600" />
                         </div>
                       </div>
 

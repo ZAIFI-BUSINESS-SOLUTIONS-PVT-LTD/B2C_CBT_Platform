@@ -121,34 +121,18 @@ export function Timer({ initialMinutes, onTimeUp, className = "", paused = false
    * Examples: 65 seconds → "1:05", 3600 seconds → "60:00"
    */
   const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || seconds < 0) return "0:00";  // Handle invalid input
-    const mins = Math.floor(seconds / 60);             // Calculate minutes
-    const secs = seconds % 60;                         // Calculate remaining seconds
-    return `${mins}:${secs.toString().padStart(2, '0')}`;  // Format as MM:SS
-  };
-
-  // === VISUAL FEEDBACK ===
-  /**
-   * Determine timer color based on remaining time
-   * This provides visual urgency cues to students:
-   * - RED: Critical time (≤5 minutes) - urgent action needed
-   * - ORANGE: Warning time (≤15 minutes) - time running low
-   * - YELLOW: Normal time (>15 minutes) - plenty of time left
-   */
-  const getTimeColor = () => {
-    if (timeLeft <= 300) {        // 5 minutes or less - CRITICAL
-      return "bg-red-500 text-white";
-    } else if (timeLeft <= 900) {  // 15 minutes or less - WARNING
-      return "bg-orange-500 text-white";
-    }
-    return "bg-neet-amber text-white";  // More than 15 minutes - NORMAL
+    if (isNaN(seconds) || seconds < 0) return "0m 00s";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs.toString().padStart(2, '0')}s`;
   };
 
   // === RENDER TIMER DISPLAY ===
+  // The design requested is a dashed, rounded pill with blue accent and a clock icon.
   return (
-    <div className={`${getTimeColor()} px-3 py-1 rounded-lg font-mono text-lg ${className}`}>
-      <Clock className="h-4 w-4 inline mr-1" />  {/* Clock icon for visual context */}
-      {formatTime(timeLeft)}                      {/* Display formatted time */}
+    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border-2 border-dashed border-blue-200 bg-white text-blue-600 text-sm font-medium ${className}`}>
+      <Clock className="h-4 w-4 text-blue-600" />
+      <span>{formatTime(timeLeft)}</span>
     </div>
   );
 }

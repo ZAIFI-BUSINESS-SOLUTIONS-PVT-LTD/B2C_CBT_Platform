@@ -590,6 +590,8 @@ class TestAnswer(models.Model):
     is_correct = models.BooleanField(null=True, blank=True) # boolean("is_correct")
     # Whether student marked this question for later review
     marked_for_review = models.BooleanField(default=False, null=False) # boolean("marked_for_review").default(false)
+    # Whether student bookmarked this question for future reference
+    is_bookmarked = models.BooleanField(default=False, null=False) # Track bookmarked questions within the test
     # Time spent on this question in seconds
     time_taken = models.IntegerField(null=True, blank=True) # integer("time_spent") - renamed to time_taken for clarity in Django
     # Number of times this question was visited/viewed by the student

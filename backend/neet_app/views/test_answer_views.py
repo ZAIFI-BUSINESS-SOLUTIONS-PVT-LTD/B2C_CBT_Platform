@@ -1,10 +1,12 @@
 from rest_framework import status, viewsets
 from rest_framework.response import Response
+from rest_framework.decorators import action
 from ..errors import AppError, ValidationError as AppValidationError
 from ..error_codes import ErrorCodes
 from rest_framework.permissions import IsAuthenticated
+from django.db.models import Count, Q
 
-from ..models import TestAnswer
+from ..models import TestAnswer, TestSession
 from ..serializers import TestAnswerCreateSerializer, TestAnswerSerializer
 
 
@@ -21,9 +23,24 @@ class TestAnswerViewSet(viewsets.ModelViewSet):
         """Filter test answers by authenticated user's sessions"""
         if not hasattr(self.request.user, 'student_id'):
             return TestAnswer.objects.none()
-        return TestAnswer.objects.filter(
+        
+        queryset = TestAnswer.objects.filter(
             session__student_id=self.request.user.student_id
-        )
+        ).select_related('question', 'session')
+        
+        # Optional filtering by session_id
+        session_id = self.request.query_params.get('session_id')
+        if session_id:
+            queryset = queryset.filter(session_id=session_id)
+        
+        # Optional filtering by is_bookmarked
+        is_bookmarked = self.request.query_params.get('is_bookmarked')
+        if is_bookmarked is not None:
+            # Convert string 'true'/'false' to boolean
+            is_bookmarked_bool = is_bookmarked.lower() in ['true', '1', 'yes']
+            queryset = queryset.filter(is_bookmarked=is_bookmarked_bool)
+        
+        return queryset
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -49,6 +66,7 @@ class TestAnswerViewSet(viewsets.ModelViewSet):
         # Prepare defaults for update_or_create
         defaults = {
             'marked_for_review': validated_data.get('marked_for_review', False),
+            'is_bookmarked': validated_data.get('is_bookmarked', False),
         }
         
         # Handle answer based on question type
@@ -166,3 +184,44 @@ class TestAnswerViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='bookmarked-sessions')
+    def bookmarked_sessions(self, request):
+        """
+        Returns a list of test sessions that have bookmarked questions.
+        Each session includes: id, test_name, bookmark_count, start_time.
+        GET /api/test-answers/bookmarked-sessions/
+        """
+        if not hasattr(request.user, 'student_id'):
+            return Response([], status=status.HTTP_200_OK)
+        
+        # Get all sessions with bookmarked questions for this student
+        sessions_with_bookmarks = TestAnswer.objects.filter(
+            session__student_id=request.user.student_id,
+            is_bookmarked=True
+        ).values('session_id').annotate(
+            bookmark_count=Count('id')
+        ).order_by('-session__start_time')
+        
+        # Fetch session details
+        session_ids = [item['session_id'] for item in sessions_with_bookmarks]
+        sessions = TestSession.objects.filter(id__in=session_ids)
+        
+        # Build response with session details and bookmark counts
+        bookmark_counts = {item['session_id']: item['bookmark_count'] for item in sessions_with_bookmarks}
+        
+        result = []
+        for session in sessions:
+            result.append({
+                'id': session.id,
+                'test_name': session.get_test_name(),
+                'test_type': session.test_type,
+                'bookmark_count': bookmark_counts.get(session.id, 0),
+                'start_time': session.start_time.isoformat() if session.start_time else None,
+                'total_questions': session.total_questions,
+            })
+        
+        # Sort by start_time descending
+        result.sort(key=lambda x: x['start_time'] or '', reverse=True)
+        
+        return Response(result, status=status.HTTP_200_OK)

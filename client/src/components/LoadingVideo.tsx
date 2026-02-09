@@ -2,20 +2,35 @@ import React from "react";
 
 interface LoadingVideoProps {
   onVideoEnd?: () => void;
+  /** When true the video keeps looping; when false it plays to the end and fires onVideoEnd. */
+  keepLooping?: boolean;
 }
 
-export default function LoadingVideo({ onVideoEnd }: LoadingVideoProps) {
+export default function LoadingVideo({ onVideoEnd, keepLooping = true }: LoadingVideoProps) {
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+
+  const handleEnded = () => {
+    if (keepLooping) {
+      // Insights not ready yet — seamlessly restart
+      const v = videoRef.current;
+      if (v) { v.currentTime = 0; v.play().catch(() => {}); }
+    } else {
+      // Insights ready — let it end so the page can transition
+      onVideoEnd?.();
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black">
       {/* Full-screen video (cover) */}
       <video
+        ref={videoRef}
         src="/videos/loading.mp4"
         autoPlay
-        loop
         muted
         playsInline
         className="absolute inset-0 w-full h-full object-cover"
-        onEnded={onVideoEnd}
+        onEnded={handleEnded}
       />
 
       {/* Overlay content sits above the video */}

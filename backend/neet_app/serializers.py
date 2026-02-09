@@ -302,7 +302,7 @@ class TestAnswerSerializer(serializers.ModelSerializer):
         model = TestAnswer
         fields = [
             'id', 'session', 'question', 'question_details', 'selected_answer', 'text_answer',
-            'is_correct', 'marked_for_review', 'time_taken', 'visit_count', 'answered_at'
+            'is_correct', 'marked_for_review', 'is_bookmarked', 'time_taken', 'visit_count', 'answered_at'
         ]
         read_only_fields = ['is_correct']
 
@@ -313,6 +313,7 @@ class TestAnswerCreateSerializer(serializers.Serializer):
     selected_answer = serializers.CharField(max_length=1, allow_null=True, required=False) # 'A', 'B', 'C', 'D' or null (for MCQ)
     text_answer = serializers.CharField(max_length=2000, allow_null=True, allow_blank=True, required=False) # Text answer for NVT questions
     marked_for_review = serializers.BooleanField(default=False, required=False)
+    is_bookmarked = serializers.BooleanField(default=False, required=False)
     time_taken = serializers.IntegerField(default=0, required=False) # Time spent on question in seconds
     visit_count = serializers.IntegerField(default=1, required=False) # Number of times question was visited
 

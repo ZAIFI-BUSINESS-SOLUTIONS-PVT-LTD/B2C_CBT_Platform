@@ -95,6 +95,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const [answers, setAnswers] = useState<Record<number, string>>({});         // User's MCQ answers by question ID (A/B/C/D)
   const [textAnswers, setTextAnswers] = useState<Record<number, string>>({});  // User's text answers for NVT questions
   const [markedForReview, setMarkedForReview] = useState<Set<number>>(new Set()); // Questions marked for review
+  const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<number>>(new Set()); // Questions bookmarked by user
+  const [answerIds, setAnswerIds] = useState<Record<number, number>>({});     // Map questionId -> answerId for PATCH requests
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);            // Submit confirmation dialog visibility
   const [showTimeOverDialog, setShowTimeOverDialog] = useState(false);        // Time over dialog visibility
   const [timeOverAutoSubmit, setTimeOverAutoSubmit] = useState<ReturnType<typeof setTimeout> | null>(null); // Auto-submit timeout
@@ -172,6 +174,39 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     enabled: !!sessionId, // Only fetch if sessionId is available
   });
 
+  // Fetch existing answers to initialize bookmarks and answer IDs
+  const { data: existingAnswers } = useQuery({
+    queryKey: [`testAnswers-${sessionId}`],
+    queryFn: async () => {
+      const response = await authenticatedFetch(
+        `${API_CONFIG.BASE_URL}/api/test-answers/?session_id=${sessionId}`
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to fetch answers: ${response.status}`);
+      }
+      return response.json();
+    },
+    enabled: !!sessionId && !!testData,
+  });
+
+  // Initialize bookmarks and answer IDs from existing answers
+  useEffect(() => {
+    if (existingAnswers && Array.isArray(existingAnswers)) {
+      const bookmarks = new Set<number>();
+      const ids: Record<number, number> = {};
+      
+      existingAnswers.forEach((answer: any) => {
+        if (answer.is_bookmarked) {
+          bookmarks.add(answer.question);
+        }
+        ids[answer.question] = answer.id;
+      });
+      
+      setBookmarkedQuestions(bookmarks);
+      setAnswerIds(ids);
+    }
+  }, [existingAnswers]);
+
   // Reset time over handled flag when new test data loads
   useEffect(() => {
     if (testData) {
@@ -199,10 +234,56 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       selectedAnswer?: string | null;  // The student's MCQ choice (A, B, C, D) or null
       textAnswer?: string | null;      // The student's text answer for NVT questions
       markedForReview?: boolean;      // Whether student marked question for review
+      isBookmarked?: boolean;         // Whether student bookmarked question
       timeSpent?: number;             // Time spent on this question in seconds
     }) => {
       const response = await apiRequest(API_CONFIG.ENDPOINTS.TEST_ANSWERS, "POST", data);
       return response;
+    },
+    onSuccess: (data, variables) => {
+      // Store answer ID and bookmark status when answer is created/updated
+      if (data?.id) {
+        setAnswerIds(prev => ({
+          ...prev,
+          [variables.questionId]: data.id
+        }));
+        
+        // Update bookmark state if returned from server
+        if (data.is_bookmarked !== undefined) {
+          setBookmarkedQuestions(prev => {
+            const newSet = new Set(prev);
+            if (data.is_bookmarked) {
+              newSet.add(variables.questionId);
+            } else {
+              newSet.delete(variables.questionId);
+            }
+            return newSet;
+          });
+        }
+      }
+    },
+  });
+
+  // Bookmark mutation to toggle bookmark status
+  const toggleBookmarkMutation = useMutation({
+    mutationFn: async (data: {
+      answerId: number;        // The answer ID to update
+      isBookmarked: boolean;   // New bookmark state
+    }) => {
+      const response = await apiRequest(
+        `${API_CONFIG.ENDPOINTS.TEST_ANSWERS}${data.answerId}/`,
+        "PATCH",
+        { is_bookmarked: data.isBookmarked }
+      );
+      return response;
+    },
+    onError: (error) => {
+      console.error('Failed to toggle bookmark:', error);
+      toast({
+        title: "Bookmark Failed",
+        description: "Could not update bookmark status. Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -356,6 +437,29 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
   // Current question derived from fetched data and current index
   const currentQuestion = testData?.questions[currentQuestionIndex];
+  // Cache for topic details to avoid repeated network calls
+  const [topicCache, setTopicCache] = useState<Record<number, { name: string; subject?: string }>>({});
+  const currentTopicId = currentQuestion ? (currentQuestion.topic as any) : null;
+  const currentTopic = currentTopicId ? topicCache[currentTopicId] : undefined;
+
+  // Fetch topic details when current question changes (cache results)
+  useEffect(() => {
+    if (!currentTopicId) return;
+    if (topicCache[currentTopicId]) return; // already cached
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await authenticatedFetch(`${API_CONFIG.BASE_URL}/api/topics/${currentTopicId}/`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!mounted) return;
+        setTopicCache(prev => ({ ...prev, [currentTopicId]: { name: data.name, subject: data.subject } }));
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, [currentTopicId, topicCache]);
 
   // (debug logs removed)
   const totalQuestions = testData?.questions.length || 0;
@@ -569,6 +673,57 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       markedForReview: newMarkedSet.has(currentQuestion.id),
       timeSpent: questionTimes[currentQuestion.id] || timeSpent,
     });
+  };
+
+  const handleToggleBookmark = () => {
+    if (!currentQuestion || showTimeOverDialog || !started || paused) {
+      return; // Prevent interaction when time is over or test not started
+    }
+
+    const questionId = currentQuestion.id;
+    const answerId = answerIds[questionId];
+    
+    // Toggle the bookmark state optimistically
+    const isCurrentlyBookmarked = bookmarkedQuestions.has(questionId);
+    const newBookmarkState = !isCurrentlyBookmarked;
+
+    setBookmarkedQuestions(prev => {
+      const newSet = new Set(prev);
+      if (newBookmarkState) {
+        newSet.add(questionId);
+      } else {
+        newSet.delete(questionId);
+      }
+      return newSet;
+    });
+
+    // If we don't have an answer ID yet, create an answer first with bookmark flag
+    if (!answerId) {
+      const isNVT = currentQuestion.questionType === 'NVT';
+      const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
+      
+      setQuestionTimes(prev => ({
+        ...prev,
+        [questionId]: (prev[questionId] || 0) + timeSpent
+      }));
+
+      // Submit answer WITH is_bookmarked flag to create the answer and set bookmark in one call
+      submitAnswerMutation.mutate({
+        sessionId,
+        questionId,
+        selectedAnswer: isNVT ? undefined : (answers[questionId] || null),
+        textAnswer: isNVT ? (textAnswers[questionId] || null) : undefined,
+        markedForReview: markedForReview.has(questionId),
+        isBookmarked: newBookmarkState,  // ADDED: Include bookmark state in initial creation
+        timeSpent: questionTimes[questionId] || timeSpent,
+      });
+    } else {
+      // We have an answer ID, just update the bookmark
+      toggleBookmarkMutation.mutate({
+        answerId,
+        isBookmarked: newBookmarkState,
+      });
+    }
   };
 
   const handleNextQuestion = () => {
@@ -1218,29 +1373,27 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
       <div className="max-w-6xl mx-auto px-2">
         <Card className="bg-white border border-gray-200 shadow-lg rounded-xl overflow-hidden">
-          {/* Test Progress Header */}
+          {/* Test Progress Header: show subject/topic on left and question count on right */}
           <div className="bg-white text-gray-900 p-4 border-b border-gray-200">
-            <div className="flex flex-col justify-between items-center space-y-3">
-              <div className="flex items-center space-x-4 min-w-0">
-                <span className="font-semibold text-base text-gray-900 whitespace-nowrap">
-                  Question <span className="text-blue-500">{currentQuestionIndex + 1}</span> of {totalQuestions}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="inline-block bg-blue-50 text-blue-600 text-sm px-3 py-1 rounded-full font-medium truncate">
+                  {currentTopic?.subject || currentTopic?.name || 'Topic'}
                 </span>
-                <div className="flex-1 min-w-0">
+                <div className="hidden sm:block flex-1 min-w-0">
                   <Progress
                     value={progressPercentage}
                     className="h-2 bg-blue-50 w-full rounded-full overflow-hidden"
                   />
                 </div>
               </div>
+              <div className="text-sm text-gray-500 whitespace-nowrap">Question {currentQuestionIndex + 1} of {totalQuestions}</div>
             </div>
           </div>
 
           {/* Question Content */}
           <CardContent className="p-4">
             <div className="mb-6">
-              <span className="inline-block bg-blue-50 text-blue-500 text-xs px-2 py-1 rounded-full mb-3 font-medium">
-                Question {currentQuestionIndex + 1}
-              </span>
               <h3 className="text-lg font-semibold text-gray-900 leading-relaxed">
                 {currentQuestion.question}
               </h3>
@@ -1355,9 +1508,10 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                 ))}
               </div>
             </RadioGroup>
-            {/* Clear Answer Button: only show if an answer is selected */}
-            {answers[currentQuestion.id] && (
-              <div className="mt-3">
+            {/* Action buttons: Clear Answer & Bookmark */}
+            <div className="mt-3 flex gap-2">
+              {/* Clear Answer Button: only show if an answer is selected */}
+              {answers[currentQuestion.id] && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1367,8 +1521,27 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                 >
                   Clear Answer
                 </Button>
-              </div>
-            )}
+              )}
+              {/* Bookmark Button: always visible */}
+              <Button
+                variant="outline"
+                size="sm"
+                className={`text-xs border-gray-300 ${
+                  bookmarkedQuestions.has(currentQuestion.id)
+                    ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={handleToggleBookmark}
+                disabled={showTimeOverDialog}
+              >
+                <Bookmark 
+                  className={`w-3.5 h-3.5 mr-1 ${
+                    bookmarkedQuestions.has(currentQuestion.id) ? 'fill-current' : ''
+                  }`}
+                />
+                {bookmarkedQuestions.has(currentQuestion.id) ? 'Bookmarked' : 'Bookmark'}
+              </Button>
+            </div>
               </>
             )}
           </CardContent>

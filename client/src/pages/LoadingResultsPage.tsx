@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { authenticatedFetch } from "@/lib/auth";
@@ -11,23 +11,37 @@ import { Volume2 } from "lucide-react";
 
 /**
  * Loading Results Page
- * Shows engaging video while zone insights are being generated
- * For demo tests from Neet Bro Institute: plays audio with penguin overlay
- * Redirects to dashboard once insights are ready
+ *
+ * Flow
+ * ────
+ * 1. Loading video loops while the backend generates zone insights.
+ * 2. We poll `/api/zone-insights/status/<id>/` every 1.5 s.
+ * 3. "Ready" means:
+ *    • Demo test  → `all_subjects_complete` AND `audio_url` present.
+ *    • Normal test → `all_subjects_complete`.
+ * 4. Once ready we let the current video play to its natural end (no abrupt cut).
+ * 5. After the video ends:
+ *    • Demo test  → show PenguinOverlay + play the TTS audio → redirect after
+ *                   audio finishes (or on error, show retry button).
+ *    • Normal test → redirect straight to dashboard.
  */
 export default function LoadingResultsPage() {
   const [, navigate] = useLocation();
   const [, params] = useRoute("/loading-results/:sessionId");
   const sessionId = params?.sessionId;
 
-  // Audio state
+  /* ── state ───────────────────────────────────────────── */
+  const [dataReady, setDataReady] = useState(false);   // backend data is complete
+  const [videoEnded, setVideoEnded] = useState(false); // video finished (after dataReady)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioError, setAudioError] = useState(false);
-  const [videoEnded, setVideoEnded] = useState(false);
+  const [isDemoTest, setIsDemoTest] = useState(false);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const hasTriggeredAudioRef = useRef(false);          // prevent double-trigger
 
-  // If no session ID, redirect immediately
+  /* ── redirect if no session ──────────────────────────── */
   useEffect(() => {
     if (!sessionId) {
       console.warn('No session ID provided, redirecting to dashboard');
@@ -35,134 +49,143 @@ export default function LoadingResultsPage() {
     }
   }, [sessionId, navigate]);
 
-  // Unlock audio on mount (during user gesture flow from test submit)
+  /* ── unlock audio on mount (user-gesture chain from submit) ── */
   useEffect(() => {
     if (sessionId) {
-      console.log('🔓 Unlocking audio for autoplay...');
-      // Reuse unlocked audio element if the test submit flow unlocked it earlier
-      // and stored it on window.__unlockedAudio. Otherwise create a new one.
+      console.log('🔓 Unlocking audio for autoplay…');
       const win = window as any;
       audioRef.current = win.__unlockedAudio || unlockAudio();
-      if (!win.__unlockedAudio) {
-        win.__unlockedAudio = audioRef.current;
-      }
+      if (!win.__unlockedAudio) win.__unlockedAudio = audioRef.current;
     }
   }, [sessionId]);
 
-  // Poll for zone insights status for this test session
+  /* ── poll backend for status ─────────────────────────── */
   const { data: statusData } = useQuery({
     queryKey: [`/api/zone-insights/status/${sessionId}/`, sessionId],
     queryFn: async () => {
       const url = `${API_CONFIG.BASE_URL}/api/zone-insights/status/${sessionId}/`;
-      const response = await authenticatedFetch(url);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch zone insights status');
-      }
-      
-      return response.json();
+      const res = await authenticatedFetch(url);
+      if (!res.ok) throw new Error('Failed to fetch zone insights status');
+      return res.json();
     },
-    refetchInterval: 1500, // Poll every 1.5 seconds
+    refetchInterval: dataReady ? false : 1500,   // stop polling once ready
     refetchIntervalInBackground: true,
     retry: true,
-    enabled: !!sessionId,
+    enabled: !!sessionId && !dataReady,
   });
 
-  // When insights are ready and video ends, play audio if available
+  /* ── determine readiness from poll data ───────────────── */
   useEffect(() => {
-    if (!statusData || !videoEnded || isPlayingAudio || audioError) {
-      return;
-    }
+    if (!statusData || dataReady) return;
 
-    const insightsReady = statusData.insights_generated === true && statusData.total_subjects > 0;
+    const allComplete = statusData.all_subjects_complete === true;
+    const demo = statusData.is_demo_test === true;
     const audioUrl = statusData.audio_url;
-    const isDemoTest = statusData.is_demo_test === true;
 
-    if (insightsReady) {
-      // If demo test with audio URL, play it
-      if (isDemoTest && audioUrl && audioRef.current) {
-        console.log('🎙️ Demo test detected - playing audio with penguin overlay');
-        
-        // Store audio URL
+    if (demo) {
+      // For demo tests wait for BOTH insights and the audio URL
+      if (allComplete && audioUrl) {
+        console.log('✅ Demo test ready – insights + audio available');
         audioUrlRef.current = `${API_CONFIG.BASE_URL}${audioUrl}`;
-        
-        // Play audio
-        setIsPlayingAudio(true);
-        playAudioWithElement(audioRef.current, audioUrlRef.current)
-          .then((success) => {
-            if (!success) {
-              console.error('Audio playback failed');
-              setAudioError(true);
-              setIsPlayingAudio(false);
-            }
-          })
-          .catch((error) => {
-            console.error('Audio playback error:', error);
-            setAudioError(true);
-            setIsPlayingAudio(false);
-          });
-
-        // Listen for audio end
-        if (audioRef.current) {
-          audioRef.current.onended = () => {
-            console.log('🔇 Audio playback completed');
-            setIsPlayingAudio(false);
-            // Redirect after audio ends
-            setTimeout(() => {
-              navigate('/dashboard', { replace: true });
-            }, 1000);
-          };
-        }
-      } else {
-        // Non-demo test or audio not available - redirect immediately
-        console.log('Redirecting to dashboard (no audio)');
-        setTimeout(() => {
-          navigate('/dashboard', { replace: true });
-        }, 1000);
+        setIsDemoTest(true);
+        setDataReady(true);
+      }
+    } else {
+      // Non-demo: only insights need to be done
+      if (allComplete) {
+        console.log('✅ Non-demo test ready – all subjects complete');
+        setDataReady(true);
       }
     }
-  }, [statusData, videoEnded, isPlayingAudio, audioError, navigate]);
+  }, [statusData, dataReady]);
 
-  // Fallback: redirect after 45 seconds regardless
-  useEffect(() => {
-    const fallbackTimer = setTimeout(() => {
-      console.log('Fallback redirect to dashboard after 45s');
-      navigate('/dashboard', { replace: true });
-    }, 45000);
+  /* ── after video ends + data ready → transition ──────── */
+  const startAudioPlayback = useCallback(() => {
+    if (hasTriggeredAudioRef.current) return;
+    hasTriggeredAudioRef.current = true;
 
-    return () => clearTimeout(fallbackTimer);
-  }, [navigate]);
-
-  // Manual retry audio playback
-  const handleRetryAudio = () => {
-    if (audioUrlRef.current && audioRef.current) {
-      setAudioError(false);
+    if (isDemoTest && audioUrlRef.current && audioRef.current) {
+      console.log('🎙️ Playing demo TTS audio with penguin overlay');
       setIsPlayingAudio(true);
-      playAudioWithElement(audioRef.current, audioUrlRef.current)
-        .then((success) => {
-          if (!success) {
+
+      // Listen for audio end → redirect
+      audioRef.current.onended = () => {
+        console.log('🔇 Audio playback completed');
+        setIsPlayingAudio(false);
+        setTimeout(() => navigate('/dashboard', { replace: true }), 800);
+      };
+
+      playAudioWithElement(audioRef.current, audioUrlRef.current!)
+        .then((ok) => {
+          if (!ok) {
+            console.error('Audio playback returned false');
             setAudioError(true);
             setIsPlayingAudio(false);
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error('Audio playback error:', err);
           setAudioError(true);
           setIsPlayingAudio(false);
         });
+    } else {
+      // Non-demo or fallback — go to dashboard
+      console.log('Redirecting to dashboard (non-demo or no audio)');
+      setTimeout(() => navigate('/dashboard', { replace: true }), 600);
+    }
+  }, [isDemoTest, navigate]);
+
+  useEffect(() => {
+    if (videoEnded && dataReady) {
+      startAudioPlayback();
+    }
+  }, [videoEnded, dataReady, startAudioPlayback]);
+
+  /* ── fallback: redirect after 60 s regardless ────────── */
+  useEffect(() => {
+    const t = setTimeout(() => {
+      console.log('⏰ Fallback redirect to dashboard after 60 s');
+      navigate('/dashboard', { replace: true });
+    }, 60_000);
+    return () => clearTimeout(t);
+  }, [navigate]);
+
+  /* ── manual retry for audio errors ───────────────────── */
+  const handleRetryAudio = () => {
+    if (audioUrlRef.current && audioRef.current) {
+      setAudioError(false);
+      setIsPlayingAudio(true);
+
+      audioRef.current.onended = () => {
+        setIsPlayingAudio(false);
+        setTimeout(() => navigate('/dashboard', { replace: true }), 800);
+      };
+
+      playAudioWithElement(audioRef.current, audioUrlRef.current)
+        .then((ok) => { if (!ok) { setAudioError(true); setIsPlayingAudio(false); } })
+        .catch(() => { setAudioError(true); setIsPlayingAudio(false); });
     }
   };
 
+  /* ── render ───────────────────────────────────────────── */
   return (
     <div className="relative">
-      {/* Loading video (plays while insights generate) */}
-      <LoadingVideo onVideoEnd={() => setVideoEnded(true)} />
+      {/* Video loops while waiting, plays to end once data is ready */}
+      {!videoEnded && (
+        <LoadingVideo
+          keepLooping={!dataReady}
+          onVideoEnd={() => setVideoEnded(true)}
+        />
+      )}
 
-      {/* Penguin overlay (shows during audio playback) */}
-      {videoEnded && <PenguinOverlay isPlaying={isPlayingAudio} />}
+      {/* Penguin overlay (visible during TTS audio playback) */}
+      {videoEnded && isDemoTest && (
+        <PenguinOverlay isPlaying={isPlayingAudio} />
+      )}
 
-      {/* Retry button (shows if audio fails) */}
+      {/* Retry button if audio fails */}
       {videoEnded && audioError && !isPlayingAudio && (
-        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <Button
             onClick={handleRetryAudio}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2"
