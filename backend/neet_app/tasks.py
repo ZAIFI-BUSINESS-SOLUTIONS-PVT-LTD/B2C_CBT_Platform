@@ -382,6 +382,51 @@ def generate_zone_insights_task(self, session_id: int):
                 f'{len(zone_results)} subjects processed'
             )
             print(f"✅ Zone insights complete: {len(zone_results)} subjects processed")
+            
+            # Generate TTS audio for demo tests
+            try:
+                from ..utils.tts_helper import is_demo_test_for_neet_bro, extract_checkpoint_text_for_audio, generate_insight_audio
+                from ..models import TestSubjectZoneInsight
+                
+                if is_demo_test_for_neet_bro(session):
+                    logger.info(f'🎙️ Demo test detected, generating TTS audio for session {session_id}')
+                    print(f"🎙️ Generating TTS audio for demo test {session_id}")
+                    
+                    # Fetch checkpoints to extract text
+                    insights_qs = TestSubjectZoneInsight.objects.filter(test_session_id=session_id)
+                    checkpoints_by_subject = []
+                    
+                    for insight in insights_qs:
+                        checkpoints_by_subject.append({
+                            'subject': insight.subject,
+                            'checkpoints': insight.checkpoints or []
+                        })
+                    
+                    # Extract first checkpoint from each subject
+                    audio_text = extract_checkpoint_text_for_audio(checkpoints_by_subject)
+                    
+                    # Get institution name
+                    institution_name = None
+                    if session.platform_test and session.platform_test.institution:
+                        institution_name = session.platform_test.institution.name
+                    
+                    # Generate audio
+                    audio_url = generate_insight_audio(audio_text, session_id, institution_name)
+                    
+                    if audio_url:
+                        # Store audio URL in TestSession
+                        session.insights_audio_url = audio_url
+                        session.save(update_fields=['insights_audio_url'])
+                        logger.info(f'✅ TTS audio generated and saved for session {session_id}: {audio_url}')
+                        print(f"✅ TTS audio URL saved: {audio_url}")
+                    else:
+                        logger.warning(f'⚠️ TTS audio generation returned None for session {session_id}')
+                        print(f"⚠️ TTS audio generation failed for session {session_id}")
+            except Exception as audio_error:
+                # Don't fail the task if TTS generation fails
+                logger.error(f'TTS audio generation failed for session {session_id}: {audio_error}')
+                print(f"❌ TTS audio generation error: {audio_error}")
+            
             return {
                 'status': 'success',
                 'session_id': session_id,

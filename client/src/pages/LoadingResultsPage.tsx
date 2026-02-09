@@ -39,7 +39,13 @@ export default function LoadingResultsPage() {
   useEffect(() => {
     if (sessionId) {
       console.log('🔓 Unlocking audio for autoplay...');
-      audioRef.current = unlockAudio();
+      // Reuse unlocked audio element if the test submit flow unlocked it earlier
+      // and stored it on window.__unlockedAudio. Otherwise create a new one.
+      const win = window as any;
+      audioRef.current = win.__unlockedAudio || unlockAudio();
+      if (!win.__unlockedAudio) {
+        win.__unlockedAudio = audioRef.current;
+      }
     }
   }, [sessionId]);
 

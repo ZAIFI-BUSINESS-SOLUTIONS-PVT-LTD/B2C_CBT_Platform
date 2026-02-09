@@ -453,44 +453,11 @@ def get_zone_insights_status(request, test_id):
             'total_subjects': len(subjects_with_insights)
         }
         
-        # Generate TTS audio URL for demo tests from Neet Bro Institute
-        if insights_generated:
-            from ..utils.tts_helper import is_demo_test_for_neet_bro, extract_checkpoint_text_for_audio, generate_insight_audio
-            
-            if is_demo_test_for_neet_bro(test):
-                try:
-                    # Fetch checkpoints to extract text
-                    insights_qs = TestSubjectZoneInsight.objects.filter(test_session_id=test_id)
-                    checkpoints_by_subject = []
-                    
-                    for insight in insights_qs:
-                        checkpoints_by_subject.append({
-                            'subject': insight.subject,
-                            'checkpoints': insight.checkpoints or []
-                        })
-                    
-                    # Extract first checkpoint from each subject
-                    audio_text = extract_checkpoint_text_for_audio(checkpoints_by_subject)
-                    
-                    # Get institution name
-                    institution_name = None
-                    if test.platform_test and test.platform_test.institution:
-                        institution_name = test.platform_test.institution.name
-                    
-                    # Generate audio
-                    audio_url = generate_insight_audio(audio_text, test_id, institution_name)
-                    
-                    if audio_url:
-                        response_data['audio_url'] = audio_url
-                        response_data['is_demo_test'] = True
-                        logger.info(f"✅ Generated TTS audio for demo test {test_id}: {audio_url}")
-                    else:
-                        logger.warning(f"⚠️ Failed to generate TTS audio for demo test {test_id}")
-                        
-                except Exception as e:
-                    logger.error(f"Error generating TTS audio for test {test_id}: {str(e)}")
-                    # Don't fail the request if audio generation fails
-                    pass
+        # Return TTS audio URL if it was generated (for demo tests)
+        if insights_generated and test.insights_audio_url:
+            response_data['audio_url'] = test.insights_audio_url
+            response_data['is_demo_test'] = True
+            logger.info(f"✅ Returning stored TTS audio URL for test {test_id}: {test.insights_audio_url}")
         
         return Response(response_data)
         

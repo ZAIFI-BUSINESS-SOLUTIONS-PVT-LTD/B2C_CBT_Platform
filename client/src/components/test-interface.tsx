@@ -32,6 +32,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { setPostTestHidden } from "@/lib/postTestHidden";
 import { authenticatedFetch } from "@/lib/auth";
 import normalizeImageSrc from "@/lib/media";
+import { unlockAudio } from "@/utils/tts";
 import { ChevronLeft, ChevronRight, Bookmark, AlertTriangle, Info } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, } from "@/components/ui/alert-dialog";
 import SubmitDialog from "./test-interface/dialogs/SubmitDialog";
@@ -274,6 +275,14 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         setPostTestHidden(false);
       } catch (e) {
         console.warn('Could not clear post test hidden flag', e);
+      }
+      try {
+        // Unlock audio in the same user gesture before navigating so autoplay can work
+        // Store it on window so LoadingResultsPage can reuse the unlocked Audio element
+        // (best-effort; ignore any errors)
+        (window as any).__unlockedAudio = unlockAudio();
+      } catch (e) {
+        console.warn('Failed to unlock audio before navigation', e);
       }
       navigate(`/loading-results/${sessionId}`);
       // Clean up state after navigation

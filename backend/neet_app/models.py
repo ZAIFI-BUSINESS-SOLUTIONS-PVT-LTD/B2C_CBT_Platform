@@ -305,6 +305,8 @@ class TestSession(models.Model):
     zoology_score = models.FloatField(null=True, blank=True)  # Zoology percentage
     biology_score = models.FloatField(null=True, blank=True)  # Biology percentage
     math_score = models.FloatField(null=True, blank=True)  # Math percentage
+    # TTS audio URL for checkpoint insights (demo tests only)
+    insights_audio_url = models.CharField(max_length=255, null=True, blank=True)  # Audio file path for insights
     # Activity tracking for admin metrics
     last_heartbeat = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=False)
