@@ -385,8 +385,9 @@ def generate_zone_insights_task(self, session_id: int):
             
             # Generate TTS audio for demo tests
             try:
-                from ..utils.tts_helper import is_demo_test_for_neet_bro, extract_checkpoint_text_for_audio, generate_insight_audio
-                from ..models import TestSubjectZoneInsight
+                # Use single-dot import to reference neet_app.utils when running under workers
+                from .utils.tts_helper import is_demo_test_for_neet_bro, extract_checkpoint_text_for_audio, generate_insight_audio
+                from .models import TestSubjectZoneInsight
                 
                 if is_demo_test_for_neet_bro(session):
                     logger.info(f'🎙️ Demo test detected, generating TTS audio for session {session_id}')
@@ -535,7 +536,8 @@ def generate_insights_task(self, student_id: str, request_data: dict = None, for
         print(f"🧠 Starting insight generation for student {student_id}")
         
         # Get thresholds (default or custom from request_data)
-        thresholds = insights_views.get_thresholds(request_data)
+        # `get_thresholds` was removed from `insights_views`; fall back to request_data or empty dict
+        thresholds = request_data or {}
         
         # Calculate topic metrics across all tests
         all_metrics = insights_views.calculate_topic_metrics(student_id)
@@ -574,9 +576,6 @@ def generate_insights_task(self, student_id: str, request_data: dict = None, for
             all_metrics['overall_avg_time'],
             thresholds
         )
-        
-        # Get last test data
-        last_test_data = insights_views.get_last_test_metrics(student_id, thresholds)
         
         # Get unattempted topics
         unattempted_topics = insights_views.get_unattempted_topics(all_metrics['topics'])
@@ -622,7 +621,6 @@ def generate_insights_task(self, student_id: str, request_data: dict = None, for
             'status': 'success',
             'data': {
                 **classification,
-                **last_test_data,
                 'unattempted_topics': unattempted_topics,
                 'llm_insights': llm_insights,
                 'thresholds_used': thresholds,

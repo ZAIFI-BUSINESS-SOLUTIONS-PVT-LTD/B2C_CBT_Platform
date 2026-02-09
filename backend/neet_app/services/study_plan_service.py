@@ -349,3 +349,12 @@ def generate_study_plan_from_misconceptions(student_id: int, max_tests: int = 5)
             'recommendations': [],
             'supporting_data': {}
         }
+
+
+def generate_study_plan_for_student(student_id: int, max_tests: int = 5) -> Dict[str, Any]:
+    """
+    Backwards-compatible wrapper for callers expecting
+    `generate_study_plan_for_student`. Delegates to
+    `generate_study_plan_from_misconceptions`.
+    """
+    return generate_study_plan_from_misconceptions(student_id=student_id, max_tests=max_tests)

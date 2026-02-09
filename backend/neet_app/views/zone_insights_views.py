@@ -416,7 +416,9 @@ def get_zone_insights_status(request, test_id):
         "status": "success",
         "test_id": 123,
         "insights_generated": true,
+        "all_subjects_complete": true,
         "subjects_with_insights": ["Physics", "Chemistry", "Botany", "Zoology", "Biology"],
+        "expected_subjects": ["Physics", "Chemistry", "Botany", "Zoology", "Biology"],
         "total_subjects": 5,
         "audio_url": "/audio/insight-123-1234567890.mp3"  // Only for demo tests
     }
@@ -437,6 +439,21 @@ def get_zone_insights_status(request, test_id):
             student_id=student_id
         )
         
+        # Determine expected subjects from test session
+        expected_subjects = []
+        if test.physics_topics:
+            expected_subjects.append('Physics')
+        if test.chemistry_topics:
+            expected_subjects.append('Chemistry')
+        if test.botany_topics:
+            expected_subjects.append('Botany')
+        if test.zoology_topics:
+            expected_subjects.append('Zoology')
+        if test.biology_topics:
+            expected_subjects.append('Biology')
+        if test.math_topics:
+            expected_subjects.append('Math')
+        
         # Check if insights exist
         insights = TestSubjectZoneInsight.objects.filter(
             test_session_id=test_id
@@ -445,16 +462,26 @@ def get_zone_insights_status(request, test_id):
         subjects_with_insights = list(insights)
         insights_generated = len(subjects_with_insights) > 0
         
+        # Check if ALL expected subjects have been processed
+        all_subjects_complete = (
+            insights_generated and 
+            len(subjects_with_insights) >= len(expected_subjects) and
+            all(subj in subjects_with_insights for subj in expected_subjects)
+        )
+        
         response_data = {
             'status': 'success',
             'test_id': test_id,
             'insights_generated': insights_generated,
+            'all_subjects_complete': all_subjects_complete,
             'subjects_with_insights': subjects_with_insights,
+            'expected_subjects': expected_subjects,
             'total_subjects': len(subjects_with_insights)
         }
         
         # Return TTS audio URL if it was generated (for demo tests)
-        if insights_generated and test.insights_audio_url:
+        # Only include audio URL when ALL subjects are complete
+        if all_subjects_complete and test.insights_audio_url:
             response_data['audio_url'] = test.insights_audio_url
             response_data['is_demo_test'] = True
             logger.info(f"✅ Returning stored TTS audio URL for test {test_id}: {test.insights_audio_url}")

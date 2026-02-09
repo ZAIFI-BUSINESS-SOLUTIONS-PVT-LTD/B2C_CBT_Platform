@@ -485,7 +485,7 @@ def parse_checkpoint_response(llm_response: str, subject: str) -> List[Dict]:
     """
     try:
         response_text = llm_response.strip()
-        
+
         # Remove markdown code blocks if present
         if response_text.startswith('```'):
             lines = response_text.split('\n')
@@ -493,36 +493,72 @@ def parse_checkpoint_response(llm_response: str, subject: str) -> List[Dict]:
             response_text = response_text.strip()
             if response_text.startswith('json'):
                 response_text = response_text[4:].strip()
-        
-        # Try direct JSON parse
-        try:
-            checkpoints = json.loads(response_text)
-            
-            # Validate structure
-            if isinstance(checkpoints, list) and len(checkpoints) >= 2:
-                # Ensure exactly 2 checkpoints
-                checkpoints = checkpoints[:2]
-                
-                # Validate required fields
-                required_fields = ['topic', 'subject', 'subtopic', 'accuracy', 'checklist', 'action_plan', 'citation']
-                for cp in checkpoints:
-                    if not all(field in cp for field in required_fields):
-                        print(f"⚠️ Checkpoint missing required fields for {subject}")
-                        return get_fallback_checkpoints(subject)
-                    
-                    # Ensure citation is a list
-                    if not isinstance(cp.get('citation'), list):
-                        cp['citation'] = []
-                
-                print(f"✅ Successfully parsed {len(checkpoints)} checkpoints for {subject}")
-                return checkpoints
-        except json.JSONDecodeError as e:
-            print(f"⚠️ JSON parse error for {subject}: {str(e)}")
-            # Return None to trigger retry in calling function
-            return None
-        
-        # If parsing fails, return None to trigger retry
-        print(f"⚠️ Could not parse LLM response for {subject}")
+
+        # Helper: extract the first JSON array substring (from first '[' to matching ']')
+        def _extract_json_array(text: str) -> str:
+            start = text.find('[')
+            if start == -1:
+                return text
+            depth = 0
+            for i in range(start, len(text)):
+                if text[i] == '[':
+                    depth += 1
+                elif text[i] == ']':
+                    depth -= 1
+                    if depth == 0:
+                        return text[start:i+1]
+            # Fallback: return original text if matching bracket not found
+            return text
+
+        # Try several parsing strategies, progressively forgiving
+        candidates = []
+        candidates.append(response_text)
+        extracted = _extract_json_array(response_text)
+        if extracted and extracted != response_text:
+            candidates.insert(0, extracted)
+
+        import ast
+        import re
+
+        for candidate in candidates:
+            # Try strict JSON first
+            try:
+                checkpoints = json.loads(candidate)
+            except Exception:
+                checkpoints = None
+
+            # If JSON parsing failed, try ast.literal_eval after minor token fixes
+            if checkpoints is None:
+                try:
+                    # Convert JSON null/true/false to Python None/True/False for ast
+                    py_candidate = candidate.replace('null', 'None').replace('true', 'True').replace('false', 'False')
+                    # Try to fix common smart quotes
+                    py_candidate = py_candidate.replace('“', '"').replace('”', '"').replace('’', "'")
+                    checkpoints = ast.literal_eval(py_candidate)
+                except Exception:
+                    checkpoints = None
+
+            # If we obtained a Python list-like structure, normalize and validate
+            if isinstance(checkpoints, (list, tuple)):
+                checkpoints = list(checkpoints)
+                if len(checkpoints) >= 2:
+                    checkpoints = checkpoints[:2]
+                    # Validate required fields
+                    required_fields = ['topic', 'subject', 'subtopic', 'accuracy', 'checklist', 'action_plan', 'citation']
+                    valid = True
+                    for cp in checkpoints:
+                        if not isinstance(cp, dict) or not all(field in cp for field in required_fields):
+                            valid = False
+                            break
+                        # Ensure citation is a list
+                        if not isinstance(cp.get('citation'), list):
+                            cp['citation'] = []
+                    if valid:
+                        print(f"✅ Successfully parsed {len(checkpoints)} checkpoints for {subject}")
+                        return checkpoints
+
+        # If parsing fails for all strategies, log the problematic response for debugging
+        print(f"⚠️ Could not parse LLM response for {subject}. Raw response:\n{llm_response[:2000]}")
         return None
         
     except Exception as e:
