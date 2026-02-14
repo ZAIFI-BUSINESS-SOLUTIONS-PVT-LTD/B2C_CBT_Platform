@@ -39,7 +39,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-key-change-in-pro
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver,c954e41aebd0.ngrok-free.app,neet.inzighted.com,testapi.inzighted.com').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver,c954e41aebd0.ngrok-free.app,neetbro.com,testapi.inzighted.com').split(',')
 
 # Application definition
 INSTALLED_APPS = [
@@ -196,7 +196,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://neet.inzighted.com"
+    "https://neetbro.com"
     
 ]
 
@@ -247,7 +247,7 @@ SESSION_COOKIE_AGE = int(os.environ.get('SESSION_COOKIE_AGE', '86400'))  # 24 ho
 APPEND_SLASH = os.environ.get('APPEND_SLASH', 'False') == 'True'  # Disable automatic trailing slash redirect for API consistency
 
 # FRONTEND URL to include in password reset emails. Replace with your frontend domain in production.
-FRONTEND_RESET_URL = os.environ.get('FRONTEND_RESET_URL', 'https://neet.inzighted.com/reset-password')
+FRONTEND_RESET_URL = os.environ.get('FRONTEND_RESET_URL', 'https://neetbro.com/reset-password')
 
 # Email backend configuration (placeholder/defaults)
 # Update these environment variables in production with real SMTP or provider credentials.
@@ -310,7 +310,7 @@ RAZORPAY_WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '')
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://neet.inzighted.com", # for production
+    "https://neetbro.com", # for production
     "https://testapi.inzighted.com",
 ]
 # NEET App specific settings

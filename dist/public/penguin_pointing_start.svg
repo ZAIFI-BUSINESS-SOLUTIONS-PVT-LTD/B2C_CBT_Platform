@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" fill="none">
+  <!-- Penguin body -->
+  <ellipse cx="100" cy="180" rx="70" ry="90" fill="#1a1a2e"/>
+  <!-- Belly -->
+  <ellipse cx="100" cy="195" rx="50" ry="70" fill="#f0f0f0"/>
+  <!-- Head -->
+  <circle cx="100" cy="95" r="50" fill="#1a1a2e"/>
+  <!-- Eyes looking down -->
+  <circle cx="82" cy="85" r="10" fill="white"/>
+  <circle cx="118" cy="85" r="10" fill="white"/>
+  <circle cx="84" cy="88" r="5" fill="#1a1a2e"/>
+  <circle cx="120" cy="88" r="5" fill="#1a1a2e"/>
+  <!-- Beak -->
+  <path d="M90 100 L100 118 L110 100 Z" fill="#ff9800"/>
+  <!-- Feet -->
+  <ellipse cx="75" cy="268" rx="22" ry="10" fill="#ff9800"/>
+  <ellipse cx="125" cy="268" rx="22" ry="10" fill="#ff9800"/>
+  <!-- Flippers pointing down -->
+  <path d="M35 160 L15 230 L25 232 L50 170 Z" fill="#1a1a2e"/>
+  <path d="M165 160 L185 230 L175 232 L150 170 Z" fill="#1a1a2e"/>
+  <!-- Pointing arrows -->
+  <path d="M15 232 L10 248" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
+  <path d="M185 232 L190 248" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
+  <!-- Start button -->
+  <rect x="60" y="240" rx="12" width="80" height="26" fill="#3b82f6"/>
+  <text x="73" y="258" font-size="12" fill="white" font-family="sans-serif" font-weight="bold">START</text>
+  <!-- Blush -->
+  <circle cx="70" cy="105" r="8" fill="#ffcdd2" opacity="0.6"/>
+  <circle cx="130" cy="105" r="8" fill="#ffcdd2" opacity="0.6"/>
+  <!-- Rocket -->
+  <text x="145" y="60" font-size="20">🚀</text>
+</svg>

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" fill="none">
+  <!-- Penguin body -->
+  <ellipse cx="100" cy="180" rx="70" ry="90" fill="#1a1a2e"/>
+  <!-- Belly -->
+  <ellipse cx="100" cy="195" rx="50" ry="70" fill="#f0f0f0"/>
+  <!-- Head -->
+  <circle cx="100" cy="95" r="50" fill="#1a1a2e"/>
+  <!-- Eyes looking right -->
+  <circle cx="82" cy="85" r="10" fill="white"/>
+  <circle cx="118" cy="85" r="10" fill="white"/>
+  <circle cx="88" cy="85" r="5" fill="#1a1a2e"/>
+  <circle cx="124" cy="85" r="5" fill="#1a1a2e"/>
+  <!-- Beak -->
+  <path d="M90 100 L100 118 L110 100 Z" fill="#ff9800"/>
+  <!-- Feet -->
+  <ellipse cx="75" cy="268" rx="22" ry="10" fill="#ff9800"/>
+  <ellipse cx="125" cy="268" rx="22" ry="10" fill="#ff9800"/>
+  <!-- Right flipper pointing -->
+  <ellipse cx="32" cy="170" rx="12" ry="40" fill="#1a1a2e" transform="rotate(-10 32 170)"/>
+  <path d="M165 180 L195 220 L185 225 L160 190 Z" fill="#1a1a2e"/>
+  <!-- Pointing arrow -->
+  <path d="M185 225 L200 240" stroke="#4f46e5" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="200" cy="245" r="5" fill="#4f46e5"/>
+  <!-- Blush -->
+  <circle cx="70" cy="105" r="8" fill="#ffcdd2" opacity="0.6"/>
+  <circle cx="130" cy="105" r="8" fill="#ffcdd2" opacity="0.6"/>
+</svg>

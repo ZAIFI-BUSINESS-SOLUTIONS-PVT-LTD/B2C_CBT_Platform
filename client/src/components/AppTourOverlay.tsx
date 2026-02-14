@@ -46,6 +46,7 @@ const PENGUIN_PAPER_SVG    = "/penguin-paper.svg";
 const AUDIO_WELCOME     = "/welcome_voice.mp3";
 const AUDIO_TEST_TAB    = "/test_tab_voice.mp3";
 const AUDIO_START_TEST  = "/start_test_voice.mp3";
+const AUDIO_SCHEDULED_TESTS = "/test_series.mp3";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -143,7 +144,7 @@ export default function AppTourOverlay({ onTourComplete }: AppTourOverlayProps)
     if (step !== 3) return;
     if (audioPlayedRef.current.has(3)) return;
     audioPlayedRef.current.add(3);
-    playAudio(AUDIO_TEST_TAB); // reuse same voice or use a separate file
+    playAudio(AUDIO_SCHEDULED_TESTS); // reuse same voice or use a separate file
   }, [step]);
 
   /* ---- Step 4: play start-test audio ---- */
@@ -285,8 +286,11 @@ export default function AppTourOverlay({ onTourComplete }: AppTourOverlayProps)
 
   const renderStep1 = () => (
     <div className="fixed inset-0 z-[99997] flex flex-col items-center justify-center">
-      {/* Dimmed background */}
-      <div className="absolute inset-0 bg-black/60" />
+      {/* Dimmed background with stronger blur */}
+      <div
+        className="absolute inset-0"
+        style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}
+      />
 
       {/* Content */}
       <div
@@ -321,8 +325,11 @@ export default function AppTourOverlay({ onTourComplete }: AppTourOverlayProps)
 
   const renderStep2 = () => (
     <>
-      {/* Full dim overlay — pointer-events active so background is blocked */}
-      <div className="fixed inset-0 z-[99997] pointer-events-auto" />
+      {/* Full dim overlay — pointer-events active so background is blocked. Adds blur. */}
+      <div
+        className="fixed inset-0 z-[99997] pointer-events-auto"
+        style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+      />
 
       {/* Spotlight on the Test tab button (second item in the dock) */}
       <Spotlight selector='nav[aria-label="Mobile navigation"] li:nth-child(2) button' padding={6} borderRadius={20} />
@@ -379,8 +386,11 @@ export default function AppTourOverlay({ onTourComplete }: AppTourOverlayProps)
 
   const renderStep3 = () => (
     <>
-      {/* Full dim overlay */}
-      <div className="fixed inset-0 z-[99997] pointer-events-auto" />
+      {/* Full dim overlay with blur */}
+      <div
+        className="fixed inset-0 z-[99997] pointer-events-auto"
+        style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+      />
 
       {/* Spotlight on the "Scheduled Tests" card — 3rd card in the topics grid */}
       <Spotlight selector='[data-tour-scheduled-tests]' padding={6} borderRadius={16} />
@@ -422,8 +432,11 @@ export default function AppTourOverlay({ onTourComplete }: AppTourOverlayProps)
 
   const renderStep4 = () => (
     <>
-      {/* Full dim overlay */}
-      <div className="fixed inset-0 z-[99997] pointer-events-auto" />
+      {/* Full dim overlay with blur */}
+      <div
+        className="fixed inset-0 z-[99997] pointer-events-auto"
+        style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+      />
 
       {/* Spotlight on first test card (contains "Start Test" button) */}
       <Spotlight selector='[data-tour-demo-test]' padding={8} borderRadius={16} />

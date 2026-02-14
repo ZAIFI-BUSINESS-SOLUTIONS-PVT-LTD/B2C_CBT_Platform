@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trophy, AlertTriangle, CheckCircle, Loader2, ChevronRight, Target } from "lucide-react";
+import { Trophy, AlertTriangle, CheckCircle, Loader2, ChevronRight, Target, TrendingUp } from "lucide-react";
 import { authenticatedFetch } from "@/lib/auth";
 import { API_CONFIG } from "@/config/api";
 
@@ -16,6 +16,7 @@ interface Checkpoint {
   checklist: string;
   actionPlan: string;
   citation: number[];
+  performanceType?: 'weakness' | 'strength'; // Default to weakness if not provided
 }
 
 interface SubjectCheckpoints {
@@ -62,6 +63,7 @@ interface TestListItem {
 interface TestCheckpointsData {
   status: string;
   test_info: TestInfo;
+  testInfo?: TestInfo; // Backward compatibility for camelCase
   checkpoints: SubjectCheckpoints[];
 }
 
@@ -366,36 +368,60 @@ export default function TestZoneInsights() {
               </div>
 
               <CardContent className="p-4 space-y-4">
-                {subjectData.checkpoints.map((checkpoint, idx) => (
+                {subjectData.checkpoints.map((checkpoint, idx) => {
+                  // Default to 'weakness' for backward compatibility
+                  const perfType = checkpoint.performanceType || 'weakness';
+                  const isStrength = perfType === 'strength';
+
+                  return (
                   <div key={idx} className="border rounded-lg p-4 bg-gray-50">
                     {/* Topic Header */}
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h5 className="font-semibold text-gray-900">{checkpoint.topic}</h5>
-                        <p className="text-xs text-gray-600">{checkpoint.subtopic}</p>
-                      </div>
-                      <Badge variant="outline" className={`${getAccuracyColor(checkpoint.accuracy)} border-current`}>
-                        {(checkpoint.accuracy * 100).toFixed(0)}%
-                      </Badge>
+                    <div className="mb-3">
+                      <h5 className="font-semibold text-gray-900">{checkpoint.topic}</h5>
+                      <p className="text-xs text-gray-600">{checkpoint.subtopic}</p>
                     </div>
 
-                    {/* Checklist - What went wrong */}
-                    <div className="mb-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                    {/* Checklist - Dynamic label and styling based on performanceType */}
+                    <div className={`mb-3 p-3 rounded-lg border ${
+                      isStrength 
+                        ? 'bg-emerald-50 border-emerald-200' 
+                        : 'bg-red-50 border-red-200'
+                    }`}>
                       <div className="flex items-start gap-2">
-                        <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                        {isStrength ? (
+                          <CheckCircle className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                        )}
                         <div className="flex-1">
-                          <p className="text-xs font-semibold text-red-800 mb-1">Problem Identified:</p>
+                          <p className={`text-xs font-semibold mb-1 ${
+                            isStrength ? 'text-emerald-800' : 'text-red-800'
+                          }`}>
+                            {isStrength ? 'Strength Identified:' : 'Problem Identified:'}
+                          </p>
                           <p className="text-sm text-gray-700">{checkpoint.checklist}</p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Action Plan - How to fix it */}
-                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                    {/* Action Plan - Dynamic label and styling based on performanceType */}
+                    <div className={`p-3 rounded-lg border ${
+                      isStrength 
+                        ? 'bg-blue-50 border-blue-200' 
+                        : 'bg-green-50 border-green-200'
+                    }`}>
                       <div className="flex items-start gap-2">
-                        <Target className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        {isStrength ? (
+                          <TrendingUp className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        ) : (
+                          <Target className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-green-800 mb-1">Action Plan:</p>
+                          <p className={`text-xs font-semibold mb-1 ${
+                            isStrength ? 'text-blue-800' : 'text-green-800'
+                          }`}>
+                            {isStrength ? 'Next Challenge:' : 'Action Plan:'}
+                          </p>
                           <p className="text-sm text-gray-900 leading-relaxed whitespace-normal break-words">{checkpoint.actionPlan}</p>
                         </div>
                       </div>
@@ -408,7 +434,8 @@ export default function TestZoneInsights() {
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </CardContent>
             </Card>
           ))}

@@ -11,36 +11,38 @@ from django.db.models import Q
 logger = logging.getLogger(__name__)
 
 # LLM Prompt for checkpoint generation (wrong/skipped questions)
-CHECKPOINT_PROMPT = """**Task**: Generate a comprehensive diagnostic and action plan for a NEET student by identifying both problems AND solutions for their weak topics.
-**Context**: You are an AI mentor helping students understand both:
-1. **WHAT went wrong** (diagnostic checklist of problems)
-2. **HOW to fix it** (actionable steps to improve)
-For each checkpoint, you will provide BOTH the problem identification AND the corresponding action plan.
-**Input Data Provided**:
+CHECKPOINT_PROMPT = """Task: Generate a comprehensive diagnostic and action plan for a NEET student by identifying both problems AND solutions for their weak topics.
+Context: You are an AI mentor helping students understand both:
+1. Checklist-WHAT went wrong (diagnostic checklist of problems)
+2. Action Plan -HOW to fix it (actionable steps to improve)
+For each checkpoint, you will provide BOTH the problem identification (Checklist) AND the corresponding action plan(Action Plan).
+Input Data Provided:
 - Multiple weak topics with performance metrics (accuracy)
 - Wrong questions from each topic including:
   - Question text, options, selected answer, correct answer
   - Misconception   
-**Your Task**:
-1. Analyze ALL weak topics and wrong answers provided FOR THIS SUBJECT
-2. Identify the most critical problems across topics IN THIS SUBJECT
-3. For EACH problem, also determine the most impactful action to fix it
-4. Generate a **specific subtopic name** that precisely describes the narrow area of difficulty within the topic
-5. Rank checkpoints by:
-   - **Severity/Impact**: How much this issue affects overall performance
-   - **Actionability**: How clear and achievable the solution is
-6. Select ONLY the **top 2 most critical problem-solution pairs** for THIS SUBJECT
-**Checkpoint Requirements**:
+Your Task:
+1. Analyze ALL weak topics and its wrong answers provided.
+2. Identify the most critical misunderstanding/misconception done by the student in each topic (diagnostic checklist).
+3. The checklist(What went wrong) should be more specific to subtopic or concept and should convey the misconception/misunderstadning clearly instead of just mention concept name or topic name.
+    example:
+        Bad: Student misunderstood acceleration.
+        Good: Student used m/s² as the unit of velocity and applied v = u + at incorrectly, showing confusion between velocity (m/s) and acceleration (m/s²).
+4. Each action plan should be directly tied to the specific misunderstanding identified in the checklist and should be practical and achievable for a student to implement.
+5. Collect all the possible Checkpoints(checklist and action plan) from given data and Rank the checkpoints by:
+   -Severity/Impact: How much this issue affects overall performance
+   -Actionability: How clear and achievable the solution is
+6. Select ONLY the top 2 most critical checkpoint.
+Checkpoint Requirements:
 - Each checklist item must be **10-15 words** maximum
 - Each action plan item must be **10-15 words** maximum
-- **Subtopic** must be a specific, narrow area within the topic.
-- Checklist must identify WHAT went wrong (diagnostic, factual)
-- Action plan must describe HOW to fix it (prescriptive, actionable)
+- Checklist must identify WHAT went wrong (diagnostic, factual) and should be specify the misunderstanding/misconception not just what topic went wrong.
+- Action plan must describe HOW to fix that misunderstanding/wrong mental model (prescriptive, actionable)
+- Each checkpoints should concentrate on specific subtopic/concept. Don't try to cover multiple issues in one point.
 - Use simple, easy-to-understand Indian-English
 - Each item should be at the reading level of a 10-year-old Indian student. Use only very simple English words. Do NOT use difficult or formal words.
-- Be specific and directly tied to their actual mistakes
 - Reference the specific topic/subject in context
-**Output Format (strict JSON)**:
+Output Format (strict JSON):
 [
   {{
     "topic": "Topic name",
@@ -49,7 +51,8 @@ For each checkpoint, you will provide BOTH the problem identification AND the co
     "accuracy": 0.45,
     "checklist": "Specific problem or mistake identified (10-15 words)",
     "action_plan": "Specific action to fix this problem (10-15 words)",
-    "citation": [5, 12, 18]
+    "citation": [5, 12, 18],
+    "performanceType": "weakness"
   }},
   {{
     "topic": "Topic name",
@@ -58,26 +61,26 @@ For each checkpoint, you will provide BOTH the problem identification AND the co
     "accuracy": 0.32,
     "checklist": "Specific problem or mistake identified (10-15 words)",
     "action_plan": "Specific action to fix this problem (10-15 words)",
-    "citation": [7, 22]
+    "citation": [7, 22],
+    "performanceType": "weakness"
   }}
 ]
-**Citation Requirements**:
+Citation Requirements:
 - Each checkpoint MUST include a "citation" field listing the question numbers that support this insight
 - Citation format: array of question numbers, e.g., [5, 12, 18]
-- Include 2-5 question numbers per checkpoint as evidence
+- Include 1-5 question numbers per checkpoint as evidence
 - Select questions that best demonstrate the specific problem identified in the checklist
 - Questions in citation should be from the wrong_questions data provided for that topic
-**Guidelines**:
-- Return EXACTLY 2 checkpoint pairs for THIS SUBJECT (not more, not less)
-- These 2 should be the highest-impact issues for THIS SUBJECT
+Guidelines:
+- Return EXACTLY 2 checkpoint pairs.
+- These 2 should be the highest-impact issues.
 - Each checklist-action pair must be logically connected (the action fixes the checklist problem)
 - Checklist uses diagnostic language: "confused", "mistook", "missed", "incorrectly applied"
 - Action plan uses prescriptive language: "practice", "review", "memorize", "understand"
-- Both should directly reflect the student's actual wrong answers
+- Both should directly reflect the student's actual wrong mental model or misconception from the given data.
 - Keep tone supportive and constructive
-- Both checkpoints can be from the same topic if they're high-impact
-**Important**:
-- Return ONLY the JSON array of exactly 2 items for THIS SUBJECT
+Important:
+- Return ONLY the JSON array of exactly 2 items.
 - No explanations, no notes, no markdown code blocks
 - Strictly follow the format above
 - Ensure checklist and action_plan are paired and related for each item
@@ -88,43 +91,69 @@ Topics Data:
 """
 
 # Fallback prompt for when student has no wrong/skipped questions (all correct)
-CORRECT_UNDERSTANDING_PROMPT = """**Task**: Generate insights about a NEET student's correct understanding and areas for further focus based on their correct answers.
-**Context**: This student answered all questions correctly for this subject. Identify what mental models they demonstrated and what they should focus on to maintain and expand this mastery.
-**Input Data Provided**:
-- Multiple topics with all correct answers
-- Question text, options, selected answer, correct answer for each
-**Your Task**:
-1. Analyze correct answers to identify strong conceptual understanding
-2. Determine which mental models or reasoning patterns led to success
-3. Suggest specific areas within this subject for further deepening
-4. Generate exactly 2 checkpoints focusing on strength reinforcement
+CORRECT_UNDERSTANDING_PROMPT = """Task: Generate insights about a NEET student's correct understanding and areas for further focus based on their correct answers.
+Context: All the correctly answered questions for each topic were attached. Identify what correct understanding they demonstrated and what they should focus on to maintain and expand this mastery.
+Input Data Provided:
+- Multiple topics with topic performance metrics and all correct answers
+- Each correct question includes:
+        Question text, options, selected answer, correct answer
+Your Task:
+1. Analyze all correctly answered questions to identify strong conceptual understanding
+2. Checklist should specify which mental models or understanding led to success (what reasoning or step they applied correctly)
+3. Each action plan should be directly tied to the specific correct understanding identified in the checklist. Action_plan should suggest how to deepen this understanding and what to focus on next to maintain and build on this strength.
+4. Collect all possible checkpoints (checklist and action plan) from the given data and rank them by impact and actionability.
+5. Select the top 2 checkpoints focusing on strength reinforcement.
+
 **Checkpoint Requirements**:
 - Each checklist item: describe WHAT the student understood correctly (10-15 words)
 - Each action plan item: suggest HOW to build on this strength (10-15 words)
+- Each checkpoint should concentrate on a specific subtopic/concept. Don't try to cover multiple concepts in one point.
+- Checkpoint should reflect the student's actual correct mental model or understanding from the given data not the just mention topic or concept name vaguely.
 - Use simple, easy-to-understand Indian-English
 - Be encouraging and specific
+
+**Checklist & Action Example (illustrative — follow word limits)**:
+- Checklist example (10-15 words): "Student recognized velocity direction affects momentum sign when applying p = mv."
+- Action plan example (10-15 words): "Develop this vector awareness through one-dimensional collision and impulse problems."
+
 **Output Format (strict JSON)**:
 [
-  {{
-    "topic": "Topic name",
-    "subject": "Subject name",
-    "subtopic": "Specific area of mastery",
-    "accuracy": 1.0,
-    "checklist": "What the student understood correctly (10-15 words)",
-    "action_plan": "How to deepen or expand this understanding (10-15 words)",
-    "citation": [1, 3, 7]
-  }},
-  {{
-    "topic": "Topic name",
-    "subject": "Subject name",
-    "subtopic": "Specific area of mastery",
-    "accuracy": 1.0,
-    "checklist": "What the student understood correctly (10-15 words)",
-    "action_plan": "How to deepen or expand this understanding (10-15 words)",
-    "citation": [2, 5, 9]
-  }}
+    {{
+        "topic": "Topic name",
+        "subject": "Subject name",
+        "subtopic": "Specific area of mastery",
+        "accuracy": 1.0,
+        "checklist": "What the student understood correctly (10-15 words)",
+        "action_plan": "How to deepen or expand this understanding (10-15 words)",
+        "citation": [1, 3, 7],
+        "performanceType": "strength"
+    }},
+    {{
+        "topic": "Topic name",
+        "subject": "Subject name",
+        "subtopic": "Specific area of mastery",
+        "accuracy": 1.0,
+        "checklist": "What the student understood correctly (10-15 words)",
+        "action_plan": "How to deepen or expand this understanding (10-15 words)",
+        "citation": [2, 5, 9],
+        "performanceType": "strength"
+    }}
 ]
-**Important**:
+
+Citation Requirements:
+- Each checkpoint MUST include a "citation" field listing the question numbers that support this insight
+- Citation format: array of question numbers, e.g., [5, 12, 18]
+- Include 1-5 question numbers per checkpoint as evidence
+- Select questions that best demonstrate the specific mastery identified in the checklist
+- Questions in citation should be from the correctly answered question data provided for that topic
+
+Guidance (match style in CHECKPOINT_PROMPT):
+- Return EXACTLY 2 checkpoint items for THIS SUBJECT (not more, not less)
+- Keep each checklist and action_plan tightly focused and paired — the action must directly reinforce the checklist point
+- Use supportive tone and concrete next-steps (practice, review examples, solve problems, summarize concepts)
+- Ensure checklist and action_plan are short, specific and actionable (10-15 words each)
+
+Important:
 - Return ONLY the JSON array of exactly 2 items for THIS SUBJECT
 - No explanations, no notes, no markdown code blocks
 - Strictly follow the format above
@@ -586,7 +615,8 @@ def get_fallback_checkpoints(subject: str) -> List[Dict]:
             'accuracy': 0.5,
             'checklist': f'Review {subject} fundamentals to identify weak areas',
             'action_plan': f'Practice {subject} questions systematically from basics',
-            'citation': []
+            'citation': [],
+            'performanceType': 'weakness'
         },
         {
             'topic': subject,
@@ -595,7 +625,8 @@ def get_fallback_checkpoints(subject: str) -> List[Dict]:
             'accuracy': 0.5,
             'checklist': f'Strengthen {subject} problem-solving approach',
             'action_plan': f'Solve previous year {subject} questions with time limits',
-            'citation': []
+            'citation': [],
+            'performanceType': 'weakness'
         }
     ]
 
