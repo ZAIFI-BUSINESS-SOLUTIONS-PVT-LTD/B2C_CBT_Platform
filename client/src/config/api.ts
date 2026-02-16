@@ -142,10 +142,10 @@ export async function startPlatformTest(data: StartPlatformTestRequest): Promise
 
 /**
  * Create a Razorpay order for the specified plan
- * @param plan 'basic' | 'pro'
+ * @param plan 'basic' | 'premium' | 'pro'
  * @returns Order creation response with order_id, amount, currency, key_id, local_order_id
  */
-export async function createOrder(plan: 'basic' | 'pro') {
+export async function createOrder(plan: 'basic' | 'premium' | 'pro') {
   return await apiRequest(API_CONFIG.ENDPOINTS.PAYMENTS_CREATE_ORDER, "POST", { plan });
 }
 

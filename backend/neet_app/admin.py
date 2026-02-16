@@ -3,7 +3,7 @@ from django import forms
 from django.contrib.admin.widgets import FilteredSelectMultiple
 from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, StudentInsight, PasswordReset, PlatformTest
 from .models import UserActivity, PlatformTestAudit
-from .models import PlatformAdmin, RazorpayOrder
+from .models import PlatformAdmin, PaymentOrder, RazorpayOrder
 from .models import Institution, InstitutionAdmin
 
 @admin.register(PlatformTest)
@@ -223,20 +223,25 @@ class PlatformAdminAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at']
 
 
-@admin.register(RazorpayOrder)
-class RazorpayOrderAdmin(admin.ModelAdmin):
-    list_display = ['id', 'student', 'plan', 'get_amount_rupees', 'status', 'razorpay_order_id', 'razorpay_payment_id', 'created_at']
-    list_filter = ['status', 'plan', 'currency', 'created_at']
-    search_fields = ['student__student_id', 'student__email', 'razorpay_order_id', 'razorpay_payment_id']
-    readonly_fields = ['id', 'razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature', 'created_at', 'updated_at']
+@admin.register(PaymentOrder)
+class PaymentOrderAdmin(admin.ModelAdmin):
+    list_display = ['id', 'student', 'provider', 'plan', 'get_amount_rupees', 'status', 'get_payment_id', 'created_at']
+    list_filter = ['provider', 'status', 'plan', 'currency', 'created_at']
+    search_fields = ['student__student_id', 'student__email', 'razorpay_order_id', 'razorpay_payment_id', 'play_purchase_token', 'play_order_id']
+    readonly_fields = ['id', 'razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature', 'play_purchase_token', 'play_product_id', 'play_order_id', 'created_at', 'updated_at']
     ordering = ['-created_at']
     
     fieldsets = (
         ('Order Information', {
-            'fields': ('id', 'student', 'plan', 'amount', 'currency', 'status')
+            'fields': ('id', 'student', 'provider', 'plan', 'amount', 'currency', 'status')
         }),
         ('Razorpay Details', {
-            'fields': ('razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature')
+            'fields': ('razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature'),
+            'classes': ('collapse',),
+        }),
+        ('Google Play Details', {
+            'fields': ('play_purchase_token', 'play_product_id', 'play_order_id'),
+            'classes': ('collapse',),
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')
@@ -244,10 +249,23 @@ class RazorpayOrderAdmin(admin.ModelAdmin):
     )
     
     def get_amount_rupees(self, obj):
-        """Display amount in rupees instead of paise"""
-        return f"₹{obj.amount / 100:.2f}"
+        """Display amount in rupees"""
+        return f"₹{obj.amount}"
     get_amount_rupees.short_description = 'Amount (₹)'
     get_amount_rupees.admin_order_field = 'amount'
     
+    def get_payment_id(self, obj):
+        """Display payment ID based on provider"""
+        if obj.provider == 'razorpay':
+            return obj.razorpay_payment_id or '-'
+        elif obj.provider == 'play':
+            return obj.play_order_id or '-'
+        return '-'
+    get_payment_id.short_description = 'Payment ID'
+    
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('student')
+
+
+# Note: RazorpayOrder is now an alias for PaymentOrder (defined in models.py)
+# No separate admin registration needed since they're the same model

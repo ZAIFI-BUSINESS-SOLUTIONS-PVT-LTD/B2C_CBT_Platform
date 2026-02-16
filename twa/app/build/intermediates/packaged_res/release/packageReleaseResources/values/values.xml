@@ -3,7 +3,7 @@
     <bool name="enableNotification">true</bool>
     <bool name="enableSiteSettingsShortcut">true</bool>
     <color name="backgroundColor">#B3BDFF</color>
-    <color name="colorPrimary">#4F46E5</color>
+    <color name="colorPrimary">#B0DBE9</color>
     <color name="colorPrimaryDark">#000000</color>
     <color name="navigationColor">#000000</color>
     <color name="navigationColorDark">#000000</color>
@@ -17,18 +17,18 @@
         \"relation\": [\"delegate_permission/common.handle_all_urls\"],
         \"target\": {
             \"namespace\": \"web\",
-            \"site\": \"https://neet.inzighted.com\"
+            \"site\": \"https://neetbro.com\"
         }
     }]
     
   </string>
     <string name="fallbackType" translatable="false">customtabs</string>
-    <string name="fullScopeUrl" translatable="false">https://neet.inzighted.com/</string>
+    <string name="fullScopeUrl" translatable="false">https://neetbro.com/</string>
     <string name="generatorApp" translatable="false">bubblewrap-cli</string>
-    <string name="hostName" translatable="false">neet.inzighted.com</string>
-    <string name="launchUrl" translatable="false">https://neet.inzighted.com/</string>
+    <string name="hostName" translatable="false">neetbro.com</string>
+    <string name="launchUrl" translatable="false">https://neetbro.com/</string>
     <string name="launcherName" translatable="false">NEET BRO</string>
     <string name="orientation" translatable="false">portrait-primary</string>
-    <string name="providerAuthority" translatable="false">com.inzighted.neet.fileprovider</string>
-    <string name="webManifestUrl" translatable="false">https://neet.inzighted.com/manifest.json</string>
+    <string name="providerAuthority" translatable="false">com.neetbro.fileprovider</string>
+    <string name="webManifestUrl" translatable="false">https://neetbro.com/manifest.json</string>
 </resources>

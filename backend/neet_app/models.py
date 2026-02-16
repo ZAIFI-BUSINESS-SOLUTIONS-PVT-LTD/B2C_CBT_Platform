@@ -1304,27 +1304,79 @@ class ChatMemory(models.Model):
         return self.student
 
 
-class RazorpayOrder(models.Model):
+class PaymentOrder(models.Model):
     """
-    Store Razorpay order & payment metadata for audit and verification
+    Unified payment order model supporting multiple payment providers (Razorpay, Google Play)
+    Stores order & payment metadata for audit and verification
     """
+    PROVIDER_RAZORPAY = 'razorpay'
+    PROVIDER_PLAY = 'play'
+    PROVIDER_CHOICES = [
+        (PROVIDER_RAZORPAY, 'Razorpay'),
+        (PROVIDER_PLAY, 'Google Play'),
+    ]
+    
+    STATUS_INITIATED = 'initiated'
+    STATUS_CREATED = 'created'
+    STATUS_PAID = 'paid'
+    STATUS_FAILED = 'failed'
+    STATUS_REMOTE_FAILED = 'remote_failed'
+    STATUS_CHOICES = [
+        (STATUS_INITIATED, 'Initiated'),
+        (STATUS_CREATED, 'Created'),
+        (STATUS_PAID, 'Paid'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_REMOTE_FAILED, 'Remote Failed'),
+    ]
+    
     id = models.BigAutoField(primary_key=True)
-    student = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, related_name='razorpay_orders', to_field='student_id', db_column='student_id')
+    student = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, related_name='payment_orders', to_field='student_id', db_column='student_id')
+    
+    # Common fields
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default=PROVIDER_RAZORPAY, db_index=True, help_text='Payment provider: razorpay or play')
     plan = models.CharField(max_length=50)  # 'basic' or 'pro'
     amount = models.IntegerField(help_text='Amount in rupees')
     currency = models.CharField(max_length=10, default='INR')
-    razorpay_order_id = models.CharField(max_length=128, null=True, blank=True)
-    razorpay_payment_id = models.CharField(max_length=128, null=True, blank=True)
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_CREATED, help_text='Order status')
+    
+    # Razorpay-specific fields (nullable for Play purchases)
+    razorpay_order_id = models.CharField(max_length=128, null=True, blank=True, db_index=True)
+    razorpay_payment_id = models.CharField(max_length=128, null=True, blank=True, db_index=True)
     razorpay_signature = models.CharField(max_length=256, null=True, blank=True)
-    status = models.CharField(max_length=32, default='created', help_text='Order status: initiated | created | paid | failed | remote_failed')  # Track order lifecycle
+    
+    # Google Play-specific fields (nullable for Razorpay purchases)
+    play_purchase_token = models.TextField(null=True, blank=True, db_index=True, help_text='Google Play purchase token')
+    play_product_id = models.CharField(max_length=100, null=True, blank=True, help_text='Google Play product/SKU ID')
+    play_order_id = models.CharField(max_length=100, null=True, blank=True, help_text='Google Play order ID')
+    
+    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'razorpay_orders'
+        db_table = 'payment_orders'
+        indexes = [
+            models.Index(fields=['student', 'provider', 'status']),
+            models.Index(fields=['provider', 'created_at']),
+        ]
 
-    def mark_paid(self, payment_id, signature):
-        self.razorpay_payment_id = payment_id
-        self.razorpay_signature = signature
-        self.status = 'paid'
-        self.save(update_fields=['razorpay_payment_id', 'razorpay_signature', 'status', 'updated_at'])
+    def mark_paid(self, payment_id=None, signature=None, purchase_token=None):
+        """
+        Mark order as paid - supports both Razorpay and Play purchases
+        """
+        if self.provider == self.PROVIDER_RAZORPAY:
+            self.razorpay_payment_id = payment_id
+            self.razorpay_signature = signature
+            self.status = self.STATUS_PAID
+            self.save(update_fields=['razorpay_payment_id', 'razorpay_signature', 'status', 'updated_at'])
+        elif self.provider == self.PROVIDER_PLAY:
+            self.play_purchase_token = purchase_token
+            self.status = self.STATUS_PAID
+            self.save(update_fields=['play_purchase_token', 'status', 'updated_at'])
+    
+    def __str__(self):
+        return f"{self.provider.upper()} Order {self.id} - {self.student.student_id} - {self.plan} - {self.status}"
+
+
+# Backward compatibility alias
+RazorpayOrder = PaymentOrder

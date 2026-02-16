@@ -739,7 +739,7 @@ class CreateOrderSerializer(serializers.Serializer):
     
     def validate_plan(self, value):
         """Validate plan name"""
-        valid_plans = ['basic', 'pro']
+        valid_plans = ['basic', 'premium', 'pro']
         if value not in valid_plans:
             raise serializers.ValidationError(f"Plan must be one of: {', '.join(valid_plans)}")
         return value

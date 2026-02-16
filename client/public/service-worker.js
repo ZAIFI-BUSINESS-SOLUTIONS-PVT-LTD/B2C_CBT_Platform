@@ -196,7 +196,7 @@ self.addEventListener('push', (event) => {
     };
 
     event.waitUntil(
-      self.registration.showNotification(data.title || 'InzightEd', options)
+      self.registration.showNotification(data.title || 'NEETBRO', options)
     );
   }
 });

@@ -52,7 +52,7 @@ from .views.institution_student_views import (
 from .views.institution_registration import register_institution
 from .authentication import StudentTokenObtainPairView
 from .views.password_reset_views import forgot_password, verify_reset_token, reset_password
-from .views.payment_views import create_order_view, verify_payment_view, subscription_status_view
+from .views.payment_views import create_order_view, verify_payment_view, subscription_status_view, verify_play_subscription_view
 from .views.webhook_views import razorpay_webhook
 from .views.debug_views import debug_echo
 from .views.mobile_otp_views import send_otp, verify_otp
@@ -99,6 +99,7 @@ urlpatterns = [
     path('payments/create-order/', create_order_view, name='create-order'),
     path('payments/verify-payment/', verify_payment_view, name='verify-payment'),
     path('payments/subscription-status/', subscription_status_view, name='subscription-status'),
+    path('payments/play/verify-subscription/', verify_play_subscription_view, name='play-verify-subscription'),
     path('payments/webhook/razorpay/', razorpay_webhook, name='razorpay-webhook'),
     path('payments/debug-echo/', debug_echo, name='payments-debug-echo'),
     

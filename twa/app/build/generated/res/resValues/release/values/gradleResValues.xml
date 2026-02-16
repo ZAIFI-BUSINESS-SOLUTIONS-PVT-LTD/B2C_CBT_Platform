@@ -10,7 +10,7 @@
     <!-- Value from default config. -->
     <color name="backgroundColor">#B3BDFF</color>
     <!-- Value from default config. -->
-    <color name="colorPrimary">#4F46E5</color>
+    <color name="colorPrimary">#B0DBE9</color>
     <!-- Value from default config. -->
     <color name="colorPrimaryDark">#000000</color>
     <!-- Value from default config. -->
@@ -28,20 +28,20 @@
     <!-- Value from default config. -->
     <string name="fallbackType" translatable="false">customtabs</string>
     <!-- Value from default config. -->
-    <string name="fullScopeUrl" translatable="false">https://neet.inzighted.com/</string>
+    <string name="fullScopeUrl" translatable="false">https://neetbro.com/</string>
     <!-- Value from default config. -->
     <string name="generatorApp" translatable="false">bubblewrap-cli</string>
     <!-- Value from default config. -->
-    <string name="hostName" translatable="false">neet.inzighted.com</string>
+    <string name="hostName" translatable="false">neetbro.com</string>
     <!-- Value from default config. -->
-    <string name="launchUrl" translatable="false">https://neet.inzighted.com/</string>
+    <string name="launchUrl" translatable="false">https://neetbro.com/</string>
     <!-- Value from default config. -->
     <string name="launcherName" translatable="false">NEET BRO</string>
     <!-- Value from default config. -->
     <string name="orientation" translatable="false">portrait-primary</string>
     <!-- Value from default config. -->
-    <string name="providerAuthority" translatable="false">com.inzighted.neet.fileprovider</string>
+    <string name="providerAuthority" translatable="false">com.neetbro.fileprovider</string>
     <!-- Value from default config. -->
-    <string name="webManifestUrl" translatable="false">https://neet.inzighted.com/manifest.json</string>
+    <string name="webManifestUrl" translatable="false">https://neetbro.com/manifest.json</string>
 
 </resources>

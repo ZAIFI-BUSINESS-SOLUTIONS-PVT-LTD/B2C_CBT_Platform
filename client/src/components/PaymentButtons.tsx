@@ -7,11 +7,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, Clock, Star, Crown, ChevronLeft } from 'lucide-react';
 import { useLocation } from 'wouter';
+import { isTWA, verifyPlayPurchase, pollForPurchaseResult } from '@/utils/twa';
 
-// Extend Window interface for Razorpay
+// Extend Window interface for Razorpay and Android bridge
 declare global {
   interface Window {
     Razorpay: any;
+    Android?: {
+      purchase: (productId: string) => void;
+    };
   }
 }
 
@@ -170,10 +174,92 @@ const PaymentButtons: React.FC = () => {
     });
   };
 
-  const handlePayment = async (plan: 'basic' | 'pro') => {
+  const handlePayment = async (plan: 'basic' | 'premium' | 'pro') => {
     setLoading(plan);
 
     try {
+      // Check if running in TWA (Android app)
+      if (isTWA()) {
+        // Use Android billing for TWA
+        if (window.Android && typeof window.Android.purchase === 'function') {
+          console.log(`[TWA] Initiating Android billing for plan: ${plan}`);
+          
+          // Start the purchase
+          window.Android.purchase(plan);
+          
+          // Poll for purchase result
+          pollForPurchaseResult(
+            async (purchaseToken: string, productId: string) => {
+              console.log('[TWA] Play purchase success received:', { 
+                productId, 
+                purchaseToken: purchaseToken.substring(0, 20) + '...' 
+              });
+              
+              try {
+                // Get access token from localStorage
+                const accessToken = localStorage.getItem('access');
+                if (!accessToken) {
+                  toast({
+                    title: "Authentication Error",
+                    description: "Please log in again to complete the purchase",
+                    variant: "destructive"
+                  });
+                  setLoading(null);
+                  return;
+                }
+                
+                // Verify purchase with backend
+                const result = await verifyPlayPurchase(purchaseToken, productId, accessToken);
+                
+                console.log('[TWA] Play purchase verified:', result);
+                
+                toast({
+                  title: "Success!",
+                  description: `Successfully subscribed to ${result.plan} plan via Google Play!`,
+                  variant: "default"
+                });
+                
+                // Reload subscription status
+                await loadSubscriptionStatus();
+                
+              } catch (error: any) {
+                console.error('[TWA] Play purchase verification failed:', error);
+                toast({
+                  title: "Verification Failed",
+                  description: error.message || "Failed to verify Google Play purchase. Please contact support.",
+                  variant: "destructive"
+                });
+              } finally {
+                setLoading(null);
+              }
+            },
+            () => {
+              // Timeout or error
+              console.log('[TWA] Purchase polling timed out or cancelled');
+              toast({
+                title: "Purchase Timeout",
+                description: "Purchase took too long or was cancelled. If you completed the purchase, please restart the app.",
+                variant: "destructive"
+              });
+              setLoading(null);
+            }
+          );
+          
+          // Don't clear loading state here - will be cleared by callbacks
+          return;
+        } else {
+          console.error('[TWA] Android bridge not available');
+          toast({
+            title: "Error",
+            description: "Android billing not available. Please update your app.",
+            variant: "destructive"
+          });
+          setLoading(null);
+          return;
+        }
+      }
+
+      // Web flow: Use Razorpay
       // Load Razorpay script
       const isRazorpayLoaded = await loadRazorpayScript();
       if (!isRazorpayLoaded) {
@@ -367,13 +453,13 @@ const PaymentButtons: React.FC = () => {
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <CardTitle className="text-lg text-blue-600">Basic Plan</CardTitle>
-                  <CardDescription className="text-sm">Perfect for regular practice</CardDescription>
+                  <CardDescription className="text-sm">Perfect for getting started</CardDescription>
                 </div>
-                <Badge variant="outline" className="text-xs ml-2">Popular</Badge>
+                <Badge variant="outline" className="text-xs ml-2">Starter</Badge>
               </div>
               <div className="mt-3">
-                <span className="text-2xl font-bold">₹1,500</span>
-                <span className="text-sm text-gray-500">/year</span>
+                <span className="text-2xl font-bold">₹720</span>
+                <span className="text-sm text-gray-500">/3 months</span>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
@@ -384,11 +470,11 @@ const PaymentButtons: React.FC = () => {
                 </li>
                 <li className="flex items-center text-sm">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                  Detailed performance analytics
+                  Performance analytics
                 </li>
                 <li className="flex items-center text-sm">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                  AI-powered study insights
+                  Basic study insights
                 </li>
                 <li className="flex items-center text-sm">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
@@ -412,12 +498,73 @@ const PaymentButtons: React.FC = () => {
             </CardContent>
           </Card>
 
+          {/* Premium Plan */}
+          <Card className="w-full border-2 border-orange-300 hover:border-orange-400 transition-colors relative">
+            <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
+              <Badge className="bg-orange-600 hover:bg-orange-700 text-xs px-2 py-1">
+                <Star className="h-3 w-3 mr-1" />
+                Popular
+              </Badge>
+            </div>
+            <CardHeader className="pb-3 pt-6">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <CardTitle className="text-lg text-orange-600">Premium Plan</CardTitle>
+                  <CardDescription className="text-sm">Best value for serious students</CardDescription>
+                </div>
+                <Star className="h-5 w-5 text-orange-600 flex-shrink-0" />
+              </div>
+              <div className="mt-3">
+                <span className="text-2xl font-bold">₹7,200</span>
+                <span className="text-sm text-gray-500">/3 months</span>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <ul className="space-y-2 mb-4">
+                <li className="flex items-center text-sm">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                  Everything in Basic Plan
+                </li>
+                <li className="flex items-center text-sm">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                  Advanced performance analytics
+                </li>
+                <li className="flex items-center text-sm">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                  AI-powered study insights
+                </li>
+                <li className="flex items-center text-sm">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                  Personalized study plans
+                </li>
+                <li className="flex items-center text-sm">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                  AI chatbot tutor
+                </li>
+              </ul>
+              <Button
+                className="w-full h-11 text-sm font-medium bg-orange-600 hover:bg-orange-700"
+                onClick={() => handlePayment('premium')}
+                disabled={loading !== null}
+              >
+                {loading === 'premium' ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Processing...
+                  </>
+                ) : (
+                  'Subscribe to Premium'
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Pro Plan */}
           <Card className="w-full border-2 border-purple-300 hover:border-purple-400 transition-colors relative">
             <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
               <Badge className="bg-purple-600 hover:bg-purple-700 text-xs px-2 py-1">
-                <Star className="h-3 w-3 mr-1" />
-                Recommended
+                <Crown className="h-3 w-3 mr-1" />
+                Ultimate
               </Badge>
             </div>
             <CardHeader className="pb-3 pt-6">
@@ -429,19 +576,15 @@ const PaymentButtons: React.FC = () => {
                 <Crown className="h-5 w-5 text-purple-600 flex-shrink-0" />
               </div>
               <div className="mt-3">
-                <span className="text-2xl font-bold">₹2,500</span>
-                <span className="text-sm text-gray-500">/year</span>
+                <span className="text-2xl font-bold">₹17,000</span>
+                <span className="text-sm text-gray-500">/3 months</span>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
               <ul className="space-y-2 mb-4">
                 <li className="flex items-center text-sm">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                  Everything in Basic Plan
-                </li>
-                <li className="flex items-center text-sm">
-                  <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                  Personalized study plans
+                  Everything in Premium Plan
                 </li>
                 <li className="flex items-center text-sm">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
@@ -449,11 +592,19 @@ const PaymentButtons: React.FC = () => {
                 </li>
                 <li className="flex items-center text-sm">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                  Priority support
+                  Priority support (24/7)
                 </li>
                 <li className="flex items-center text-sm">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                  Mock Test Series for Competitive Exams
+                  Exclusive mock test series
+                </li>
+                <li className="flex items-center text-sm">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                  One-on-one mentorship sessions
+                </li>
+                <li className="flex items-center text-sm">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                  Doubt resolution within 1 hour
                 </li>
               </ul>
               <Button
@@ -475,8 +626,8 @@ const PaymentButtons: React.FC = () => {
         </div>
 
         <div className="text-center text-xs text-gray-500 mt-6 px-4">
-          <p className="mb-1">Secure payments powered by Razorpay</p>
-          <p>All plans include 30-day subscription period</p>
+          <p className="mb-1">Secure payments powered by Razorpay & Google Play</p>
+          <p>All plans are for 3-month subscription period with auto-renewal</p>
         </div>
       </div>
     </div>

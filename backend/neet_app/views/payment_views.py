@@ -7,10 +7,11 @@ from datetime import timedelta
 from django.db import transaction
 import logging
 
-from ..models import RazorpayOrder, StudentProfile
+from ..models import PaymentOrder, RazorpayOrder, StudentProfile
 from ..serializers import CreateOrderSerializer, VerifyPaymentSerializer
 from ..services.razorpay_service import create_order, verify_payment_signature
 from ..services.razorpay_service import get_client
+from ..services.play_billing_service import get_play_billing_service
 from django.conf import settings
 import razorpay
 import json
@@ -19,9 +20,26 @@ logger = logging.getLogger(__name__)
 
 # Define server-side plan pricing (INR)
 PLANS = {
-    "basic": 720,  # rupees
-    "pro": 7200,
+    "basic": 720,      # rupees - 3 months subscription
+    "premium": 7200,   # rupees - 3 months subscription (middle tier)
+    "pro": 17000,      # rupees - 3 months subscription (premium tier)
 }
+
+# Helper function to normalize Play Store product IDs (strip suffix)
+def normalize_product_id(product_id: str) -> str:
+    """
+    Normalize Google Play product IDs by stripping suffixes like '-3m'
+    Examples:
+        'basic-3m' -> 'basic'
+        'premium-3m' -> 'premium'
+        'pro-3m' -> 'pro'
+        'basic' -> 'basic' (unchanged)
+    """
+    # Remove common suffixes used in Play Store
+    for suffix in ['-3m', '-1m', '-6m', '-1y']:
+        if product_id.endswith(suffix):
+            return product_id[:-len(suffix)]
+    return product_id
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -433,3 +451,126 @@ def subscription_status_view(request):
         "is_active": is_active,
         "available_plans": PLANS
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_play_subscription_view(request):
+    """
+    Verify Google Play subscription purchase and activate subscription
+    
+    POST /api/payments/play/verify-subscription/
+    Body: {
+        "purchaseToken": "...",
+        "productId": "basic" | "pro"
+    }
+    
+    Returns:
+        {
+            "status": "verified",
+            "provider": "play",
+            "plan": "basic",
+            "expires_at": "2024-03-15T12:00:00Z"
+        }
+    """
+    try:
+        # Extract and validate request data
+        purchase_token = request.data.get('purchaseToken')
+        product_id_raw = request.data.get('productId')
+        
+        if not purchase_token:
+            return Response({
+                "error": "Missing purchaseToken",
+                "details": "purchaseToken is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not product_id_raw:
+            return Response({
+                "error": "Missing productId",
+                "details": "productId is required (basic-3m, premium-3m, or pro-3m)"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Normalize product ID (strip -3m suffix from Play Store IDs)
+        product_id = normalize_product_id(product_id_raw)
+        logger.info(f"Play purchase: normalized '{product_id_raw}' to '{product_id}'")
+        
+        # Validate plan
+        if product_id not in PLANS:
+            return Response({
+                "error": "Invalid productId",
+                "details": f"productId must be one of: {list(PLANS.keys())}",
+                "available_plans": list(PLANS.keys())
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if this purchase token has already been processed
+        existing_order = PaymentOrder.objects.filter(
+            play_purchase_token=purchase_token,
+            status=PaymentOrder.STATUS_PAID
+        ).first()
+        
+        if existing_order:
+            logger.info(f"Play purchase token already processed: {purchase_token[:20]}... for student {request.user.student_id}")
+            return Response({
+                "status": "already_verified",
+                "provider": "play",
+                "plan": existing_order.plan,
+                "message": "This purchase has already been processed"
+            }, status=status.HTTP_200_OK)
+        
+        # Verify purchase with Google Play API (use raw product_id for API call)
+        play_service = get_play_billing_service()
+        is_valid, purchase_data, error_message = play_service.verify_subscription_purchase(
+            product_id=product_id_raw,  # Use original Play Store product ID for API
+            purchase_token=purchase_token
+        )
+        
+        if not is_valid:
+            logger.warning(f"Play purchase verification failed for student {request.user.student_id}: {error_message}")
+            return Response({
+                "error": "Purchase verification failed",
+                "details": error_message
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create payment record and activate subscription
+        with transaction.atomic():
+            # Get the amount for the plan
+            amount = PLANS[product_id]
+            
+            # Create payment order record
+            payment_order = PaymentOrder.objects.create(
+                student=request.user,
+                provider=PaymentOrder.PROVIDER_PLAY,
+                plan=product_id,  # Use normalized plan name (basic/premium/pro)
+                amount=amount,
+                currency='INR',
+                status=PaymentOrder.STATUS_PAID,
+                play_purchase_token=purchase_token,
+                play_product_id=product_id_raw,  # Store original Play Store product ID
+                play_order_id=purchase_data.get('order_id')
+            )
+            
+            # Activate subscription (30 days from now)
+            now = timezone.now()
+            expires_at = now + timedelta(days=30)
+            
+            student = request.user
+            student.subscription_plan = product_id
+            student.subscription_expires_at = expires_at
+            student.save(update_fields=['subscription_plan', 'subscription_expires_at'])
+            
+            logger.info(f"Play subscription verified and activated for student {request.user.student_id}, plan {product_id}, order_id {purchase_data.get('order_id')}")
+            
+            return Response({
+                "status": "verified",
+                "provider": "play",
+                "plan": product_id,
+                "expires_at": expires_at.isoformat(),
+                "message": f"Successfully subscribed to {product_id} plan via Google Play"
+            }, status=status.HTTP_200_OK)
+    
+    except Exception as exc:
+        logger.exception(f"Unexpected error verifying Play subscription for student {request.user.student_id}")
+        return Response({
+            "error": "Internal server error",
+            "details": "Failed to verify Play subscription"
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -22,12 +22,12 @@
 22     the abbreviated format.
 23-->
 24<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-25    package="com.inzighted.neet"
-26    android:versionCode="1"
-27    android:versionName="1" >
+25    package="com.neetbro"
+26    android:versionCode="2"
+27    android:versionName="1.1" >
 28
 29    <uses-sdk
-30        android:minSdkVersion="21"
+30        android:minSdkVersion="23"
 31        android:targetSdkVersion="35" />
 32
 33    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -50,336 +50,431 @@
 41-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:151:17-154:19
 41-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:151:23-45
 42        </intent>
-43    </queries>
-44
-45    <permission
-45-->[androidx.core:core:1.13.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:22:5-24:47
-46        android:name="com.inzighted.neet.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-46-->[androidx.core:core:1.13.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:23:9-81
-47        android:protectionLevel="signature" />
-47-->[androidx.core:core:1.13.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:24:9-44
-48
-49    <uses-permission android:name="com.inzighted.neet.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
-49-->[androidx.core:core:1.13.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:26:5-97
-49-->[androidx.core:core:1.13.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:26:22-94
+43        <intent>
+43-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:13:9-15:18
+44            <action android:name="com.android.vending.billing.InAppBillingService.BIND" />
+44-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:14:13-91
+44-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:14:21-88
+45        </intent>
+46        <intent>
+46-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:16:9-18:18
+47            <action android:name="com.google.android.apps.play.billingtestcompanion.BillingOverrideService.BIND" />
+47-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:17:13-116
+47-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:17:21-113
+48        </intent>
+49    </queries>
 50
-51    <application
-51-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:35:5-199:19
-52        android:name="com.inzighted.neet.Application"
-52-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:36:9-35
-53        android:allowBackup="true"
-53-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:37:9-35
-54        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-54-->[androidx.core:core:1.13.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:28:18-86
-55        android:extractNativeLibs="true"
-56        android:icon="@mipmap/ic_launcher"
-56-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:38:9-43
-57        android:label="@string/appName"
-57-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:39:9-40
-58        android:manageSpaceActivity="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity"
-58-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:41:9-105
-59        android:supportsRtl="true"
-59-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:43:9-35
-60        android:theme="@android:style/Theme.Translucent.NoTitleBar" >
-60-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:44:9-68
-61        <meta-data
-61-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:46:9-48:58
-62            android:name="asset_statements"
-62-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:47:13-44
-63            android:resource="@string/assetStatements" />
-63-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:48:13-55
-64        <meta-data
-64-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:51:13-53:58
-65            android:name="web_manifest_url"
-65-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:52:17-48
-66            android:value="@string/webManifestUrl" />
-66-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:53:17-55
-67        <meta-data
-67-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:56:9-58:52
-68            android:name="twa_generator"
-68-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:57:13-41
-69            android:value="@string/generatorApp" />
-69-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:58:13-49
-70
-71        <activity
-71-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:65:13-76:24
-72            android:name="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity"
-72-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:65:23-104
-73            android:enabled="true"
-73-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:67:17-39
-74            android:excludeFromRecents="true"
-74-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:68:17-50
-75            android:exported="false" >
-75-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:66:17-41
-76            <meta-data
-76-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:69:17-71:57
-77                android:name="android.support.customtabs.trusted.MANAGE_SPACE_URL"
-77-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:70:21-87
-78                android:value="@string/launchUrl" />
-78-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:71:21-54
-79
-80            <intent-filter>
-80-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:72:17-75:33
-81                <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
-81-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:73:21-92
-81-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:73:29-89
-82
-83                <category android:name="android.intent.category.DEFAULT" />
-83-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:74:21-80
-83-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:74:31-77
-84            </intent-filter>
-85        </activity>
-86        <activity
-86-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:79:9-160:20
-87            android:name="com.inzighted.neet.LauncherActivity"
-87-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:79:19-50
-88            android:alwaysRetainTaskState="true"
-88-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:80:13-49
-89            android:exported="true"
-89-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:82:13-36
-90            android:label="@string/launcherName" >
-90-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:81:13-49
-91            <meta-data
-91-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:83:13-84:53
-92                android:name="android.support.customtabs.trusted.DEFAULT_URL"
-92-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:83:24-85
-93                android:value="@string/launchUrl" />
-93-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:84:17-50
-94            <meta-data
-94-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:86:13-88:58
-95                android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
-95-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:87:17-83
-96                android:resource="@color/colorPrimary" />
-96-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:88:17-55
-97            <meta-data
-97-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:92:13-94:62
-98                android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR_DARK"
-98-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:93:17-88
-99                android:resource="@color/colorPrimaryDark" />
-99-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:94:17-59
-100            <meta-data
-100-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:96:13-98:61
-101                android:name="android.support.customtabs.trusted.NAVIGATION_BAR_COLOR"
-101-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:97:17-87
-102                android:resource="@color/navigationColor" />
-102-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:98:17-58
-103            <meta-data
-103-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:100:13-102:65
-104                android:name="android.support.customtabs.trusted.NAVIGATION_BAR_COLOR_DARK"
-104-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:101:17-92
-105                android:resource="@color/navigationColorDark" />
-105-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:102:17-62
-106            <meta-data
-106-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:104:13-106:68
-107                android:name="androix.browser.trusted.NAVIGATION_BAR_DIVIDER_COLOR"
-107-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:105:17-84
-108                android:resource="@color/navigationDividerColor" />
-108-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:106:17-65
-109            <meta-data
-109-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:108:13-110:72
-110                android:name="androix.browser.trusted.NAVIGATION_BAR_DIVIDER_COLOR_DARK"
-110-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:109:17-89
-111                android:resource="@color/navigationDividerColorDark" />
-111-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:110:17-69
-112            <meta-data
-112-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:112:13-113:54
-113                android:name="android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE"
-113-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:112:24-95
-114                android:resource="@drawable/splash" />
-114-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:113:17-52
-115            <meta-data
-115-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:115:13-116:60
-116                android:name="android.support.customtabs.trusted.SPLASH_SCREEN_BACKGROUND_COLOR"
-116-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:115:24-104
-117                android:resource="@color/backgroundColor" />
-117-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:116:17-58
-118            <meta-data
-118-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:118:13-119:71
-119                android:name="android.support.customtabs.trusted.SPLASH_SCREEN_FADE_OUT_DURATION"
-119-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:118:24-105
-120                android:value="@integer/splashScreenFadeOutDuration" />
-120-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:119:17-69
-121            <meta-data
-121-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:121:13-122:60
-122                android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY"
-122-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:121:24-97
-123                android:value="@string/providerAuthority" />
-123-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:122:17-58
-124            <meta-data
-124-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:124:13-97
-125                android:name="android.app.shortcuts"
-125-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:124:24-60
-126                android:resource="@xml/shortcuts" />
-126-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:124:61-94
-127            <meta-data
-127-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:126:13-127:56
-128                android:name="android.support.customtabs.trusted.FALLBACK_STRATEGY"
-128-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:126:24-91
-129                android:value="@string/fallbackType" />
-129-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:127:17-53
-130            <meta-data
-130-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:133:13-134:54
-131                android:name="android.support.customtabs.trusted.SCREEN_ORIENTATION"
-131-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:133:24-92
-132                android:value="@string/orientation" />
-132-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:134:17-52
-133
-134            <intent-filter>
-134-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:142:13-145:29
-135                <action android:name="android.intent.action.MAIN" />
-135-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:143:17-69
-135-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:143:25-66
-136
-137                <category android:name="android.intent.category.LAUNCHER" />
-137-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:144:17-77
-137-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:144:27-74
-138            </intent-filter>
-139            <intent-filter android:autoVerify="true" >
-139-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:147:13-155:29
-139-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:147:28-53
-140                <action android:name="android.intent.action.VIEW" />
-140-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:148:17-68
-140-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:148:25-66
-141
-142                <category android:name="android.intent.category.DEFAULT" />
-142-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:74:21-80
-142-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:74:31-77
-143                <category android:name="android.intent.category.BROWSABLE" />
-143-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:150:17-77
-143-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:150:27-75
+51    <uses-permission android:name="com.android.vending.BILLING" />
+51-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:10:5-67
+51-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:10:22-64
+52
+53    <permission
+53-->[androidx.core:core:1.13.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:22:5-24:47
+54        android:name="com.neetbro.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+54-->[androidx.core:core:1.13.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:23:9-81
+55        android:protectionLevel="signature" />
+55-->[androidx.core:core:1.13.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:24:9-44
+56
+57    <uses-permission android:name="com.neetbro.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" /> <!-- Although the *SdkVersion is captured in gradle build files, this is required for non gradle builds -->
+57-->[androidx.core:core:1.13.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:26:5-97
+57-->[androidx.core:core:1.13.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:26:22-94
+58    <!-- <uses-sdk android:minSdkVersion="14"/> -->
+59    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+59-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\85bc3f8cc97bd85b10d760e1ca7886a3\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:24:5-79
+59-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\85bc3f8cc97bd85b10d760e1ca7886a3\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:24:22-76
+60    <uses-permission android:name="android.permission.INTERNET" />
+60-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\85bc3f8cc97bd85b10d760e1ca7886a3\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:25:5-67
+60-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\85bc3f8cc97bd85b10d760e1ca7886a3\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:25:22-64
+61
+62    <application
+62-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:35:5-199:19
+63        android:name="com.neetbro.Application"
+63-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:36:9-35
+64        android:allowBackup="true"
+64-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:37:9-35
+65        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+65-->[androidx.core:core:1.13.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:28:18-86
+66        android:extractNativeLibs="false"
+67        android:icon="@mipmap/ic_launcher"
+67-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:38:9-43
+68        android:label="@string/appName"
+68-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:39:9-40
+69        android:manageSpaceActivity="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity"
+69-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:41:9-105
+70        android:supportsRtl="true"
+70-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:43:9-35
+71        android:theme="@android:style/Theme.Translucent.NoTitleBar" >
+71-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:44:9-68
+72        <meta-data
+72-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:46:9-48:58
+73            android:name="asset_statements"
+73-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:47:13-44
+74            android:resource="@string/assetStatements" />
+74-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:48:13-55
+75        <meta-data
+75-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:51:13-53:58
+76            android:name="web_manifest_url"
+76-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:52:17-48
+77            android:value="@string/webManifestUrl" />
+77-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:53:17-55
+78        <meta-data
+78-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:56:9-58:52
+79            android:name="twa_generator"
+79-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:57:13-41
+80            android:value="@string/generatorApp" />
+80-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:58:13-49
+81
+82        <activity
+82-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:65:13-76:24
+83            android:name="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity"
+83-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:65:23-104
+84            android:enabled="true"
+84-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:67:17-39
+85            android:excludeFromRecents="true"
+85-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:68:17-50
+86            android:exported="false" >
+86-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:66:17-41
+87            <meta-data
+87-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:69:17-71:57
+88                android:name="android.support.customtabs.trusted.MANAGE_SPACE_URL"
+88-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:70:21-87
+89                android:value="@string/launchUrl" />
+89-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:71:21-54
+90
+91            <intent-filter>
+91-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:72:17-75:33
+92                <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
+92-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:73:21-92
+92-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:73:29-89
+93
+94                <category android:name="android.intent.category.DEFAULT" />
+94-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:74:21-80
+94-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:74:31-77
+95            </intent-filter>
+96        </activity>
+97        <activity
+97-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:79:9-160:20
+98            android:name="com.neetbro.LauncherActivity"
+98-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:79:19-50
+99            android:alwaysRetainTaskState="true"
+99-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:80:13-49
+100            android:exported="true"
+100-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:82:13-36
+101            android:label="@string/launcherName" >
+101-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:81:13-49
+102            <meta-data
+102-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:83:13-84:53
+103                android:name="android.support.customtabs.trusted.DEFAULT_URL"
+103-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:83:24-85
+104                android:value="@string/launchUrl" />
+104-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:84:17-50
+105            <meta-data
+105-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:86:13-88:58
+106                android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
+106-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:87:17-83
+107                android:resource="@color/colorPrimary" />
+107-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:88:17-55
+108            <meta-data
+108-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:92:13-94:62
+109                android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR_DARK"
+109-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:93:17-88
+110                android:resource="@color/colorPrimaryDark" />
+110-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:94:17-59
+111            <meta-data
+111-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:96:13-98:61
+112                android:name="android.support.customtabs.trusted.NAVIGATION_BAR_COLOR"
+112-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:97:17-87
+113                android:resource="@color/navigationColor" />
+113-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:98:17-58
+114            <meta-data
+114-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:100:13-102:65
+115                android:name="android.support.customtabs.trusted.NAVIGATION_BAR_COLOR_DARK"
+115-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:101:17-92
+116                android:resource="@color/navigationColorDark" />
+116-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:102:17-62
+117            <meta-data
+117-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:104:13-106:68
+118                android:name="androix.browser.trusted.NAVIGATION_BAR_DIVIDER_COLOR"
+118-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:105:17-84
+119                android:resource="@color/navigationDividerColor" />
+119-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:106:17-65
+120            <meta-data
+120-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:108:13-110:72
+121                android:name="androix.browser.trusted.NAVIGATION_BAR_DIVIDER_COLOR_DARK"
+121-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:109:17-89
+122                android:resource="@color/navigationDividerColorDark" />
+122-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:110:17-69
+123            <meta-data
+123-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:112:13-113:54
+124                android:name="android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE"
+124-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:112:24-95
+125                android:resource="@drawable/splash" />
+125-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:113:17-52
+126            <meta-data
+126-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:115:13-116:60
+127                android:name="android.support.customtabs.trusted.SPLASH_SCREEN_BACKGROUND_COLOR"
+127-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:115:24-104
+128                android:resource="@color/backgroundColor" />
+128-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:116:17-58
+129            <meta-data
+129-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:118:13-119:71
+130                android:name="android.support.customtabs.trusted.SPLASH_SCREEN_FADE_OUT_DURATION"
+130-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:118:24-105
+131                android:value="@integer/splashScreenFadeOutDuration" />
+131-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:119:17-69
+132            <meta-data
+132-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:121:13-122:60
+133                android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY"
+133-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:121:24-97
+134                android:value="@string/providerAuthority" />
+134-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:122:17-58
+135            <meta-data
+135-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:124:13-97
+136                android:name="android.app.shortcuts"
+136-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:124:24-60
+137                android:resource="@xml/shortcuts" />
+137-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:124:61-94
+138            <meta-data
+138-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:126:13-127:56
+139                android:name="android.support.customtabs.trusted.FALLBACK_STRATEGY"
+139-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:126:24-91
+140                android:value="@string/fallbackType" />
+140-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:127:17-53
+141            <meta-data
+141-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:133:13-134:54
+142                android:name="android.support.customtabs.trusted.SCREEN_ORIENTATION"
+142-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:133:24-92
+143                android:value="@string/orientation" />
+143-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:134:17-52
 144
-145                <data
-145-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:151:17-154:19
-146                    android:host="@string/hostName"
-146-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:152:21-52
-147                    android:scheme="https" />
-147-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:151:23-45
-148            </intent-filter>
-149        </activity>
-150        <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity" />
-150-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:162:9-90
-150-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:162:19-87
-151        <activity
-151-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:164:9-165:62
-152            android:name="com.google.androidbrowserhelper.trusted.WebViewFallbackActivity"
-152-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:164:19-97
-153            android:configChanges="orientation|screenSize" />
-153-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:165:13-59
-154
-155        <provider
-155-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:167:9-175:20
-156            android:name="androidx.core.content.FileProvider"
-156-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:168:13-62
-157            android:authorities="@string/providerAuthority"
-157-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:169:13-60
-158            android:exported="false"
-158-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:171:13-37
-159            android:grantUriPermissions="true" >
-159-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:170:13-47
-160            <meta-data
-160-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:172:13-174:53
-161                android:name="android.support.FILE_PROVIDER_PATHS"
-161-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:173:17-67
-162                android:resource="@xml/filepaths" />
-162-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:174:17-50
-163        </provider>
-164
-165        <service
-165-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:177:9-192:19
-166            android:name="com.inzighted.neet.DelegationService"
-166-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:178:13-46
-167            android:enabled="@bool/enableNotification"
-167-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:179:13-55
-168            android:exported="@bool/enableNotification" >
-168-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:180:13-56
-169            <meta-data
-169-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:183:17-185:73
-170                android:name="android.support.customtabs.trusted.SMALL_ICON"
-170-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:184:21-81
-171                android:resource="@drawable/ic_notification_icon" />
-171-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:185:21-70
-172
-173            <intent-filter>
-173-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:188:13-191:29
-174                <action android:name="android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE" />
-174-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:189:17-105
-174-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:189:25-103
+145            <intent-filter>
+145-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:142:13-145:29
+146                <action android:name="android.intent.action.MAIN" />
+146-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:143:17-69
+146-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:143:25-66
+147
+148                <category android:name="android.intent.category.LAUNCHER" />
+148-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:144:17-77
+148-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:144:27-74
+149            </intent-filter>
+150            <intent-filter android:autoVerify="true" >
+150-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:147:13-155:29
+150-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:147:28-53
+151                <action android:name="android.intent.action.VIEW" />
+151-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:148:17-68
+151-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:148:25-66
+152
+153                <category android:name="android.intent.category.DEFAULT" />
+153-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:74:21-80
+153-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:74:31-77
+154                <category android:name="android.intent.category.BROWSABLE" />
+154-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:150:17-77
+154-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:150:27-75
+155
+156                <data
+156-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:151:17-154:19
+157                    android:host="@string/hostName"
+157-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:152:21-52
+158                    android:scheme="https" />
+158-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:151:23-45
+159            </intent-filter>
+160        </activity>
+161        <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity" />
+161-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:162:9-90
+161-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:162:19-87
+162        <activity
+162-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:164:9-165:62
+163            android:name="com.google.androidbrowserhelper.trusted.WebViewFallbackActivity"
+163-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:164:19-97
+164            android:configChanges="orientation|screenSize" />
+164-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:165:13-59
+165
+166        <provider
+166-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:167:9-175:20
+167            android:name="androidx.core.content.FileProvider"
+167-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:168:13-62
+168            android:authorities="@string/providerAuthority"
+168-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:169:13-60
+169            android:exported="false"
+169-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:171:13-37
+170            android:grantUriPermissions="true" >
+170-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:170:13-47
+171            <meta-data
+171-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:172:13-174:53
+172                android:name="android.support.FILE_PROVIDER_PATHS"
+172-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:173:17-67
+173                android:resource="@xml/filepaths" />
+173-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:174:17-50
+174        </provider>
 175
-176                <category android:name="android.intent.category.DEFAULT" />
-176-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:74:21-80
-176-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:74:31-77
-177            </intent-filter>
-178        </service>
-179
-180        <activity android:name="com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity" />
-180-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:195:13-118
-180-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:195:23-115
-181
-182        <provider
-182-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
-183            android:name="androidx.startup.InitializationProvider"
-183-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:25:13-67
-184            android:authorities="com.inzighted.neet.androidx-startup"
-184-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:26:13-68
-185            android:exported="false" >
-185-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:27:13-37
-186            <meta-data
-186-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:29:13-31:52
-187                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-187-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:30:17-75
-188                android:value="androidx.startup" />
-188-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:31:17-49
-189            <meta-data
-189-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\4bc52031417e9743197e36b704fe409f\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:29:13-31:52
-190                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-190-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\4bc52031417e9743197e36b704fe409f\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:30:17-78
-191                android:value="androidx.startup" />
-191-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\4bc52031417e9743197e36b704fe409f\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:31:17-49
-192            <meta-data
-192-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:29:13-31:52
-193                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
-193-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:30:17-85
-194                android:value="androidx.startup" />
-194-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:31:17-49
-195        </provider>
+176        <service
+176-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:177:9-192:19
+177            android:name="com.neetbro.DelegationService"
+177-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:178:13-46
+178            android:enabled="@bool/enableNotification"
+178-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:179:13-55
+179            android:exported="@bool/enableNotification" >
+179-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:180:13-56
+180            <meta-data
+180-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:183:17-185:73
+181                android:name="android.support.customtabs.trusted.SMALL_ICON"
+181-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:184:21-81
+182                android:resource="@drawable/ic_notification_icon" />
+182-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:185:21-70
+183
+184            <intent-filter>
+184-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:188:13-191:29
+185                <action android:name="android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE" />
+185-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:189:17-105
+185-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:189:25-103
+186
+187                <category android:name="android.intent.category.DEFAULT" />
+187-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:74:21-80
+187-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:74:31-77
+188            </intent-filter>
+189        </service>
+190
+191        <activity android:name="com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity" />
+191-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:195:13-118
+191-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:195:23-115
+192
+193        <meta-data
+193-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:22:9-24:37
+194            android:name="com.google.android.play.billingclient.version"
+194-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:23:13-73
+195            android:value="8.3.0" />
+195-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:24:13-34
 196
-197        <receiver
-197-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:34:9-52:20
-198            android:name="androidx.profileinstaller.ProfileInstallReceiver"
-198-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:35:13-76
-199            android:directBootAware="false"
-199-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:36:13-44
-200            android:enabled="true"
-200-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:37:13-35
-201            android:exported="true"
-201-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:38:13-36
-202            android:permission="android.permission.DUMP" >
-202-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:39:13-57
-203            <intent-filter>
-203-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:40:13-42:29
-204                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
-204-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:17-91
-204-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:25-88
-205            </intent-filter>
-206            <intent-filter>
-206-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:43:13-45:29
-207                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
-207-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:17-85
-207-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:25-82
-208            </intent-filter>
-209            <intent-filter>
-209-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:46:13-48:29
-210                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
-210-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:17-88
-210-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:25-85
-211            </intent-filter>
-212            <intent-filter>
-212-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:49:13-51:29
-213                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
-213-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
-213-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:25-92
-214            </intent-filter>
-215        </receiver>
-216    </application>
-217
-218</manifest>
+197        <activity
+197-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:26:9-30:75
+198            android:name="com.android.billingclient.api.ProxyBillingActivity"
+198-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:27:13-78
+199            android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
+199-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:28:13-96
+200            android:exported="false"
+200-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:29:13-37
+201            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+201-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:30:13-72
+202        <activity
+202-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:31:9-35:75
+203            android:name="com.android.billingclient.api.ProxyBillingActivityV2"
+203-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:32:13-80
+204            android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
+204-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:33:13-96
+205            android:exported="false"
+205-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:34:13-37
+206            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+206-->[com.android.billingclient:billing:8.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\a6b9ee7d3c4f1d1a705969bf552db210\transformed\billing-8.3.0\AndroidManifest.xml:35:13-72
+207        <activity
+207-->[com.google.android.gms:play-services-base:18.5.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\57bacb9ef58048c0e6f8321d8067096b\transformed\play-services-base-18.5.0\AndroidManifest.xml:5:9-173
+208            android:name="com.google.android.gms.common.api.GoogleApiActivity"
+208-->[com.google.android.gms:play-services-base:18.5.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\57bacb9ef58048c0e6f8321d8067096b\transformed\play-services-base-18.5.0\AndroidManifest.xml:5:19-85
+209            android:exported="false"
+209-->[com.google.android.gms:play-services-base:18.5.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\57bacb9ef58048c0e6f8321d8067096b\transformed\play-services-base-18.5.0\AndroidManifest.xml:5:146-170
+210            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+210-->[com.google.android.gms:play-services-base:18.5.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\57bacb9ef58048c0e6f8321d8067096b\transformed\play-services-base-18.5.0\AndroidManifest.xml:5:86-145
+211
+212        <meta-data
+212-->[com.google.android.gms:play-services-basement:18.9.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5846cf32d1d3de8a9759defd4249411a\transformed\play-services-basement-18.9.0\AndroidManifest.xml:21:9-23:69
+213            android:name="com.google.android.gms.version"
+213-->[com.google.android.gms:play-services-basement:18.9.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5846cf32d1d3de8a9759defd4249411a\transformed\play-services-basement-18.9.0\AndroidManifest.xml:22:13-58
+214            android:value="@integer/google_play_services_version" />
+214-->[com.google.android.gms:play-services-basement:18.9.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5846cf32d1d3de8a9759defd4249411a\transformed\play-services-basement-18.9.0\AndroidManifest.xml:23:13-66
+215
+216        <provider
+216-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
+217            android:name="androidx.startup.InitializationProvider"
+217-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:25:13-67
+218            android:authorities="com.neetbro.androidx-startup"
+218-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:26:13-68
+219            android:exported="false" >
+219-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:27:13-37
+220            <meta-data
+220-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:29:13-31:52
+221                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+221-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:30:17-75
+222                android:value="androidx.startup" />
+222-->[androidx.emoji2:emoji2:1.3.0] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\5cb7738f5242d8c4e38c8ffa2b265b31\transformed\emoji2-1.3.0\AndroidManifest.xml:31:17-49
+223            <meta-data
+223-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\4bc52031417e9743197e36b704fe409f\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:29:13-31:52
+224                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+224-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\4bc52031417e9743197e36b704fe409f\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:30:17-78
+225                android:value="androidx.startup" />
+225-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\4bc52031417e9743197e36b704fe409f\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:31:17-49
+226            <meta-data
+226-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:29:13-31:52
+227                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+227-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:30:17-85
+228                android:value="androidx.startup" />
+228-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:31:17-49
+229        </provider>
+230
+231        <service
+231-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\85bc3f8cc97bd85b10d760e1ca7886a3\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:28:9-34:19
+232            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+232-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\85bc3f8cc97bd85b10d760e1ca7886a3\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:29:13-103
+233            android:exported="false" >
+233-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\85bc3f8cc97bd85b10d760e1ca7886a3\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:30:13-37
+234            <meta-data
+234-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\85bc3f8cc97bd85b10d760e1ca7886a3\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:31:13-33:39
+235                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
+235-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\85bc3f8cc97bd85b10d760e1ca7886a3\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:32:17-94
+236                android:value="cct" />
+236-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\85bc3f8cc97bd85b10d760e1ca7886a3\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:33:17-36
+237        </service>
+238        <service
+238-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\390580f802b798735a90189ae7e85163\transformed\transport-runtime-3.1.8\AndroidManifest.xml:26:9-30:19
+239            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
+239-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\390580f802b798735a90189ae7e85163\transformed\transport-runtime-3.1.8\AndroidManifest.xml:27:13-117
+240            android:exported="false"
+240-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\390580f802b798735a90189ae7e85163\transformed\transport-runtime-3.1.8\AndroidManifest.xml:28:13-37
+241            android:permission="android.permission.BIND_JOB_SERVICE" >
+241-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\390580f802b798735a90189ae7e85163\transformed\transport-runtime-3.1.8\AndroidManifest.xml:29:13-69
+242        </service>
+243
+244        <receiver
+244-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\390580f802b798735a90189ae7e85163\transformed\transport-runtime-3.1.8\AndroidManifest.xml:32:9-34:40
+245            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
+245-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\390580f802b798735a90189ae7e85163\transformed\transport-runtime-3.1.8\AndroidManifest.xml:33:13-132
+246            android:exported="false" />
+246-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\390580f802b798735a90189ae7e85163\transformed\transport-runtime-3.1.8\AndroidManifest.xml:34:13-37
+247        <receiver
+247-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:34:9-52:20
+248            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+248-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:35:13-76
+249            android:directBootAware="false"
+249-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:36:13-44
+250            android:enabled="true"
+250-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:37:13-35
+251            android:exported="true"
+251-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:38:13-36
+252            android:permission="android.permission.DUMP" >
+252-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:39:13-57
+253            <intent-filter>
+253-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:40:13-42:29
+254                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+254-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:17-91
+254-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:25-88
+255            </intent-filter>
+256            <intent-filter>
+256-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:43:13-45:29
+257                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+257-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:17-85
+257-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:25-82
+258            </intent-filter>
+259            <intent-filter>
+259-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:46:13-48:29
+260                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+260-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:17-88
+260-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:25-85
+261            </intent-filter>
+262            <intent-filter>
+262-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:49:13-51:29
+263                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+263-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
+263-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\vishal I R\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:25-92
+264            </intent-filter>
+265        </receiver>
+266    </application>
+267
+268</manifest>
