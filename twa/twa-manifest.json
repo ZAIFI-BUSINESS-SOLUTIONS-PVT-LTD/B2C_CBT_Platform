@@ -4,13 +4,13 @@
   "name": "NEET BRO",
   "launcherName": "NEET BRO",
   "display": "standalone",
-  "themeColor": "#B0DBE9",
+  "themeColor": "#B0C7E9",
   "themeColorDark": "#000000",
   "navigationColor": "#000000",
   "navigationColorDark": "#000000",
   "navigationDividerColor": "#000000",
   "navigationDividerColorDark": "#000000",
-  "backgroundColor": "#B3BDFF",
+  "backgroundColor": "#B0C7E9",
   "enableNotifications": true,
   "startUrl": "/",
   "iconUrl": "https://neetbro.com/icons/icon-512.png",
@@ -22,11 +22,31 @@
   },
   "appVersionName": "1",
   "appVersionCode": 1,
-  "shortcuts": [],
+  "shortcuts": [
+    {
+      "name": "Start Test",
+      "shortName": "Test",
+      "url": "https://neetbro.com/",
+      "chosenIconUrl": "https://neetbro.com/icons/icon-192.png"
+    },
+    {
+      "name": "Dashboard",
+      "shortName": "Dashboard",
+      "url": "https://neetbro.com/dashboard",
+      "chosenIconUrl": "https://neetbro.com/icons/icon-192.png"
+    }
+  ],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://neetbro.com/manifest.json",
   "fallbackType": "customtabs",
-  "features": {},
+  "features": {
+    "playBilling": {
+      "enabled": true
+    },
+    "locationDelegation": {
+      "enabled": true
+    }
+  },
   "alphaDependencies": {
     "enabled": false
   },

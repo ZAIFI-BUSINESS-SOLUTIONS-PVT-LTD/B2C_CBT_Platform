@@ -9,3 +9,4 @@ __pycache__/
 *.pyc
 backend/neet_app/neet_docs/
 backend/credentials/play-service-account.json
+twa/

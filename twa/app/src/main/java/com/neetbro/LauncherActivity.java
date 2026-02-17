@@ -19,82 +19,36 @@ import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.webkit.JavascriptInterface;
-import android.webkit.WebView;
-import android.util.Log;
-import com.google.androidbrowserhelper.trusted.TwaLauncher;
+
 
 
 public class LauncherActivity
         extends com.google.androidbrowserhelper.trusted.LauncherActivity {
+    
 
-    private static final String TAG = "LauncherActivity";
-    private BillingManager billingManager;
-    private String pendingPurchaseToken;
-    private String pendingProductId;
-    private static LauncherActivity instance;
+    
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        instance = this;
-
+        // Setting an orientation crashes the app due to the transparent background on Android 8.0
+        // Oreo and below. We only set the orientation on Oreo and above. This only affects the
+        // splash screen and Chrome will still respect the orientation.
+        // See https://github.com/GoogleChromeLabs/bubblewrap/issues/496 for details.
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O) {
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         } else {
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
         }
-
-        // Initialize BillingManager
-        billingManager = new BillingManager(this, (token, productId) -> {
-            // Store purchase info to be retrieved by JavaScript
-            pendingPurchaseToken = token;
-            pendingProductId = productId;
-            Log.d(TAG, "Purchase completed: " + productId);
-            
-            // Trigger a JavaScript event via page reload with purchase data in URL
-            // This ensures React receives the purchase info
-            runOnUiThread(() -> {
-                // The web app will call getPurchaseResult() via JavaScript interface
-                // to retrieve the purchase data
-            });
-        });
-    }
-    
-    public static LauncherActivity getInstance() {
-        return instance;
     }
 
     @Override
     protected Uri getLaunchingUrl() {
+        // Get the original launch Url.
         Uri uri = super.getLaunchingUrl();
-        return uri;
-    }
 
-    // JavaScript interface exposed to React app
-    @JavascriptInterface
-    public void purchase(String productId) {
-        billingManager.startPurchase(productId);
-    }
-    
-    // JavaScript interface to retrieve purchase result
-    // React calls this after purchase to get the token and productId
-    @JavascriptInterface
-    public String getPurchaseResult() {
-        if (pendingPurchaseToken != null && pendingProductId != null) {
-            String result = "{\"purchaseToken\":\"" + pendingPurchaseToken + 
-                          "\",\"productId\":\"" + pendingProductId + "\"}";
-            // Clear after retrieval
-            pendingPurchaseToken = null;
-            pendingProductId = null;
-            return result;
-        }
-        return null;
-    }
-    
-    // JavaScript interface to check if there's a pending purchase
-    @JavascriptInterface
-    public boolean hasPendingPurchase() {
-        return pendingPurchaseToken != null && pendingProductId != null;
+        
+
+        return uri;
     }
 }

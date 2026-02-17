@@ -549,9 +549,17 @@ def verify_play_subscription_view(request):
                 play_order_id=purchase_data.get('order_id')
             )
             
-            # Activate subscription (30 days from now)
-            now = timezone.now()
-            expires_at = now + timedelta(days=30)
+            # Activate subscription using actual Play API expiry time
+            # Convert expiry_time_millis (milliseconds since epoch) to datetime
+            from datetime import datetime
+            expiry_time_millis = purchase_data.get('expiry_time_millis')
+            if expiry_time_millis:
+                # Convert from milliseconds to seconds and create timezone-aware datetime
+                expires_at = datetime.fromtimestamp(int(expiry_time_millis) / 1000, tz=timezone.utc)
+            else:
+                # Fallback to 30 days if expiry time not available (shouldn't happen)
+                logger.warning(f"No expiry_time_millis from Play API for student {request.user.student_id}, using 30-day fallback")
+                expires_at = timezone.now() + timedelta(days=30)
             
             student = request.user
             student.subscription_plan = product_id

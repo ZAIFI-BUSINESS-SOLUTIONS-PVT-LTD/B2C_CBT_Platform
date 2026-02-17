@@ -308,9 +308,9 @@ RAZORPAY_WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '')
 
 # Google Play Billing Configuration
 PLAY_PACKAGE_NAME = os.environ.get('PLAY_PACKAGE_NAME', 'com.neetbro')
-PLAY_SERVICE_ACCOUNT_JSON = os.environ.get('PLAY_SERVICE_ACCOUNT_JSON', os.path.join(BASE_DIR, 'play-service-account.json'))
+PLAY_SERVICE_ACCOUNT_JSON = os.environ.get('PLAY_SERVICE_ACCOUNT_JSON', os.path.join(BASE_DIR, 'credentials', 'play-service-account.json'))
 # Note: Set PLAY_SERVICE_ACCOUNT_JSON environment variable to the path of your service account JSON file
-# or place the file at backend/play-service-account.json
+# or place the file at backend/credentials/play-service-account.json
 
 
 CSRF_TRUSTED_ORIGINS = [

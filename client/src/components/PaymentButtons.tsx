@@ -184,8 +184,12 @@ const PaymentButtons: React.FC = () => {
         if (window.Android && typeof window.Android.purchase === 'function') {
           console.log(`[TWA] Initiating Android billing for plan: ${plan}`);
           
-          // Start the purchase
-          window.Android.purchase(plan);
+          // Map plan to Play Store SKU (all plans are 3-month subscriptions)
+          const playSKU = `${plan}-3m`;
+          console.log(`[TWA] Using Play SKU: ${playSKU}`);
+          
+          // Start the purchase with full Play Store product ID
+          window.Android.purchase(playSKU);
           
           // Poll for purchase result
           pollForPurchaseResult(
