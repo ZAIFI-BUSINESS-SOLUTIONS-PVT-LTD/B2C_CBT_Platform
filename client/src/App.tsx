@@ -5,7 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { NotFound, Home, Test, Results, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, InstitutionTesterPage, InstitutionRegisterPage, InstitutionAdminDashboard, OfflineResultsUpload, AnswerKeyUpload, JSONQuestionUpload, ThankYou, GetNumberPage } from "@/pages";
+import { NotFound, Home, Test, Results, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, InstitutionTesterPage, InstitutionRegisterPage, InstitutionAdminDashboard, OfflineResultsUpload, AnswerKeyUpload, JSONQuestionUpload, ThankYou, GetNumberPage, Policy } from "@/pages";
 import LoadingResultsPage from "@/pages/LoadingResultsPage";
 import BookmarkedQuestions from "@/pages/BookmarkedQuestions";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -130,6 +130,7 @@ function Router() {
       <Route path="/thank-you" component={ThankYou} />
       <Route path="/error" component={ErrorPageRoute} />               {/* Error page for critical errors */}
       <Route path="/payment" component={PaymentPage} />            {/* Payment processing page */}
+      <Route path="/policy" component={Policy} />                 {/* Privacy Policy page */}
       <Route component={NotFound} />                               {/* 404 page for undefined routes */}
     </Switch>
   );

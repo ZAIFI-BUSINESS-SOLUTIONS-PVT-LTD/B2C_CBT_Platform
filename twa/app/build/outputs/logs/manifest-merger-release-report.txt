@@ -277,12 +277,12 @@ activity#com.google.androidbrowserhelper.trusted.FocusActivity
 ADDED from F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:162:9-90
 	android:name
 		ADDED from F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:162:19-87
-activity#com.google.androidbrowserhelper.trusted.WebViewFallbackActivity
+activity#com.neetbro.CustomWebViewFallbackActivity
 ADDED from F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:164:9-165:62
 	android:configChanges
 		ADDED from F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:165:13-59
 	android:name
-		ADDED from F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:164:19-97
+		ADDED from F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:164:19-64
 provider#androidx.core.content.FileProvider
 ADDED from F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:167:9-175:20
 	android:grantUriPermissions

@@ -21,19 +21,23 @@ import android.os.Build;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
+import android.util.Log;
 import com.google.androidbrowserhelper.trusted.TwaLauncher;
 
 
 public class LauncherActivity
         extends com.google.androidbrowserhelper.trusted.LauncherActivity {
 
+    private static final String TAG = "LauncherActivity";
     private BillingManager billingManager;
     private String pendingPurchaseToken;
     private String pendingProductId;
+    private static LauncherActivity instance;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        instance = this;
 
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O) {
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
@@ -46,6 +50,7 @@ public class LauncherActivity
             // Store purchase info to be retrieved by JavaScript
             pendingPurchaseToken = token;
             pendingProductId = productId;
+            Log.d(TAG, "Purchase completed: " + productId);
             
             // Trigger a JavaScript event via page reload with purchase data in URL
             // This ensures React receives the purchase info
@@ -54,6 +59,10 @@ public class LauncherActivity
                 // to retrieve the purchase data
             });
         });
+    }
+    
+    public static LauncherActivity getInstance() {
+        return instance;
     }
 
     @Override

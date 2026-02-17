@@ -23,8 +23,8 @@
 23-->
 24<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 25    package="com.neetbro"
-26    android:versionCode="2"
-27    android:versionName="1.1" >
+26    android:versionCode="4"
+27    android:versionName="1.3" >
 28
 29    <uses-sdk
 30        android:minSdkVersion="23"
@@ -284,8 +284,8 @@
 161-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:162:19-87
 162        <activity
 162-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:164:9-165:62
-163            android:name="com.google.androidbrowserhelper.trusted.WebViewFallbackActivity"
-163-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:164:19-97
+163            android:name="com.neetbro.CustomWebViewFallbackActivity"
+163-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:164:19-64
 164            android:configChanges="orientation|screenSize" />
 164-->F:\ZAIFI\NeetNinja\twa\app\src\main\AndroidManifest.xml:165:13-59
 165
