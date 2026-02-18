@@ -7,15 +7,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, Clock, Star, Crown, ChevronLeft } from 'lucide-react';
 import { useLocation } from 'wouter';
-import { isTWA, verifyPlayPurchase, pollForPurchaseResult } from '@/utils/twa';
+import { isTWA, verifyPlayPurchase } from '@/utils/twa';
 
-// Extend Window interface for Razorpay and Android bridge
+// Extend Window interface for Razorpay
 declare global {
   interface Window {
     Razorpay: any;
-    Android?: {
-      purchase: (productId: string) => void;
-    };
   }
 }
 
@@ -180,87 +177,99 @@ const PaymentButtons: React.FC = () => {
     try {
       // Check if running in TWA (Android app)
       if (isTWA()) {
-        // Use Android billing for TWA
-        if (window.Android && typeof window.Android.purchase === 'function') {
-          console.log(`[TWA] Initiating Android billing for plan: ${plan}`);
-          
-          // Map plan to Play Store SKU (all plans are 3-month subscriptions)
-          const playSKU = `${plan}-3m`;
-          console.log(`[TWA] Using Play SKU: ${playSKU}`);
-          
-          // Start the purchase with full Play Store product ID
-          window.Android.purchase(playSKU);
-          
-          // Poll for purchase result
-          pollForPurchaseResult(
-            async (purchaseToken: string, productId: string) => {
-              console.log('[TWA] Play purchase success received:', { 
-                productId, 
-                purchaseToken: purchaseToken.substring(0, 20) + '...' 
-              });
-              
-              try {
-                // Get access token from localStorage
-                const accessToken = localStorage.getItem('access');
-                if (!accessToken) {
-                  toast({
-                    title: "Authentication Error",
-                    description: "Please log in again to complete the purchase",
-                    variant: "destructive"
-                  });
-                  setLoading(null);
-                  return;
-                }
-                
-                // Verify purchase with backend
-                const result = await verifyPlayPurchase(purchaseToken, productId, accessToken);
-                
-                console.log('[TWA] Play purchase verified:', result);
-                
-                toast({
-                  title: "Success!",
-                  description: `Successfully subscribed to ${result.plan} plan via Google Play!`,
-                  variant: "default"
-                });
-                
-                // Reload subscription status
-                await loadSubscriptionStatus();
-                
-              } catch (error: any) {
-                console.error('[TWA] Play purchase verification failed:', error);
-                toast({
-                  title: "Verification Failed",
-                  description: error.message || "Failed to verify Google Play purchase. Please contact support.",
-                  variant: "destructive"
-                });
-              } finally {
-                setLoading(null);
-              }
-            },
-            () => {
-              // Timeout or error
-              console.log('[TWA] Purchase polling timed out or cancelled');
-              toast({
-                title: "Purchase Timeout",
-                description: "Purchase took too long or was cancelled. If you completed the purchase, please restart the app.",
-                variant: "destructive"
-              });
-              setLoading(null);
+        // Purchases in TWA are launched via the Payment Request API with
+        // 'https://play.google.com/billing' as the payment method.
+        // The Digital Goods API (getDigitalGoodsService) is QUERY-only and has no purchase().
+        // total.amount.value must be "0" (Play billing ignores web price; uses Play Console price).
+        try {
+          // Google Play new subscription model (2022+) requires format: subscriptionProductId:basePlanId
+          // e.g. 'neetbro_subscription:premium-3m' — sending just 'premium-3m' causes RESULT_CANCELED
+          const playSKU = `neetbro_subscription:${plan}-3m`;
+          console.log(`[TWA] Initiating Play purchase via PaymentRequest for SKU: ${playSKU}`);
+
+          const request = new PaymentRequest(
+            [
+              {
+                supportedMethods: 'https://play.google.com/billing',
+                data: { sku: playSKU },
+              },
+            ],
+            {
+              total: {
+                label: 'NEET BRO Subscription',
+                amount: { currency: 'INR', value: '0' },
+              },
             }
           );
-          
-          // Don't clear loading state here - will be cleared by callbacks
-          return;
-        } else {
-          console.error('[TWA] Android bridge not available');
+
+          const canPay = await request.canMakePayment();
+          console.log('[TWA] canMakePayment:', canPay);
+
+          if (!canPay) {
+            // canMakePayment false = Play billing not wired up in this build/device.
+            // Likely causes: app not installed from Play Store, billing library missing,
+            // or running outside a TWA context.
+            throw new Error(
+              'Google Play Billing is not available. ' +
+              'Make sure you installed the app from the Play Store.'
+            );
+          }
+
+          // Show the Play purchase sheet
+          const response = await request.show();
+          const purchaseToken: string = response.details.purchaseToken;
+
+          // Acknowledge immediately (required by the spec)
+          await response.complete('success');
+
+          console.log('[TWA] Purchase token received:', purchaseToken?.substring(0, 20) + '...');
+
+          const accessToken = localStorage.getItem('access');
+          if (!accessToken) {
+            toast({
+              title: 'Authentication Error',
+              description: 'Please log in again to complete the purchase.',
+              variant: 'destructive',
+            });
+            setLoading(null);
+            return;
+          }
+
+          // Verify the purchase token with the Django backend
+          const result = await verifyPlayPurchase(purchaseToken, playSKU, accessToken);
+          console.log('[TWA] Play purchase verified:', result);
+
           toast({
-            title: "Error",
-            description: "Android billing not available. Please update your app.",
-            variant: "destructive"
+            title: 'Success!',
+            description: `Successfully subscribed to ${result.plan} plan via Google Play!`,
+            variant: 'default',
           });
-          setLoading(null);
-          return;
+
+          await loadSubscriptionStatus();
+        } catch (err: any) {
+          console.error('[TWA] Play billing error:', err);
+
+          // AbortError = user cancelled the purchase sheet — don't show an error toast
+          if (err?.name === 'AbortError' || err?.code === 20) {
+            console.log('[TWA] Purchase cancelled by user.');
+          } else {
+            // RESULT_CANCELED from Play Store usually means the SKU does not exist
+            // in Play Console, or the tester account is not a licensed tester.
+            const isResultCanceled =
+              typeof err?.message === 'string' && err.message.includes('RESULT_CANCELED');
+
+            toast({
+              title: 'Payment Failed',
+              description: isResultCanceled
+                ? 'Purchase cancelled by Google Play. Check that the subscription product exists in Play Console and your test account is a licensed tester.'
+                : err?.message || 'Google Play purchase failed. Please try again.',
+              variant: 'destructive',
+            });
+          }
         }
+
+        setLoading(null);
+        return;
       }
 
       // Web flow: Use Razorpay

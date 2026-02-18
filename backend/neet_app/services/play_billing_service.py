@@ -84,17 +84,32 @@ class PlayBillingService:
                 token=purchase_token
             ).execute()
             
-            logger.debug(f"Play API response: {result}")
+            logger.info(f"Play API full response: {result}")
             
-            # Check purchase state
+            # paymentState:
+            #   0 = Payment pending (also used for test/internal-testing purchases)
+            #   1 = Payment received
+            #   2 = Free trial
+            #   3 = Pending deferred upgrade/downgrade
+            #   None = field absent (some test scenarios)
+            # Accept 0, 1, 2 as valid. Reject only explicit cancellation/unknown.
             purchase_state = result.get('paymentState', None)
+            purchase_type = result.get('purchaseType', None)  # 0=test, 1=promo, None=real
             
-            # paymentState: 0 = Payment pending, 1 = Payment received, 2 = Free trial, 3 = Pending deferred upgrade/downgrade
-            # We accept states 1 (paid) and 2 (free trial)
-            if purchase_state not in [1, 2]:
-                error_msg = f"Invalid payment state: {purchase_state}"
-                logger.warning(f"Purchase verification failed: {error_msg}")
-                return False, None, error_msg
+            if purchase_type is not None:
+                logger.info(f"Test/promo purchase detected (purchaseType={purchase_type}), skipping paymentState check")
+            elif purchase_state not in [0, 1, 2]:
+                # None means the field is absent — treat as pending for new subscriptions
+                if purchase_state is not None:
+                    error_msg = f"Invalid payment state: {purchase_state}"
+                    logger.warning(f"Purchase verification failed: {error_msg}")
+                    return False, None, error_msg
+                else:
+                    logger.warning("paymentState field absent from Play API response — treating as pending")
+            
+            if purchase_state == 0 and purchase_type is None:
+                logger.warning(f"paymentState=0 (payment pending) for product {product_id}. "
+                               "Purchase may still be processing.")
             
             # Check if subscription is currently valid (not expired or cancelled)
             expiry_time_millis = result.get('expiryTimeMillis')
@@ -105,7 +120,6 @@ class PlayBillingService:
                 logger.warning(f"Purchase verification failed: {error_msg}")
                 return False, None, error_msg
             
-            # Convert expiry time from milliseconds to seconds
             import time
             current_time_millis = int(time.time() * 1000)
             
@@ -113,6 +127,26 @@ class PlayBillingService:
                 error_msg = "Subscription has expired"
                 logger.warning(f"Purchase verification failed: {error_msg}")
                 return False, None, error_msg
+            
+            # Acknowledge the purchase so Google does not auto-refund after 3 days.
+            # acknowledgementState: 0 = not acknowledged, 1 = acknowledged
+            acknowledgement_state = result.get('acknowledgementState', 0)
+            if acknowledgement_state == 0:
+                try:
+                    self.service.purchases().subscriptions().acknowledge(
+                        packageName=self.package_name,
+                        subscriptionId=product_id,
+                        token=purchase_token,
+                        body={}
+                    ).execute()
+                    logger.info(f"Subscription acknowledged successfully for product {product_id}")
+                except HttpError as ack_err:
+                    # Log but do not block — subscription is still valid, we just failed to ack.
+                    logger.warning(f"Failed to acknowledge subscription (non-fatal): {ack_err.resp.status} - {ack_err.content}")
+                except Exception as ack_err:
+                    logger.warning(f"Failed to acknowledge subscription (non-fatal): {ack_err}")
+            else:
+                logger.info(f"Subscription already acknowledged for product {product_id}")
             
             # Purchase is valid
             purchase_data = {
@@ -125,6 +159,7 @@ class PlayBillingService:
                 'country_code': result.get('countryCode'),
                 'price_currency_code': result.get('priceCurrencyCode'),
                 'payment_state': purchase_state,
+                'purchase_type': purchase_type,
             }
             
             logger.info(f"Purchase verified successfully: order_id={purchase_data['order_id']}")

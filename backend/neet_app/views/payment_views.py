@@ -28,14 +28,20 @@ PLANS = {
 # Helper function to normalize Play Store product IDs (strip suffix)
 def normalize_product_id(product_id: str) -> str:
     """
-    Normalize Google Play product IDs by stripping suffixes like '-3m'
+    Normalize Google Play product IDs to a plain plan name.
+    Handles the new Google Play subscription model format (2022+).
+
     Examples:
-        'basic-3m' -> 'basic'
-        'premium-3m' -> 'premium'
-        'pro-3m' -> 'pro'
-        'basic' -> 'basic' (unchanged)
+        'neetbro_subscription:premium-3m' -> 'premium'  (new model)
+        'basic-3m'                        -> 'basic'    (legacy)
+        'pro'                             -> 'pro'      (already normalized)
     """
-    # Remove common suffixes used in Play Store
+    # New subscription model: 'subscriptionProductId:basePlanId'
+    # Strip everything up to and including the colon.
+    if ':' in product_id:
+        product_id = product_id.split(':', 1)[1]  # e.g. 'premium-3m'
+
+    # Remove common duration suffixes
     for suffix in ['-3m', '-1m', '-6m', '-1y']:
         if product_id.endswith(suffix):
             return product_id[:-len(suffix)]
@@ -517,10 +523,15 @@ def verify_play_subscription_view(request):
                 "message": "This purchase has already been processed"
             }, status=status.HTTP_200_OK)
         
-        # Verify purchase with Google Play API (use raw product_id for API call)
+        # Google Play new subscription model (2022+): SKU is 'subscriptionProductId:basePlanId'
+        # purchases.subscriptions.get() expects only the subscription product ID, not the full form.
+        play_subscription_id = product_id_raw.split(':', 1)[0] if ':' in product_id_raw else product_id_raw
+        logger.info(f"Play API call using subscriptionId='{play_subscription_id}' (raw='{product_id_raw}')")
+
+        # Verify purchase with Google Play API
         play_service = get_play_billing_service()
         is_valid, purchase_data, error_message = play_service.verify_subscription_purchase(
-            product_id=product_id_raw,  # Use original Play Store product ID for API
+            product_id=play_subscription_id,  # Subscription product ID for Play Developer API
             purchase_token=purchase_token
         )
         

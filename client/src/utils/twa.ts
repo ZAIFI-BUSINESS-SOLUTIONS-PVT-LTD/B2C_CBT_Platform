@@ -1,14 +1,3 @@
-// Extend Window interface for Android bridge
-declare global {
-  interface Window {
-    Android?: {
-      purchase: (productId: string) => void;
-      getPurchaseResult: () => string | null;
-      hasPendingPurchase: () => boolean;
-    };
-  }
-}
-
 /**
  * Trusted Web Activity (TWA) Utilities
  * 

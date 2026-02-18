@@ -1,12 +1,17 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.use_as_origin",
+      "delegate_permission/common.get_login_creds"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "com.neetbro",
       "sha256_cert_fingerprints": [
-        "E4:47:B7:13:D0:53:CF:1E:57:F5:7B:32:A9:3D:53:20:6D:12:F8:CD:C1:1D:32:51:46:D1:F6:CC:98:A8:79:B9"
+        "15:16:F8:89:0B:D8:DD:B4:BC:5A:5D:4E:B8:3C:6C:71:1A:CC:E2:51:A2:F9:EC:F8:D7:9F:89:B1:86:0E:D0:30"
       ]
     }
   }
 ]
+
