@@ -9,7 +9,7 @@ export default function MobilePolicy() {
     <div className="min-h-screen bg-white px-4 py-6">
       <div className="max-w-xl mx-auto">
         <header className="mb-4">
-          <button onClick={() => navigate(-1)} className="text-blue-600 mb-2">Back</button>
+          <button onClick={() => navigate('/login')} className="text-blue-600 mb-2">Back</button>
           <h1 className="text-2xl font-semibold text-gray-900">Privacy Policy for NEETBRO</h1>
           <p className="text-sm text-gray-500">Effective Date: February 16, 2026</p>
         </header>

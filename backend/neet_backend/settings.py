@@ -308,9 +308,20 @@ RAZORPAY_WEBHOOK_SECRET = os.environ.get('RAZORPAY_WEBHOOK_SECRET', '')
 
 # Google Play Billing Configuration
 PLAY_PACKAGE_NAME = os.environ.get('PLAY_PACKAGE_NAME', 'com.neetbro')
-PLAY_SERVICE_ACCOUNT_JSON = os.environ.get('PLAY_SERVICE_ACCOUNT_JSON', os.path.join(BASE_DIR, 'credentials', 'play-service-account.json'))
-# Note: Set PLAY_SERVICE_ACCOUNT_JSON environment variable to the path of your service account JSON file
-# or place the file at backend/credentials/play-service-account.json
+
+# Play service account JSON path - handle both absolute and relative paths
+_play_account_path = os.environ.get('PLAY_SERVICE_ACCOUNT_JSON', os.path.join(BASE_DIR, 'credentials', 'play-service-account.json'))
+if not os.path.isabs(_play_account_path):
+    # If relative path from env var, resolve it relative to BASE_DIR.
+    # Strip 'backend/' prefix if present (common when env var is set from project root perspective)
+    if _play_account_path.startswith('backend/') or _play_account_path.startswith('backend\\'):
+        _play_account_path = _play_account_path[8:]  # Remove 'backend/' or 'backend\\'
+    PLAY_SERVICE_ACCOUNT_JSON = os.path.join(BASE_DIR, _play_account_path)
+else:
+    PLAY_SERVICE_ACCOUNT_JSON = _play_account_path
+
+# Note: Set PLAY_SERVICE_ACCOUNT_JSON environment variable to the absolute path of your service account JSON file,
+# or use a relative path like 'credentials/play-service-account.json' (will be resolved relative to backend/)
 
 
 CSRF_TRUSTED_ORIGINS = [

@@ -461,3 +461,120 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
                 'physics_score', 'chemistry_score', 'botany_score', 'zoology_score', 'biology_score', 'math_score'
             )
         }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='delete-account', permission_classes=[IsAuthenticated])
+    def delete_account(self, request):
+        """
+        Delete the authenticated student's account and all related data.
+        This is a destructive operation that removes all data associated with the student.
+        
+        POST /api/student-profile/delete-account/
+        Body: { "confirmation": "DELETE" }
+        
+        Returns: 200 OK on success
+        """
+        from django.db import transaction
+        from ..models import (
+            TestSession, TestAnswer, ReviewComment, ChatSession, ChatMessage,
+            ChatMemory, StudentInsight, TestSubjectZoneInsight, Notification,
+            PasswordReset, StudentActivity, PaymentOrder
+        )
+        
+        if not hasattr(request.user, 'student_id'):
+            raise AppValidationError(
+                code=ErrorCodes.AUTH_REQUIRED if hasattr(ErrorCodes, 'AUTH_REQUIRED') else ErrorCodes.INVALID_INPUT,
+                message='User not properly authenticated'
+            )
+        
+        # Require confirmation
+        confirmation = request.data.get('confirmation', '')
+        if confirmation != 'DELETE':
+            raise AppValidationError(
+                code=ErrorCodes.INVALID_INPUT,
+                message='Please type "DELETE" to confirm account deletion'
+            )
+        
+        student_id = request.user.student_id
+        
+        try:
+            # Get the student profile
+            student = StudentProfile.objects.get(student_id=student_id)
+            
+            # Log the deletion attempt with Sentry
+            sentry_sdk.add_breadcrumb(
+                message="Student account deletion initiated",
+                category="account_deletion",
+                level="warning",
+                data={
+                    "student_id": student_id,
+                    "email": student.email,
+                    "ip_address": request.META.get('REMOTE_ADDR', 'unknown')
+                }
+            )
+            
+            # Perform deletion in a transaction to ensure data integrity
+            with transaction.atomic():
+                # Get all test sessions for this student
+                test_sessions = TestSession.objects.filter(student_id=student_id)
+                session_ids = list(test_sessions.values_list('id', flat=True))
+                
+                # 1. Delete test answers and review comments (via session foreign keys)
+                if session_ids:
+                    TestAnswer.objects.filter(session_id__in=session_ids).delete()
+                    ReviewComment.objects.filter(session_id__in=session_ids).delete()
+                
+                # 2. Delete test sessions
+                test_sessions.delete()
+                
+                # 3. Delete test-derived insights
+                TestSubjectZoneInsight.objects.filter(student=student).delete()
+                StudentInsight.objects.filter(student=student).delete()
+                
+                # 4. Delete chat data
+                chat_sessions = ChatSession.objects.filter(student_id=student_id)
+                chat_session_ids = list(chat_sessions.values_list('id', flat=True))
+                if chat_session_ids:
+                    ChatMessage.objects.filter(chat_session_id__in=chat_session_ids).delete()
+                chat_sessions.delete()
+                
+                # 5. Delete chat memory
+                ChatMemory.objects.filter(student=student).delete()
+                
+                # 6. Delete notifications and password resets
+                Notification.objects.filter(user=student).delete()
+                PasswordReset.objects.filter(user=student).delete()
+                
+                # 7. Delete activity records
+                StudentActivity.objects.filter(student=student).delete()
+                
+                # 8. Delete payment orders (consider archiving for legal/accounting purposes)
+                PaymentOrder.objects.filter(student=student).delete()
+                
+                # 9. Finally, delete the student profile itself
+                # This will cascade-delete any remaining FK-linked records
+                student.delete()
+            
+            # Log successful deletion
+            sentry_sdk.capture_message(
+                f"Student account deleted successfully: {student_id}",
+                level="info"
+            )
+            
+            return Response({
+                'message': 'Account deleted successfully',
+                'student_id': student_id
+            }, status=status.HTTP_200_OK)
+            
+        except StudentProfile.DoesNotExist:
+            raise NotFoundError(
+                code=ErrorCodes.NOT_FOUND if hasattr(ErrorCodes, 'NOT_FOUND') else ErrorCodes.SERVER_ERROR,
+                message='Student profile not found'
+            )
+        except Exception as e:
+            # Log the error with Sentry
+            sentry_sdk.capture_exception(e)
+            raise AppError(
+                code=ErrorCodes.SERVER_ERROR,
+                message='Failed to delete account. Please try again or contact support.',
+                details={'error': str(e)}
+            )

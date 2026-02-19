@@ -29,3 +29,4 @@ export { default as AnswerKeyUpload } from "./answer-key-upload";
 export { default as JSONQuestionUpload } from "./json-question-upload";
 export { default as GetNumberPage } from "./get-number";
 export { default as Policy } from "./responsive/policy-responsive";
+export { default as DeleteAccount } from "./responsive/delete-account-responsive";

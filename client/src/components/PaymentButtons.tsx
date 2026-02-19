@@ -182,9 +182,14 @@ const PaymentButtons: React.FC = () => {
         // The Digital Goods API (getDigitalGoodsService) is QUERY-only and has no purchase().
         // total.amount.value must be "0" (Play billing ignores web price; uses Play Console price).
         try {
-          // Google Play new subscription model (2022+) requires format: subscriptionProductId:basePlanId
-          // e.g. 'neetbro_subscription:premium-3m' — sending just 'premium-3m' causes RESULT_CANCELED
-          const playSKU = `neetbro_subscription:${plan}-3m`;
+          // The Digital Goods API and PaymentRequest expect only the subscription product ID.
+          // Each plan maps to its own Play Console subscription product.
+          const planSKUMap: Record<string, string> = {
+            basic:   'neetbro_subscription',
+            premium: 'neetbro_premium',
+            pro:     'neetbro_pro',
+          };
+          const playSKU = planSKUMap[plan] ?? 'neetbro_subscription';
           console.log(`[TWA] Initiating Play purchase via PaymentRequest for SKU: ${playSKU}`);
 
           const request = new PaymentRequest(
@@ -217,14 +222,59 @@ const PaymentButtons: React.FC = () => {
 
           // Show the Play purchase sheet
           const response = await request.show();
-          const purchaseToken: string = response.details.purchaseToken;
 
-          // Acknowledge immediately (required by the spec)
+          // Robustly extract purchaseToken from response.details.
+          // Different Android/WebView builds may:
+          //   - Return details as a JSON string instead of a plain object
+          //   - Use snake_case keys (purchase_token)
+          //   - Return null / undefined details
+          let details: Record<string, any> = {};
+          try {
+            const raw = response.details;
+            if (raw === null || raw === undefined) {
+              console.warn('[TWA] response.details is null/undefined');
+            } else if (typeof raw === 'string') {
+              details = JSON.parse(raw);
+            } else if (typeof raw === 'object') {
+              details = raw as Record<string, any>;
+            }
+          } catch (parseErr) {
+            console.error('[TWA] Could not parse response.details:', response.details, parseErr);
+          }
+
+          console.log('[TWA] response.details keys:', Object.keys(details));
+          console.log('[TWA] response.details (full):', JSON.stringify(details));
+
+          // Play Billing may key the token differently across Android versions
+          const purchaseToken: string =
+            details.purchaseToken ||
+            details.purchase_token ||
+            details.token;
+
+          if (!purchaseToken) {
+            // Signal failure to Play so the purchase isn't left in a pending state
+            await response.complete('fail');
+            console.error('[TWA] No purchaseToken found. Keys present:', Object.keys(details));
+            throw new Error(
+              `No purchase token returned by Google Play. ` +
+              `Keys in response: [${Object.keys(details).join(', ') || 'none'}]. ` +
+              `Full: ${JSON.stringify(details)}`
+            );
+          }
+
+          // Token acquired — close the Play UI with success
           await response.complete('success');
 
-          console.log('[TWA] Purchase token received:', purchaseToken?.substring(0, 20) + '...');
+          console.log('[TWA] Purchase token received:', purchaseToken.substring(0, 20) + '...');
 
-          const accessToken = localStorage.getItem('access');
+          // Token stored as 'accessToken' in localStorage; also check 'access' cookie fallback
+          // set by auth.ts for TWA environments where localStorage may not persist.
+          const accessToken =
+            localStorage.getItem('accessToken') ||
+            document.cookie
+              .split('; ')
+              .find(row => row.startsWith('access='))
+              ?.split('=')[1];
           if (!accessToken) {
             toast({
               title: 'Authentication Error',

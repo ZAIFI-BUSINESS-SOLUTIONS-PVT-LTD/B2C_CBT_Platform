@@ -33,6 +33,9 @@ export const getRefreshToken = (): string | null => {
 export const setTokens = (tokens: TokenPair): void => {
   localStorage.setItem('accessToken', tokens.access);
   localStorage.setItem('refreshToken', tokens.refresh);
+  // Also persist in a cookie so TWA can recover the token after the Play
+  // Billing purchase sheet closes (localStorage may not be readable at that point).
+  document.cookie = `access=${tokens.access}; path=/; max-age=86400`;
 };
  
 export const clearTokens = (): void => {
@@ -60,6 +63,7 @@ export const refreshAccessToken = async (): Promise<string | null> => {
     if (response.ok) {
       const data = await response.json();
       localStorage.setItem('accessToken', data.access);
+      document.cookie = `access=${data.access}; path=/; max-age=86400`;
       return data.access;
     } else {
       clearTokens();

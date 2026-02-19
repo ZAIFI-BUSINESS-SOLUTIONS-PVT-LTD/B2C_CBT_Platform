@@ -14,7 +14,7 @@ export default function DesktopPolicy() {
             <p className="text-sm text-gray-500">Effective Date: February 16, 2026</p>
           </div>
           <div>
-            <Button onClick={() => navigate(-1)} className="bg-blue-50 text-blue-600">Back</Button>
+            <Button onClick={() => navigate('/login')} className="bg-blue-50 text-blue-600">Back</Button>
           </div>
         </div>
 

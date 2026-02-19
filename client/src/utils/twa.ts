@@ -75,6 +75,12 @@ export const verifyPlayPurchase = async (
   productId: string,
   accessToken: string
 ): Promise<any> => {
+  console.log('[verifyPlayPurchase] Sending to backend:', {
+    purchaseToken: purchaseToken.substring(0, 30) + '...',
+    productId,
+    authHeader: `Bearer ${accessToken.substring(0, 20)}...`
+  });
+
   const response = await fetch("/api/payments/play/verify-subscription/", {
     method: "POST",
     headers: {
@@ -89,6 +95,11 @@ export const verifyPlayPurchase = async (
 
   if (!response.ok) {
     const error = await response.json();
+    console.error('[verifyPlayPurchase] Backend returned error:', {
+      status: response.status,
+      statusText: response.statusText,
+      errorBody: error
+    });
     throw new Error(error.error || error.details || "Play purchase verification failed");
   }
 

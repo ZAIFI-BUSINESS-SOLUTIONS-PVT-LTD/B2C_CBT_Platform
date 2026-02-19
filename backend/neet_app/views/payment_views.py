@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, timezone as dt_timezone
 from django.db import transaction
 import logging
 
@@ -25,21 +25,37 @@ PLANS = {
     "pro": 17000,      # rupees - 3 months subscription (premium tier)
 }
 
+# Explicit mapping for current Play Console subscription product IDs
+# Each product ID maps directly to the internal plan name used in PLANS.
+PRODUCT_ID_MAP = {
+    'neetbro_subscription': 'basic',
+    'neetbro_premium':      'premium',
+    'neetbro_pro':          'pro',
+}
+
 # Helper function to normalize Play Store product IDs (strip suffix)
 def normalize_product_id(product_id: str) -> str:
     """
     Normalize Google Play product IDs to a plain plan name.
-    Handles the new Google Play subscription model format (2022+).
+    Handles the new Play Console product IDs, the new subscription model
+    format (2022+) with base plan IDs, and legacy formats.
 
     Examples:
-        'neetbro_subscription:premium-3m' -> 'premium'  (new model)
-        'basic-3m'                        -> 'basic'    (legacy)
-        'pro'                             -> 'pro'      (already normalized)
+        'neetbro_subscription'            -> 'basic'   (direct mapping)
+        'neetbro_premium'                 -> 'premium' (direct mapping)
+        'neetbro_pro'                     -> 'pro'     (direct mapping)
+        'neetbro_subscription:basic-3m'   -> 'basic'   (new model + suffix)
+        'basic-3m'                        -> 'basic'   (legacy with suffix)
+        'pro'                             -> 'pro'     (already normalized)
     """
+    # Direct lookup for new Play Console product IDs
+    if product_id in PRODUCT_ID_MAP:
+        return PRODUCT_ID_MAP[product_id]
+
     # New subscription model: 'subscriptionProductId:basePlanId'
     # Strip everything up to and including the colon.
     if ':' in product_id:
-        product_id = product_id.split(':', 1)[1]  # e.g. 'premium-3m'
+        product_id = product_id.split(':', 1)[1]  # e.g. 'basic-3m'
 
     # Remove common duration suffixes
     for suffix in ['-3m', '-1m', '-6m', '-1y']:
@@ -480,10 +496,30 @@ def verify_play_subscription_view(request):
         }
     """
     try:
-        # Extract and validate request data
-        purchase_token = request.data.get('purchaseToken')
-        product_id_raw = request.data.get('productId')
+        # IMPORTANT: djangorestframework_camel_case's CamelCaseJSONParser is the primary
+        # parser for this project (see settings.py REST_FRAMEWORK > DEFAULT_PARSER_CLASSES).
+        # It converts ALL incoming camelCase keys → snake_case before they reach request.data.
+        # So the frontend sends "purchaseToken" / "productId" but request.data contains
+        # "purchase_token" / "product_id". Always read snake_case first.
         
+        # Debug: log raw request body + parsed request.data for troubleshooting
+        logger.info(
+            f"[PLAY_VERIFY] Raw request body: {request.body[:500]}"
+        )
+        logger.info(
+            f"[PLAY_VERIFY] request.data keys: {list(request.data.keys())} | "
+            f"Full request.data: {dict(request.data)}"
+        )
+        
+        purchase_token = request.data.get('purchase_token') or request.data.get('purchaseToken')
+        product_id_raw = request.data.get('product_id') or request.data.get('productId')
+
+        logger.info(
+            f"[PLAY_VERIFY] Extracted: purchase_token={purchase_token[:30] if purchase_token else None}... | "
+            f"product_id_raw={product_id_raw} | "
+            f"User: {getattr(request.user, 'student_id', 'anonymous')}"
+        )
+
         if not purchase_token:
             return Response({
                 "error": "Missing purchaseToken",
@@ -566,7 +602,7 @@ def verify_play_subscription_view(request):
             expiry_time_millis = purchase_data.get('expiry_time_millis')
             if expiry_time_millis:
                 # Convert from milliseconds to seconds and create timezone-aware datetime
-                expires_at = datetime.fromtimestamp(int(expiry_time_millis) / 1000, tz=timezone.utc)
+                expires_at = datetime.fromtimestamp(int(expiry_time_millis) / 1000, tz=dt_timezone.utc)
             else:
                 # Fallback to 30 days if expiry time not available (shouldn't happen)
                 logger.warning(f"No expiry_time_millis from Play API for student {request.user.student_id}, using 30-day fallback")

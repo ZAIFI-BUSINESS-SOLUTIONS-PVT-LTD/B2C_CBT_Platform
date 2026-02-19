@@ -8,6 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -23,6 +33,7 @@ import {
     Edit,
     LogOut,
     ChevronLeft,
+    Trash2,
 } from "lucide-react";
 
 // Student profile form schema
@@ -79,6 +90,8 @@ export function StudentProfile() {
     // page mode: editing or viewing handled by isEditing
     const [isEditing, setIsEditing] = useState(false);
     const [currentProfile, setCurrentProfile] = useState<StudentProfile | null>(null);
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [deleteConfirmation, setDeleteConfirmation] = useState("");
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const { isAuthenticated, student, logout } = useAuth();
@@ -118,6 +131,53 @@ export function StudentProfile() {
         },
     });
 
+    // Delete account mutation
+    const deleteAccountMutation = useMutation({
+        mutationFn: async () => {
+            return await apiRequest("/api/student-profile/delete-account/", "POST", {
+                confirmation: "DELETE"
+            });
+        },
+        onSuccess: async () => {
+            toast({
+                title: "Account deleted",
+                description: "Your account and all associated data have been permanently deleted.",
+            });
+            try {
+                // Immediately clear auth and cache so user can't remain on protected pages
+                await logout();
+            } catch (e) {
+                console.warn('Logout after deletion failed:', e);
+            }
+            try {
+                queryClient.clear();
+            } catch (e) {
+                console.warn('Failed to clear query client:', e);
+            }
+
+            // Navigate to login page and force reload as a fallback to ensure no stale state
+            try {
+                navigate('/login');
+                // If navigation doesn't remove protected view (cached state), reload the page
+                setTimeout(() => {
+                    if (window.location.pathname !== '/login') {
+                        window.location.href = '/login';
+                    }
+                }, 300);
+            } catch (e) {
+                // Final fallback
+                window.location.href = '/login';
+            }
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Deletion failed",
+                description: error.message || "Failed to delete account. Please try again.",
+                variant: "destructive",
+            });
+        },
+    });
+
     // Form setup
     const form = useForm<ProfileFormData>({
         resolver: zodResolver(profileFormSchema),
@@ -149,6 +209,14 @@ export function StudentProfile() {
     // Handle form submission
     const onSubmit = (data: ProfileFormData) => {
         profileMutation.mutate(data);
+    };
+
+    // Handle delete account
+    const handleDeleteAccount = () => {
+        if (deleteConfirmation === "DELETE") {
+            deleteAccountMutation.mutate();
+            setShowDeleteDialog(false);
+        }
     };
 
     // Get initials for avatar
@@ -237,7 +305,11 @@ export function StudentProfile() {
                                 onEdit={() => setIsEditing(true)}
                                 onLogout={async () => {
                                     await logout();
-                                    navigate('/'); // Redirect to home page after logout
+                                    navigate('/');
+                                }}
+                                onDeleteAccount={() => {
+                                    setDeleteConfirmation("");
+                                    setShowDeleteDialog(true);
                                 }}
                             />
                         ) : (
@@ -251,6 +323,52 @@ export function StudentProfile() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Delete Account Confirmation Dialog */}
+            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Account</AlertDialogTitle>
+                        <AlertDialogDescription className="space-y-4">
+                            <p>
+                                This action cannot be undone. This will permanently delete your account
+                                and remove all your data from our servers, including:
+                            </p>
+                            <ul className="list-disc list-inside space-y-1 text-sm">
+                                <li>All test sessions and answers</li>
+                                <li>Performance insights and analytics</li>
+                                <li>Chat history and conversations</li>
+                                <li>Subscription and payment records</li>
+                                <li>Profile information</li>
+                            </ul>
+                            <div className="pt-2">
+                                <Label htmlFor="delete-confirmation" className="text-sm font-medium">
+                                    Type <span className="font-bold">DELETE</span> to confirm:
+                                </Label>
+                                <Input
+                                    id="delete-confirmation"
+                                    value={deleteConfirmation}
+                                    onChange={(e) => setDeleteConfirmation(e.target.value)}
+                                    placeholder="DELETE"
+                                    className="mt-2"
+                                />
+                            </div>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setDeleteConfirmation("")}>
+                            Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteAccount}
+                            disabled={deleteConfirmation !== "DELETE" || deleteAccountMutation.isPending}
+                            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                        >
+                            {deleteAccountMutation.isPending ? "Deleting..." : "Delete Account"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </main>
     );
 }
@@ -263,9 +381,10 @@ interface ProfileViewProps {
     profile: StudentProfile;
     onEdit: () => void;
     onLogout: () => void;
+    onDeleteAccount: () => void;
 }
 
-function ProfileView({ profile, onEdit, onLogout }: ProfileViewProps) {
+function ProfileView({ profile, onEdit, onLogout, onDeleteAccount }: ProfileViewProps) {
     return (
         <div className="space-y-6 ">
             {/* Profile Header */}
@@ -332,22 +451,36 @@ function ProfileView({ profile, onEdit, onLogout }: ProfileViewProps) {
             </div>
 
             {/* Action Buttons */}
-            <div className="pt-4 flex flex-col sm:flex-row sm:justify-end sm:items-center gap-3">
-                <div className="flex-1 sm:flex-none">
-                    <Button
-                        variant="outline"
-                        onClick={onLogout}
-                        className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 w-full sm:w-auto justify-center"
-                    >
-                        <LogOut className="h-4 w-4" />
-                        Logout
+            <div className="pt-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:justify-end sm:items-center gap-3">
+                    <div className="flex-1 sm:flex-none">
+                        <Button
+                            variant="outline"
+                            onClick={onLogout}
+                            className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 w-full sm:w-auto justify-center"
+                        >
+                            <LogOut className="h-4 w-4" />
+                            Logout
+                        </Button>
+                    </div>
+
+                    <Button onClick={onEdit} className="flex items-center gap-2 w-full sm:w-auto justify-center">
+                        <Edit className="h-4 w-4" />
+                        Edit Profile
                     </Button>
                 </div>
 
-                <Button onClick={onEdit} className="flex items-center gap-2 w-full sm:w-auto justify-center">
-                    <Edit className="h-4 w-4" />
-                    Edit Profile
-                </Button>
+                {/* Delete Account Button - Separate row for emphasis */}
+                <div className="pt-2 border-t border-gray-200">
+                    <Button
+                        variant="outline"
+                        onClick={onDeleteAccount}
+                        className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 w-full sm:w-auto justify-center"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                        Delete Account
+                    </Button>
+                </div>
             </div>
         </div>
     );
