@@ -12,7 +12,7 @@ interface TestHeaderProps {
   showTimeOverDialog: boolean;
   isSubmitting: boolean;
   onQuit: () => void;
-  showPause?: boolean; // optional flag to hide/show pause button
+  showPause?: boolean;
 }
 
 export default function TestHeader({
@@ -24,76 +24,53 @@ export default function TestHeader({
   onSubmitTest,
   showTimeOverDialog,
   isSubmitting,
-  onQuit, 
+  onQuit,
   showPause = true
 }: TestHeaderProps) {
   return (
-    <header className="w-full bg-white backdrop-blur-sm border-b border-blue-100 sticky top-0 z-40 shadow-sm mb-2">
-      <div className="px-3 py-3">
+    <header className="w-full bg-white/80 backdrop-blur-md">
+      <div className="px-3 py-2.5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            {started && (
-              <>
-                <Button
-                  onClick={onQuit}
-                  size="icon"
-                  className="bg-red-500 hover:bg-red-600 aspect-square"
-                  title="Quit Exam"
-                >
-                  <X className="h-5 w-5 text-white" />
-                </Button>
+          {/* Left: NEET Bro branding */}
+          <div className="flex items-center gap-2">
+            <span className="text-base font-extrabold text-blue-600 tracking-tight">NEET Bro</span>
+          </div>
 
-                {/* Pause button is optional and can be hidden via `showPause` prop */}
-                {showPause && (
-                  <Button
-                    onClick={onTogglePause}
-                    size="icon"
-                    className="bg-green-500 hover:bg-green-600 aspect-square"
-                    title={paused ? 'Resume Test' : 'Pause Test'}
-                  >
-                    {paused ? <Play /> : <Pause />}
-                  </Button>
-                )}
-              </>
-            )}
+          {/* Center: Timer */}
+          <div className="flex items-center">
             {timeLimit ? (
-              <>
-                <div className="hidden">
-                  <span className="text-xs font-medium text-gray-900">Time Remaining:</span>
+              started ? (
+                <Timer
+                  initialMinutes={timeLimit}
+                  onTimeUp={onTimeUp}
+                  className=""
+                  paused={paused}
+                />
+              ) : (
+                <div className="text-xs bg-gray-100 text-gray-500 px-3 py-1 rounded-full font-mono font-bold">
+                  Start to begin
                 </div>
-                {started ? (
-                  <Timer
-                    initialMinutes={timeLimit}
-                    onTimeUp={onTimeUp}
-                    className="text-gray-900 px-2 py-1 rounded-md text-sm font-bold shadow-md h-9 flex items-center justify-center"
-                    paused={paused}
-                  />
-                ) : (
-                  <div className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-lg font-mono font-bold shadow-md">
-                    Start test to begin timer
-                  </div>
-                )}
-              </>
+              )
             ) : (
-              <div className="text-xs bg-gray-100 text-gray-900 px-2 py-1 rounded-lg font-mono font-bold shadow-md">
-                <Clock className="h-3 w-3 inline mr-1" />
-                No Time Limit
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-dashed border-blue-200 bg-white text-blue-600 text-sm font-medium">
+                <Clock className="h-3.5 w-3.5" />
+                <span>No Limit</span>
               </div>
             )}
           </div>
-          <div className="flex items-center">
-            <Button
-              onClick={onSubmitTest}
-              className={`px-4 py-2 font-semibold shadow-md text-sm ${showTimeOverDialog
-                ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
-                : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
-              disabled={isSubmitting}
-            >
-              <Check className="h-4 w-4 mr-2" />
-              {showTimeOverDialog ? 'Submit Test (Time Over)' : 'Submit Test'}
-            </Button>
-          </div>
+
+          {/* Right: Submit */}
+          <button
+            onClick={onSubmitTest}
+            disabled={isSubmitting}
+            className={`text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300 ${
+              showTimeOverDialog
+                ? 'bg-green-600 text-white animate-pulse'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {showTimeOverDialog ? 'Submit Test' : 'Submit'}
+          </button>
         </div>
       </div>
     </header>

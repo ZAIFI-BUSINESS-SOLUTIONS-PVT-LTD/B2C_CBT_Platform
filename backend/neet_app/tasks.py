@@ -307,25 +307,26 @@ def compute_results_task(self, session_id: int):
 )
 def generate_zone_insights_task(self, session_id: int):
     """
-    Generate checkpoint insights for all subjects in a completed test session.
+    Compute and store zone insights metrics for all subjects in a completed test session.
     
-    This task orchestrates the generation of subject-wise zone insights (checkpoints)
-    using LLM analysis of wrong/skipped questions. Each subject gets exactly 2
-    diagnostic checkpoints identifying problems and action plans.
+    This task calculates and persists subject-wise performance metrics including:
+    - Total possible marks and actual marks
+    - Accuracy percentages
+    - Time spent breakdown (correct/incorrect/skipped)
+    - Subject-wise aggregated data
     
     **Idempotency**: This task checks if zone insights already exist in the database
-    for this session. If TestSubjectZoneInsight records are found, the task skips
-    generation to avoid duplicate API calls and redundant processing.
+    for this session. If TestSubjectZoneInsight records with populated subject_data
+    are found, the task skips generation to avoid redundant processing.
     
     **What it does**:
     1. Checks if zone insights already exist (idempotency)
-    2. Detects subjects present in the test (Physics, Chemistry, Botany, etc.)
-    3. For each subject:
-       - Extracts wrong/skipped questions grouped by topic
-       - Calls LLM (Gemini) to generate 2 diagnostic checkpoints
-       - Falls back to generic checkpoints if LLM unavailable
-    4. Saves TestSubjectZoneInsight records to database
-    5. Frontend polls these records to know when to show results
+    2. Fetches all TestAnswer records for the session
+    3. Groups answers by subject (Physics, Chemistry, Botany, etc.)
+    4. For each subject:
+       - Calculates marks, accuracy, time spent
+       - Stores structured data in TestSubjectZoneInsight table
+    5. Frontend polls these records to display analytics
     
     Args:
         session_id: TestSession ID to process
@@ -342,7 +343,7 @@ def generate_zone_insights_task(self, session_id: int):
     
     Raises:
         TestSession.DoesNotExist: If session not found
-        Exception: Any LLM or database error
+        Exception: Any database error
     """
     from .models import TestSession, TestSubjectZoneInsight
     
@@ -354,10 +355,22 @@ def generate_zone_insights_task(self, session_id: int):
             logger.error(f'TestSession {session_id} not found')
             return {'status': 'error', 'error': 'Session not found', 'session_id': session_id}
         
-        # Idempotency check: skip if zone insights already exist
-        existing_insights = TestSubjectZoneInsight.objects.filter(test_session_id=session_id)
+        # Idempotency check: skip if zone insights with subject_data already exist
+        existing_insights = TestSubjectZoneInsight.objects.filter(
+            test_session_id=session_id
+        ).exclude(subject_data__isnull=True)
+        
         if existing_insights.exists():
-            subjects = list(existing_insights.values_list('subject', flat=True))
+            subjects_set = set()
+            for row in existing_insights:
+                sd = row.subject_data or []
+                if isinstance(sd, list):
+                    for entry in sd:
+                        name = entry.get('subject_name') or entry.get('subject')
+                        if name:
+                            subjects_set.add(name)
+
+            subjects = sorted(list(subjects_set))
             logger.info(f'⏭️ Zone insights already exist for session {session_id}, skipping')
             print(f"⏭️ Zone insights already exist for session {session_id}: {subjects}")
             return {
@@ -368,73 +381,15 @@ def generate_zone_insights_task(self, session_id: int):
                 'message': 'Zone insights already generated'
             }
         
-        from .services.zone_insights_service import generate_all_subject_checkpoints
+        from .services.zone_insights_service import compute_and_store_zone_insights
         
-        logger.info(f'🎯 Generating zone insights for test session {session_id}')
-        print(f"🎯 Starting zone insights generation for session {session_id}")
+        logger.info(f'🎯 Computing zone insights for test session {session_id}')
+        print(f"🎯 Starting zone insights computation for session {session_id}")
         
-        # Generate zone insights for all subjects
-        zone_results = generate_all_subject_checkpoints(session_id)
-        
-        if zone_results:
-            logger.info(
-                f'✅ Zone insights generated for session {session_id}: '
-                f'{len(zone_results)} subjects processed'
-            )
-            print(f"✅ Zone insights complete: {len(zone_results)} subjects processed")
-            
-            # Generate TTS audio for demo tests
-            try:
-                # Use single-dot import to reference neet_app.utils when running under workers
-                from .utils.tts_helper import is_demo_test_for_neet_bro, extract_checkpoint_text_for_audio, generate_insight_audio
-                from .models import TestSubjectZoneInsight
-                
-                if is_demo_test_for_neet_bro(session):
-                    logger.info(f'🎙️ Demo test detected, generating TTS audio for session {session_id}')
-                    print(f"🎙️ Generating TTS audio for demo test {session_id}")
-                    
-                    # Fetch checkpoints to extract text
-                    insights_qs = TestSubjectZoneInsight.objects.filter(test_session_id=session_id)
-                    checkpoints_by_subject = []
-                    
-                    for insight in insights_qs:
-                        checkpoints_by_subject.append({
-                            'subject': insight.subject,
-                            'checkpoints': insight.checkpoints or []
-                        })
-                    
-                    # Extract first checkpoint from each subject
-                    audio_text = extract_checkpoint_text_for_audio(checkpoints_by_subject)
-                    
-                    # Get institution name
-                    institution_name = None
-                    if session.platform_test and session.platform_test.institution:
-                        institution_name = session.platform_test.institution.name
-                    
-                    # Generate audio
-                    audio_url = generate_insight_audio(audio_text, session_id, institution_name)
-                    
-                    if audio_url:
-                        # Store audio URL in TestSession
-                        session.insights_audio_url = audio_url
-                        session.save(update_fields=['insights_audio_url'])
-                        logger.info(f'✅ TTS audio generated and saved for session {session_id}: {audio_url}')
-                        print(f"✅ TTS audio URL saved: {audio_url}")
-                    else:
-                        logger.warning(f'⚠️ TTS audio generation returned None for session {session_id}')
-                        print(f"⚠️ TTS audio generation failed for session {session_id}")
-            except Exception as audio_error:
-                # Don't fail the task if TTS generation fails
-                logger.error(f'TTS audio generation failed for session {session_id}: {audio_error}')
-                print(f"❌ TTS audio generation error: {audio_error}")
-            
-            return {
-                'status': 'success',
-                'session_id': session_id,
-                'subjects_processed': len(zone_results),
-                'subjects': list(zone_results.keys())
-            }
-        else:
+        # Compute and store zone insights for all subjects
+        zone_results = compute_and_store_zone_insights(session_id)
+
+        if not zone_results:
             logger.warning(f'⚠️ No zone insights generated for session {session_id}')
             print(f"⚠️ No zone insights generated for session {session_id}")
             return {
@@ -442,10 +397,29 @@ def generate_zone_insights_task(self, session_id: int):
                 'session_id': session_id,
                 'message': 'No zone insights generated'
             }
+
+        logger.info(
+            f'✅ Zone insights computed for session {session_id}: '
+            f'{len(zone_results)} subjects processed'
+        )
+        print(f"✅ Zone insights complete: {len(zone_results)} subjects processed")
+        # NOTE: Do not run LLM-derived generation (focus_zone, repeated_mistake)
+        # inline inside this task. LLM work is heavy and may be retried or
+        # executed separately; the dedicated `generate_focus_zone_task` is the
+        # canonical place to run `generate_focus_zone` and
+        # `generate_repeated_mistakes` to avoid duplicate invocations and to
+        # provide clearer retry/isolation semantics.
+
+        return {
+            'status': 'success',
+            'session_id': session_id,
+            'subjects_processed': len(zone_results),
+            'subjects': list(zone_results.keys())
+        }
         
     except Exception as e:
         logger.exception(f'generate_zone_insights_task failed for session {session_id}')
-        print(f"❌ Zone insights generation failed: {e}")
+        print(f"❌ Zone insights computation failed: {e}")
         return {
             'status': 'error',
             'error': str(e),
@@ -503,160 +477,122 @@ def generate_insights_task(self, student_id: str, request_data: dict = None, for
         StudentProfile.DoesNotExist: If student not found
         Exception: Any LLM or database error
     """
-    from .views import insights_views
-    from .models import StudentProfile, StudentInsight
-    
+    # NOTE: `generate_insights_task` removed. Student-level insights generation
+    # has been deprecated and the task intentionally left unimplemented to
+    # prevent accidental usage. If insights generation is required in future,
+    # reintroduce the implementation from the previous commit or restore via
+    # version control.
+    logger.info('generate_insights_task is deprecated and has been removed')
+    return {
+        'status': 'deprecated',
+        'message': 'Student-level insights generation has been removed'
+    }
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_kwargs={"max_retries": 1},
+    retry_backoff=True,
+    soft_time_limit=900,   # 15 minutes (LLM with retries can be slow)
+    time_limit=1200,       # 20 minutes hard limit
+    name='neet_app.tasks.generate_focus_zone_task'
+)
+def generate_focus_zone_task(self, session_id: int):
+    """
+    Generate focus_zone and repeated_mistake fields for a completed platform test session.
+
+    Only runs for platform-type tests; custom tests are silently skipped.
+
+    Steps:
+    1. Confirm session exists and is a completed platform test.
+    2. Confirm a TestSubjectZoneInsight row already exists (written by generate_zone_insights_task).
+    3. Call generate_focus_zone() to populate focus_zone using the LLM.
+    4. Call generate_repeated_mistakes() to populate repeated_mistake using the LLM.
+
+    Args:
+        session_id: TestSession ID
+
+    Returns:
+        Dict with status and which fields were updated.
+    """
+    from .models import TestSession, TestSubjectZoneInsight
+
     try:
-        # Verify student exists
         try:
-            student = StudentProfile.objects.get(student_id=student_id)
-        except StudentProfile.DoesNotExist:
-            logger.error(f'Student {student_id} not found')
-            return {'status': 'error', 'error': 'Student not found', 'student_id': student_id}
-        
-        # Idempotency check: if not force_regenerate and recent insights exist, skip
-        if not force_regenerate:
-            recent_insight = StudentInsight.objects.filter(student_id=student_id).order_by('-created_at').first()
-            if recent_insight:
-                # Check if insight is recent (within last hour)
-                from django.utils import timezone
-                from datetime import timedelta
-                age = timezone.now() - recent_insight.created_at
-                if age < timedelta(hours=1):
-                    logger.info(f'⏭️ Recent insights exist for student {student_id}, skipping')
-                    print(f"⏭️ Recent insights exist for student {student_id}")
-                    return {
-                        'status': 'skipped',
-                        'student_id': student_id,
-                        'message': 'Recent insights already exist',
-                        'insights_generated': False
-                    }
-        
-        logger.info(f'🧠 Generating insights for student {student_id}')
-        print(f"🧠 Starting insight generation for student {student_id}")
-        
-        # Get thresholds (default or custom from request_data)
-        # `get_thresholds` was removed from `insights_views`; fall back to request_data or empty dict
-        thresholds = request_data or {}
-        
-        # Calculate topic metrics across all tests
-        all_metrics = insights_views.calculate_topic_metrics(student_id)
-        
-        # If no test data, save empty insights
-        if not all_metrics or not all_metrics.get('topics'):
-            logger.info(f'⚠️ No test data for student {student_id}, saving empty insights')
-            empty_response = {
-                'status': 'success',
-                'data': {
-                    'strength_topics': [],
-                    'weak_topics': [],
-                    'improvement_topics': [],
-                    'unattempted_topics': [],
-                    'llm_insights': {},
-                    'thresholds_used': thresholds,
-                    'summary': {
-                        'total_topics_analyzed': 0,
-                        'total_tests_taken': 0,
-                        'message': 'No test data available'
-                    }
-                }
-            }
-            insights_views.save_insights_to_database(student_id, empty_response)
+            session = TestSession.objects.get(id=session_id)
+        except TestSession.DoesNotExist:
+            logger.error(f'generate_focus_zone_task: TestSession {session_id} not found')
+            return {'status': 'error', 'error': 'Session not found', 'session_id': session_id}
+
+        # Only generate for platform tests
+        if session.test_type != 'platform':
+            logger.info(
+                f'generate_focus_zone_task: session {session_id} is "{session.test_type}" — skipping '
+                f'(focus_zone / repeated_mistake are only for platform tests)'
+            )
             return {
-                'status': 'success',
-                'student_id': student_id,
-                'insights_generated': True,
-                'topics_analyzed': 0,
-                'message': 'No test data available'
+                'status': 'skipped',
+                'session_id': session_id,
+                'message': 'Not a platform test — focus_zone/repeated_mistake skipped',
             }
-        
-        # Classify topics
-        classification = insights_views.classify_topics(
-            all_metrics['topics'],
-            all_metrics['overall_avg_time'],
-            thresholds
-        )
-        
-        # Get unattempted topics
-        unattempted_topics = insights_views.get_unattempted_topics(all_metrics['topics'])
-        
-        # Generate LLM insights
-        llm_insights = {}
+
+        # Ensure zone-insights row exists (written by generate_zone_insights_task before us)
+        insight = TestSubjectZoneInsight.objects.filter(
+            test_session_id=session_id,
+            student_id=session.student_id,
+        ).first()
+
+        if not insight:
+            logger.warning(
+                f'generate_focus_zone_task: no TestSubjectZoneInsight found for session {session_id}. '
+                f'Cannot generate focus_zone / repeated_mistake.'
+            )
+            return {
+                'status': 'error',
+                'error': 'Zone insights row missing; run generate_zone_insights_task first',
+                'session_id': session_id,
+            }
+
+        from .services.zone_insights_service import generate_focus_zone, generate_repeated_mistakes
+
+        student_id = session.student_id
+        updated_fields = []
+
+        # --- Focus Zone ---
+        logger.info(f'🎯 [generate_focus_zone_task] Generating focus_zone for session {session_id}')
         try:
-            # Strengths
-            if classification['strength_topics']:
-                llm_insights['strengths'] = insights_views.generate_llm_insights(
-                    'strengths',
-                    classification['strength_topics']
-                )
-            
-            # Weaknesses
-            if classification['weak_topics']:
-                llm_insights['weaknesses'] = insights_views.generate_llm_insights(
-                    'weaknesses',
-                    classification['weak_topics']
-                )
-            
-            # Study plan (uses misconception-based service)
-            from .services.study_plan_service import generate_study_plan_for_student
-            study_plan_result = generate_study_plan_for_student(student_id)
-            if study_plan_result and study_plan_result.get('status') == 'success':
-                llm_insights['study_plan'] = study_plan_result
-        except Exception as llm_error:
-            logger.error(f'LLM insight generation failed for student {student_id}: {llm_error}')
-            print(f"⚠️ LLM insights partial failure: {llm_error}")
-        
-        # Build summary
-        summary = {
-            'total_topics_analyzed': len(all_metrics['topics']),
-            'total_tests_taken': all_metrics.get('total_tests_taken', 0),
-            'strength_topics_count': len(classification['strength_topics']),
-            'weak_topics_count': len(classification['weak_topics']),
-            'improvement_topics_count': len(classification['improvement_topics']),
-            'unattempted_topics_count': len(unattempted_topics)
-        }
-        
-        # Build response
-        response_data = {
-            'status': 'success',
-            'data': {
-                **classification,
-                'unattempted_topics': unattempted_topics,
-                'llm_insights': llm_insights,
-                'thresholds_used': thresholds,
-                'summary': summary
-            }
-        }
-        
-        # Get latest session ID
-        from .models import TestSession
-        latest_session = TestSession.objects.filter(
-            student_id=student_id,
-            is_completed=True
-        ).order_by('-end_time').first()
-        latest_session_id = latest_session.id if latest_session else None
-        
-        # Save to database
-        insights_views.save_insights_to_database(student_id, response_data, latest_session_id)
-        
-        logger.info(f'✅ Insights generated for student {student_id}: {summary["total_topics_analyzed"]} topics')
-        print(f"✅ Insights complete for student {student_id}")
-        
+            focus_zone_data = generate_focus_zone(session_id)
+            if focus_zone_data:
+                updated_fields.append('focus_zone')
+                logger.info(f'✅ focus_zone generated for session {session_id}')
+            else:
+                logger.warning(f'⚠️ generate_focus_zone returned empty for session {session_id}')
+        except Exception as fz_err:
+            logger.error(f'generate_focus_zone failed for session {session_id}: {fz_err}')
+
+        # --- Repeated Mistakes ---
+        logger.info(f'🔁 [generate_focus_zone_task] Generating repeated_mistake for student {student_id} / session {session_id}')
+        try:
+            repeated_data = generate_repeated_mistakes(student_id, session_id)
+            if repeated_data:
+                updated_fields.append('repeated_mistake')
+                logger.info(f'✅ repeated_mistake generated for session {session_id}')
+            else:
+                logger.warning(f'⚠️ generate_repeated_mistakes returned empty for session {session_id}')
+        except Exception as rm_err:
+            logger.error(f'generate_repeated_mistakes failed for session {session_id}: {rm_err}')
+
         return {
-            'status': 'success',
-            'student_id': student_id,
-            'insights_generated': True,
-            'topics_analyzed': summary['total_topics_analyzed']
+            'status': 'success' if updated_fields else 'warning',
+            'session_id': session_id,
+            'updated_fields': updated_fields,
+            'message': f'Updated: {", ".join(updated_fields)}' if updated_fields else 'No fields updated',
         }
-        
+
     except Exception as e:
-        logger.exception(f'generate_insights_task failed for student {student_id}')
-        print(f"❌ Insight generation failed for student {student_id}: {e}")
-        return {
-            'status': 'error',
-            'error': str(e),
-            'student_id': student_id
-        }
+        logger.exception(f'generate_focus_zone_task failed for session {session_id}')
+        return {'status': 'error', 'error': str(e), 'session_id': session_id}
 
 
 @shared_task(
@@ -672,8 +608,8 @@ def process_test_submission_task(self, session_id: int):
     
     **Pipeline Sequence**:
     1. **compute_results_task**: Evaluate answers and calculate results
-    2. **generate_zone_insights_task**: Generate subject-wise checkpoints
-    3. **generate_insights_task**: Generate student-level overall insights
+    2. **generate_zone_insights_task**: Compute marks/accuracy/subject_data and g_phrase
+    3. **generate_focus_zone_task**: Generate focus_zone and repeated_mistake via LLM (platform tests only)
     
     **Why this orchestrator exists**:
     - Ensures tasks run in correct order (results → zone insights → student insights)
@@ -725,14 +661,14 @@ def process_test_submission_task(self, session_id: int):
         logger.info(f'🚀 Starting test submission pipeline for session {session_id}')
         print(f"🚀 Pipeline started for session {session_id} (student: {student_id})")
         
-        # Build task chain: results → zone insights → student insights
+        # Build task chain: results → zone insights → focus zone + repeated mistakes (platform only)
         try:
             from celery import chain
             
             workflow = chain(
                 compute_results_task.si(session_id),
                 generate_zone_insights_task.si(session_id),
-                generate_insights_task.si(student_id, {}, True)  # force_regenerate=True
+                generate_focus_zone_task.si(session_id),
             )
             
             # Execute the chain asynchronously
@@ -745,7 +681,7 @@ def process_test_submission_task(self, session_id: int):
                 'status': 'started',
                 'session_id': session_id,
                 'student_id': student_id,
-                'pipeline': 'compute_results → zone_insights → student_insights',
+                'pipeline': 'compute_results → zone_insights → focus_zone/repeated_mistakes',
                 'chain_id': str(result.id)
             }
             
@@ -757,7 +693,7 @@ def process_test_submission_task(self, session_id: int):
             logger.info(f'🔄 Falling back to individual task enqueues for session {session_id}')
             compute_results_task.apply_async(args=[session_id])
             generate_zone_insights_task.apply_async(args=[session_id])
-            generate_insights_task.apply_async(args=[student_id, {}, True])
+            generate_focus_zone_task.apply_async(args=[session_id])
             
             return {
                 'status': 'started',

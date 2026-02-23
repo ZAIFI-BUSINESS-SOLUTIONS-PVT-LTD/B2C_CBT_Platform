@@ -90,48 +90,9 @@ def tests_list(request):
 
 @require_platform_admin_session
 def tests_create(request):
-    topics = list(Topic.objects.all().order_by('subject', 'name'))
-    if request.method == 'POST':
-        data = request.POST
-        pt = PlatformTest(
-            test_name=data.get('test_name'),
-            test_code=data.get('test_code'),
-            test_year=(int(data.get('test_year')) if data.get('test_year') else None),
-            test_type=data.get('test_type') or None,
-            description=data.get('description') or None,
-            instructions=data.get('instructions') or None,
-            time_limit=int(data.get('time_limit') or 0),
-            total_questions=int(data.get('total_questions') or 0),
-            is_active=(data.get('is_active') == 'on')
-        )
-        # selected topics (list of ids)
-        selected = request.POST.getlist('selected_topics')
-        try:
-            pt.selected_topics = [int(x) for x in selected]
-        except Exception:
-            pt.selected_topics = []
-        # difficulty fields
-        e = data.get('difficulty_easy')
-        m = data.get('difficulty_medium')
-        h = data.get('difficulty_hard')
-        dist = {}
-        if e:
-            try: dist['easy'] = int(e)
-            except: pass
-        if m:
-            try: dist['medium'] = int(m)
-            except: pass
-        if h:
-            try: dist['hard'] = int(h)
-            except: pass
-        pt.difficulty_distribution = dist or None
-        # set audit performer
-        pa = _platform_admin_session_user(request)
-        if pa:
-            setattr(pt, '_last_modified_by', pa.username)
-        pt.save()
-        return redirect('platform-admin-tests-list')
-    return render(request, 'platform_admin/tests_form.html', {'action': 'create', 'topics': topics})
+    # Test creation via platform admin UI has been disabled.
+    # Keep the route in place to avoid breaking links but redirect to the tests list.
+    return redirect('platform-admin-tests-list')
 
 
 @require_platform_admin_session

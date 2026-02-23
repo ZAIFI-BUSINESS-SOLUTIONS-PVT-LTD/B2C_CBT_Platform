@@ -9,7 +9,7 @@ from .dashboard_views import dashboard_analytics, dashboard_comprehensive_analyt
 from .time_tracking_views import TimeTrackingViewSet
 from .chatbot_views import ChatSessionViewSet, chat_statistics
 from .memory_views import ChatMemoryViewSet
-from .insights_views import get_student_insights, get_topic_details, get_insights_config
+# Student insights views removed (deprecated)
 from .utils import sync_all_from_database_question,sync_topics_from_database_question,sync_all_from_database_question, reset_questions_and_topics
 # Make all views available for import
 __all__ = [
@@ -26,9 +26,7 @@ __all__ = [
     'dashboard_comprehensive_analytics',
     'platform_test_analytics',
     'chat_statistics',
-    'get_student_insights',
-    'get_topic_details', 
-    'get_insights_config',
+    # Student insights removed
     'initialize_chapter_structure',
     'reset_chapter_structure',
     'sync_topics_from_database_question',

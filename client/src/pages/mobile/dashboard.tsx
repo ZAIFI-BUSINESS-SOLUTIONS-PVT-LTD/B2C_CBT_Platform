@@ -9,6 +9,7 @@ import { AlertCircle, ArrowRight, UserRound, Trophy, ChevronLeft } from "lucide-
 import { API_CONFIG } from "@/config/api";
 import { authenticatedFetch } from "@/lib/auth";
 import TestZoneInsights from "@/components/test-zone-insights";
+import TestHistory from "@/components/test-history";
 import MobileDock from "@/components/mobile-dock";
 import { AnalyticsData, InsightsData } from "@/types/dashboard";
 
@@ -80,6 +81,9 @@ export default function LandingDashboard() {
         </div>
         <div className="p-4">
           <TestZoneInsights />
+          <div className="mt-6">
+            <TestHistory />
+          </div>
         </div>
       </div>
       <MobileDock />

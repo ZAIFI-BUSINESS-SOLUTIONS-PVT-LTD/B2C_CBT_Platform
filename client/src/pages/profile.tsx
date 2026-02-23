@@ -36,6 +36,23 @@ import {
     Trash2,
 } from "lucide-react";
 
+// Helper: safely get initials from a name (handles undefined/null)
+const getInitials = (name?: string) => {
+    if (!name) return "";
+    return name
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(word => word.charAt(0))
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+};
+
+const getDisplayName = (p?: { fullName?: string; email?: string; phoneNumber?: string } | null) => {
+    if (!p) return "";
+    return p.fullName || p.email || p.phoneNumber || "";
+};
+
 // Student profile form schema
 const profileFormSchema = z.object({
     fullName: z.string().min(2, "Full name must be at least 2 characters"),
@@ -219,15 +236,7 @@ export function StudentProfile() {
         }
     };
 
-    // Get initials for avatar
-    const getInitials = (name: string) => {
-        return name
-            .split(" ")
-            .map(word => word.charAt(0))
-            .join("")
-            .toUpperCase()
-            .slice(0, 2);
-    };
+    // Display name and initials are handled by module-level helpers
 
     // If not loading and no profile, show the full-page create profile form
     if (!isLoading && !profile) {
@@ -392,19 +401,14 @@ function ProfileView({ profile, onEdit, onLogout, onDeleteAccount }: ProfileView
                 <div className="flex-shrink-0">
                     <Avatar className="h-14 w-14 md:h-20 md:w-20 ring-2 ring-white shadow-sm">
                         <AvatarFallback className="bg-blue-600 text-white text-lg">
-                            {profile.fullName
-                                .split(" ")
-                                .map(word => word.charAt(0))
-                                .join("")
-                                .toUpperCase()
-                                .slice(0, 2)}
+                            {getInitials(getDisplayName(profile))}
                         </AvatarFallback>
                     </Avatar>
                 </div>
 
                 <div className="flex-1 min-w-0">
-                    <h3 className="text-lg md:text-2xl font-semibold truncate">{profile.fullName}</h3>
-                    <p className="text-sm text-gray-600 truncate">{profile.email}</p>
+                    <h3 className="text-lg md:text-2xl font-semibold truncate">{getDisplayName(profile) || 'User'}</h3>
+                    <p className="text-sm text-gray-600 truncate">{profile.email || profile.phoneNumber || '—'}</p>
                     <div className="mt-2 flex items-center gap-2">
                         {profile.targetExamYear && (
                             <Badge variant="outline">

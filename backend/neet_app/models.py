@@ -924,57 +924,8 @@ class ChatMessage(models.Model):
         return f"{self.message_type}: {self.message_content[:50]}..."
 
 
-class StudentInsight(models.Model):
-    """
-    Stores student performance insights in the database.
-    Replaces the JSON file-based caching system with persistent, queryable storage.
-    """
-    id = models.AutoField(primary_key=True)
-    # Foreign key to StudentProfile using student_id
-    student = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, to_field='student_id', db_column='student_id')
-    # Foreign key to TestSession (nullable, since insights might not always be tied to a specific test)
-    test_session = models.ForeignKey(TestSession, on_delete=models.CASCADE, null=True, blank=True, db_column='test_session_id')
-    # Timestamp when insights were generated
-    created_at = models.DateTimeField(auto_now_add=True, null=False)
-    
-    # Topic classifications (stored as JSON arrays)
-    strength_topics = models.JSONField(default=list, blank=True)  # List of strength topics
-    weak_topics = models.JSONField(default=list, blank=True)  # List of weakness topics
-    improvement_topics = models.JSONField(default=list, blank=True)  # List of improvement topics
-    unattempted_topics = models.JSONField(default=list, blank=True)  # List of unattempted topics
-    last_test_topics = models.JSONField(default=list, blank=True)  # List of last test feedback topics
-    
-    # LLM-generated insights (stored as JSON objects with status, message, insights)
-    llm_strengths = models.JSONField(default=dict, blank=True)  # LLM-generated strengths insights
-    llm_weaknesses = models.JSONField(default=dict, blank=True)  # LLM-generated weaknesses insights
-    llm_study_plan = models.JSONField(default=dict, blank=True)  # LLM-generated study plan
-    llm_last_test_feedback = models.JSONField(default=dict, blank=True)  # LLM-generated last test feedback
-    
-    # Configuration and summary data
-    thresholds_used = models.JSONField(default=dict, blank=True)  # Thresholds used for classification
-    summary = models.JSONField(default=dict, blank=True)  # Summary statistics (total topics, tests, etc.)
-    
-    # Optional insight type for categorization
-    insight_type = models.CharField(max_length=20, default='overall', blank=True)  # e.g., 'overall', 'last_test'
-    
-    class Meta:
-        db_table = 'student_insights'
-        verbose_name = 'Student Insight'
-        verbose_name_plural = 'Student Insights'
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['student', 'created_at']),
-            models.Index(fields=['test_session', 'created_at']),
-            models.Index(fields=['insight_type', 'created_at']),
-        ]
-    
-    def __str__(self):
-        test_info = f" (Test {self.test_session.id})" if self.test_session else ""
-        return f"Insights for {self.student.student_id}{test_info} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
-    
-    def get_student_profile(self):
-        """Get the associated StudentProfile"""
-        return self.student
+# StudentInsight model removed — student-level insights feature deprecated.
+# The corresponding database table should be dropped via a migration.
 
 
 class TestSubjectZoneInsight(models.Model):
@@ -1003,8 +954,32 @@ class TestSubjectZoneInsight(models.Model):
         related_name='zone_insights'
     )
     
-    # Subject identification
-    subject = models.CharField(max_length=20)  # Physics, Chemistry, Botany, Zoology, Biology, Math
+    # Subject identification removed — schema now stores test-level insights (not per-subject)
+    
+    # New fields required by redesigned zone-insight schema
+    # Overall mark for this subject (can be fractional)
+    mark = models.FloatField(null=True, blank=True)
+
+    # Subject accuracy as percentage (0.0 - 1.0)
+    accuracy = models.FloatField(null=True, blank=True)
+
+    # Time spent details (JSON): total time, per-topic breakdown, etc.
+    time_spend = models.JSONField(null=True, blank=True, default=dict)
+
+    # Total marks/questions for this subject
+    total_mark = models.FloatField(null=True, blank=True)
+
+    # Arbitrary structured subject-level data (JSON)
+    subject_data = models.JSONField(null=True, blank=True, default=dict)
+
+    # Short generated phrase/summary for the subject (LLM output)
+    g_phrase = models.TextField(null=True, blank=True)
+
+    # Focus zone (JSON): regions/topics to focus on
+    focus_zone = models.JSONField(null=True, blank=True, default=list)
+
+    # Repeated mistakes (JSON): list/dict describing repeated mistakes
+    repeated_mistake = models.JSONField(null=True, blank=True, default=list)
     
     # Checkpoint data (list of 2 checkpoint dicts)
     # Each checkpoint dict contains: topic, subject, subtopic, accuracy, checklist, action_plan, citation
@@ -1023,14 +998,13 @@ class TestSubjectZoneInsight(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['student', 'test_session']),
-            models.Index(fields=['test_session', 'subject']),
             models.Index(fields=['created_at']),
         ]
-        # One checkpoint record per test per subject
-        unique_together = [['test_session', 'subject']]
+        # Ensure one insight record per test session + student
+        unique_together = [['test_session', 'student']]
     
     def __str__(self):
-        return f"{self.subject} checkpoints for Test {self.test_session.id} - {self.student.student_id}"
+        return f"Zone insights for Test {self.test_session.id} - {self.student.student_id}"
     
     def get_total_checkpoints(self):
         """Get total number of checkpoints"""
@@ -1380,3 +1354,45 @@ class PaymentOrder(models.Model):
 
 # Backward compatibility alias
 RazorpayOrder = PaymentOrder
+
+
+class QuestionOfTheDay(models.Model):
+    """
+    Tracks student interactions with the daily question feature.
+    Each student can attempt one question per day.
+    """
+    id = models.AutoField(primary_key=True)
+    student = models.ForeignKey(
+        StudentProfile, 
+        on_delete=models.CASCADE, 
+        null=False,
+        db_column='student_id'
+    )
+    question = models.ForeignKey(
+        Question, 
+        on_delete=models.CASCADE, 
+        null=False,
+        db_column='question_id'
+    )
+    date = models.DateField(null=False, default=timezone.now)
+    selected_option = models.CharField(
+        max_length=1, 
+        null=True, 
+        blank=True,
+        help_text='Selected answer: A, B, C, or D'
+    )
+    is_correct = models.BooleanField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'question_of_the_day'
+        verbose_name = 'Question of the Day'
+        verbose_name_plural = 'Questions of the Day'
+        unique_together = [['student', 'date']]  # One attempt per day per student
+        indexes = [
+            models.Index(fields=['student', 'date']),
+            models.Index(fields=['date']),
+        ]
+
+    def __str__(self):
+        return f"QOD {self.date} - {self.student.student_id} - Q{self.question.id}"

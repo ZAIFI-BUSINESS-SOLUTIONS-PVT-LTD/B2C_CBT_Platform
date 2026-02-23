@@ -15,7 +15,7 @@
  * with automatic submission when time expires.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ import { setPostTestHidden } from "@/lib/postTestHidden";
 import { authenticatedFetch } from "@/lib/auth";
 import normalizeImageSrc from "@/lib/media";
 import { unlockAudio } from "@/utils/tts";
-import { ChevronLeft, ChevronRight, Bookmark, AlertTriangle, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, Bookmark, AlertTriangle, Info, X } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, } from "@/components/ui/alert-dialog";
 import SubmitDialog from "./test-interface/dialogs/SubmitDialog";
 import TimeOverDialog from "./test-interface/dialogs/TimeOverDialog";
@@ -439,29 +439,80 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const currentQuestion = testData?.questions[currentQuestionIndex];
   // Cache for topic details to avoid repeated network calls
   const [topicCache, setTopicCache] = useState<Record<number, { name: string; subject?: string }>>({});
-  const currentTopicId = currentQuestion ? (currentQuestion.topic as any) : null;
+  const currentTopicId = currentQuestion ? (currentQuestion.topicId ?? (currentQuestion as any).topic) : null;
   const currentTopic = currentTopicId ? topicCache[currentTopicId] : undefined;
 
-  // Fetch topic details when current question changes (cache results)
+  // Ref to track which topic IDs have been fetched (prevents re-fetching)
+  const requestedTopicIdsRef = useRef(new Set<number>());
+
+  // Preload topic details for ALL questions (needed for subject tabs)
   useEffect(() => {
-    if (!currentTopicId) return;
-    if (topicCache[currentTopicId]) return; // already cached
+    if (!testData?.questions) return;
+    const idsToFetch: number[] = [];
+    testData.questions.forEach((q: any) => {
+      const tid = q.topicId || q.topic;
+      if (tid && !requestedTopicIdsRef.current.has(tid)) {
+        requestedTopicIdsRef.current.add(tid);
+        idsToFetch.push(tid);
+      }
+    });
+    if (idsToFetch.length === 0) return;
     let mounted = true;
     (async () => {
-      try {
-        const res = await authenticatedFetch(`${API_CONFIG.BASE_URL}/api/topics/${currentTopicId}/`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!mounted) return;
-        setTopicCache(prev => ({ ...prev, [currentTopicId]: { name: data.name, subject: data.subject } }));
-      } catch (e) {
-        // ignore
+      for (const tid of idsToFetch) {
+        try {
+          const res = await authenticatedFetch(`${API_CONFIG.BASE_URL}/api/topics/${tid}/`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (!mounted) return;
+          setTopicCache(prev => ({ ...prev, [tid]: { name: data.name, subject: data.subject } }));
+        } catch (e) { /* ignore */ }
       }
     })();
     return () => { mounted = false; };
-  }, [currentTopicId, topicCache]);
+  }, [testData?.questions]);
 
-  // (debug logs removed)
+  // Get all unique subjects from questions (short form for tabs)
+  const allSubjects = useMemo(() => {
+    if (!testData?.questions) return [];
+    const subjects = new Set<string>();
+    testData.questions.forEach((q: any) => {
+      const topicId = q.topicId || q.topic;
+      const topic = topicCache[topicId];
+      if (topic?.subject) {
+        const shortSubject = topic.subject === 'Physics' ? 'Phy'
+          : topic.subject === 'Chemistry' ? 'Che'
+          : topic.subject === 'Botany' ? 'Bot'
+          : topic.subject === 'Zoology' ? 'Zoo'
+          : topic.subject;
+        subjects.add(shortSubject);
+      }
+    });
+    return Array.from(subjects);
+  }, [testData?.questions, topicCache]);
+
+  // Get current question's subject (short form)
+  const currentSubject = useMemo(() => {
+    if (!currentTopic?.subject) return '';
+    return currentTopic.subject === 'Physics' ? 'Phy'
+      : currentTopic.subject === 'Chemistry' ? 'Che'
+      : currentTopic.subject === 'Botany' ? 'Bot'
+      : currentTopic.subject === 'Zoology' ? 'Zoo'
+      : currentTopic.subject;
+  }, [currentTopic?.subject]);
+
+  // Helper: get short subject for a question by index
+  const getSubjectForQuestion = (q: any) => {
+    const topicId = q.topicId || q.topic;
+    const topic = topicCache[topicId];
+    if (!topic?.subject) return '';
+    return topic.subject === 'Physics' ? 'Phy'
+      : topic.subject === 'Chemistry' ? 'Che'
+      : topic.subject === 'Botany' ? 'Bot'
+      : topic.subject === 'Zoology' ? 'Zoo'
+      : topic.subject;
+  };
+
   const totalQuestions = testData?.questions.length || 0;
   const progressPercentage = totalQuestions > 0 ? ((currentQuestionIndex + 1) / totalQuestions) * 100 : 0;
 
@@ -1244,17 +1295,16 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 flex items-center justify-center px-4">
-        <div className="text-center bg-white rounded-xl shadow-lg border border-gray-200 p-6 max-w-sm mx-4">
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundImage: "url('/testscreen-bg.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+        <div className="text-center bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6 max-w-sm mx-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-500 font-medium text-sm">Loading test...</p>
+          <p className="text-slate-500 font-medium text-sm">Loading test...</p>
         </div>
       </div>
     );
   }
 
   if (!testData || !currentQuestion) {
-    // If testData exists but has no questions, or not enough questions, show a themed popup
     if (
       testData &&
       testData.questions &&
@@ -1288,17 +1338,12 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         </AlertDialog>
       );
     }
-    // Fallback for other errors
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50 flex items-center justify-center px-4">
-        <div className="text-center bg-white rounded-xl shadow-lg border border-gray-200 p-6 max-w-sm mx-4">
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundImage: "url('/testscreen-bg.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+        <div className="text-center bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6 max-w-sm mx-4">
           <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-gray-900 mb-2">
-            Test Not Found
-          </h2>
-          <p className="text-gray-500 text-sm">
-            Unable to load the test. Please try again.
-          </p>
+          <h2 className="text-lg font-bold text-gray-900 mb-2">Test Not Found</h2>
+          <p className="text-gray-500 text-sm">Unable to load the test. Please try again.</p>
           <button
             onClick={() => window.location.href = '/topics'}
             className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors shadow-md font-medium text-sm"
@@ -1311,18 +1356,17 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50/30 to-indigo-50">
-      {/* Preparing results overlay: shown while submit is in progress to improve UX */}
+    <div className="fixed inset-0 flex flex-col" style={{ backgroundImage: "url('/testscreen-bg.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      {/* === OVERLAYS === */}
       {isSubmitting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 px-4">
-          <div className="text-center px-4 py-6 max-w-sm rounded-lg">
+          <div className="text-center px-4 py-6 max-w-sm rounded-2xl">
             <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
             <h2 className="text-lg font-semibold text-gray-900">Submitting test...</h2>
             <p className="text-xs text-gray-600 mt-2">Redirecting to dashboard...</p>
           </div>
         </div>
       )}
-      {/* START OVERLAY: require user gesture to enter fullscreen */}
       {!started && testData?.questions && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm text-center mx-4">
@@ -1334,272 +1378,294 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           </div>
         </div>
       )}
-      {/* Header with Navigation and Profile */}
-      <TestHeader
-        started={started}
-        paused={paused}
-        timeLimit={testData.session.timeLimit}
-        onTimeUp={handleTimeUp}
-        onTogglePause={() => {
-          if (!paused) {
-            setPaused(true);
-            setPauseStartTime(Date.now());
-            cancelAutoSubmit();
-          } else {
-            const now = Date.now();
-            if (pauseStartTime) setAccumulatedPauseMs(prev => prev + (now - pauseStartTime));
-            setPauseStartTime(null);
-            setPaused(false);
-          }
-        }}
-        onSubmitTest={showTimeOverDialog ? handleTimeOverSubmit : handleSubmitTest}
-        showTimeOverDialog={showTimeOverDialog}
-        isSubmitting={isSubmitting}
-        onQuit={() => setShowQuitDialog(true)}
-        showPause={false} // hide pause button in the test interface
-      />
 
-      {/* Quit Exam Dialog */}
-      <QuitDialog
-        isOpen={showQuitDialog}
-        answersCount={getTotalAnsweredCount()}
-        totalQuestions={testData?.questions?.length || 0}
-        isPending={isSubmitting}
-        onConfirm={handleQuitConfirm}
-        onCancel={() => setShowQuitDialog(false)}
-      />
-      {/* Secure Test Mode Banner */}
-      <SecurityBanner enabled={isNavigationBlocked} />
+      {/* === FIXED TOP SECTION === */}
+      <div className="flex-shrink-0 z-40">
+        {/* Top bar: Quit | NEET Bro | Timer | Submit */}
+        <TestHeader
+          started={started}
+          paused={paused}
+          timeLimit={testData.session.timeLimit}
+          onTimeUp={handleTimeUp}
+          onTogglePause={() => {
+            if (!paused) {
+              setPaused(true);
+              setPauseStartTime(Date.now());
+              cancelAutoSubmit();
+            } else {
+              const now = Date.now();
+              if (pauseStartTime) setAccumulatedPauseMs(prev => prev + (now - pauseStartTime));
+              setPauseStartTime(null);
+              setPaused(false);
+            }
+          }}
+          onSubmitTest={showTimeOverDialog ? handleTimeOverSubmit : handleSubmitTest}
+          showTimeOverDialog={showTimeOverDialog}
+          isSubmitting={isSubmitting}
+          onQuit={() => setShowQuitDialog(true)}
+          showPause={false}
+        />
 
-      <div className="max-w-6xl mx-auto px-2">
-        <Card className="bg-white border border-gray-200 shadow-lg rounded-xl overflow-hidden">
-          {/* Test Progress Header: show subject/topic on left and question count on right */}
-          <div className="bg-white text-gray-900 p-4 border-b border-gray-200">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="inline-block bg-blue-50 text-blue-600 text-sm px-3 py-1 rounded-full font-medium truncate">
-                  {currentTopic?.subject || currentTopic?.name || 'Topic'}
-                </span>
-                <div className="hidden sm:block flex-1 min-w-0">
-                  <Progress
-                    value={progressPercentage}
-                    className="h-2 bg-blue-50 w-full rounded-full overflow-hidden"
-                  />
-                </div>
-              </div>
-              <div className="text-sm text-gray-500 whitespace-nowrap">Question {currentQuestionIndex + 1} of {totalQuestions}</div>
+        {/* Security Banner removed */}
+
+        {/* Subject tabs */}
+        {allSubjects.length > 0 && (
+          <div className="flex items-center justify-center gap-2 px-3 py-2 bg-white/70 backdrop-blur-sm">
+            {allSubjects.map(sub => (
+              <button
+                key={sub}
+                onClick={() => {
+                  const idx = testData.questions.findIndex((q: any) => getSubjectForQuestion(q) === sub);
+                  if (idx !== -1) navigateToQuestion(idx);
+                }}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                  sub === currentSubject
+                    ? 'bg-slate-700 text-white shadow-sm'
+                    : 'bg-white/80 text-slate-500 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                {sub}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Question numbers - horizontal scroll */}
+        <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto bg-white/70 backdrop-blur-sm hide-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+          {testData.questions.map((question, index) => {
+            const status = getQuestionStatus(index, question.id);
+            const isCurrentQ = index === currentQuestionIndex;
+            return (
+              <button
+                key={question.id}
+                onClick={() => navigateToQuestion(index)}
+                disabled={showTimeOverDialog}
+                className={`w-8 h-8 flex-shrink-0 rounded-lg text-xs font-bold transition-all ${
+                  isCurrentQ
+                    ? 'bg-blue-500 text-white ring-2 ring-blue-300 ring-offset-1'
+                    : status === 'answered'
+                      ? 'bg-green-500 text-white'
+                      : status === 'answered-marked'
+                        ? 'bg-purple-500 text-white'
+                        : status === 'marked'
+                          ? 'bg-amber-400 text-gray-900'
+                          : 'bg-slate-200/80 text-slate-600'
+                } ${showTimeOverDialog ? 'opacity-50' : ''}`}
+              >
+                {index + 1}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Legend row (centered, ellipsis removed) */}
+        <div className="flex items-center justify-center px-3 py-1.5 bg-white/70 backdrop-blur-sm border-b border-slate-200/50">
+          <div className="flex items-center gap-6 text-[10px] text-slate-500">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-300 inline-block"></span> Not Visited</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span> Answered</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"></span> Marked</span>
+          </div>
+        </div>
+      </div>
+
+      {/* === SCROLLABLE QUESTION AREA === */}
+      <div className="flex-1 overflow-y-auto px-3 py-3">
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-4">
+          {/* Question number + bookmark + badge */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold text-slate-800">Q{currentQuestionIndex + 1}</span>
+              <span className="text-sm text-slate-400 font-medium">/ {totalQuestions}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="bg-blue-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">NEET 2025</span>
+              <button
+                onClick={handleToggleBookmark}
+                disabled={showTimeOverDialog}
+                aria-pressed={bookmarkedQuestions.has(currentQuestion?.id ?? -1)}
+                className={`size-8 flex items-center justify-center rounded-full transition-colors border ${
+                  bookmarkedQuestions.has(currentQuestion?.id ?? -1)
+                    ? 'bg-amber-50 border-amber-100 text-amber-600'
+                    : 'bg-white/90 border-white/30 text-slate-600 hover:bg-white'
+                }`}
+                title={bookmarkedQuestions.has(currentQuestion?.id ?? -1) ? 'Bookmarked' : 'Bookmark'}
+              >
+                <Bookmark className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          {/* Question Content */}
-          <CardContent className="p-4">
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 leading-relaxed">
-                {currentQuestion.question}
-              </h3>
-              {/* Render question image if provided (base64 PNG/JPEG) */}
-              {currentQuestion.questionImage && (
-                <div className="my-3">
-                  <img
-                    src={normalizeImageSrc(currentQuestion.questionImage)}
-                    alt="question"
-                    className="block max-w-full h-auto rounded-md border border-gray-200"
-                    style={{ maxHeight: '400px', objectFit: 'contain' }}
-                    onError={(e) => {
-                      console.error('[Image Error] Failed to load question image');
-                      console.error('Image data length:', currentQuestion.questionImage?.length);
-                      console.error('First 100 chars:', currentQuestion.questionImage?.substring(0, 100));
-                      console.error('Normalized src length:', normalizeImageSrc(currentQuestion.questionImage)?.length);
-                      e.currentTarget.style.display = 'none';
-                    }}
-                    onLoad={(e) => {
-                      console.log('[Image Success] Question image loaded successfully');
-                      console.log('Image dimensions:', e.currentTarget.naturalWidth, 'x', e.currentTarget.naturalHeight);
-                    }}
-                  />
-                </div>
-              )}
-            </div>
+          {/* Divider */}
+          <div className="h-px bg-slate-200 mb-4"></div>
 
-            {/* Answer Options - Conditional rendering based on question type */}
-            {/* DEBUG: Log question type (log as side-effect, return null so JSX child is valid) */}
-            {(() => {
-              console.log('🔍 Question Type Debug:', {
-                questionId: currentQuestion.id,
-                questionType: currentQuestion.questionType,
-                hasQuestionType: 'questionType' in currentQuestion,
-                questionKeys: Object.keys(currentQuestion),
-                isNVT: currentQuestion.questionType === 'NVT'
-              });
-              return null;
-            })()}
-            {currentQuestion.questionType === 'NVT' ? (
-              /* NVT (Descriptive) Question - Text Input */
-              <div className="space-y-3">
-                <Label htmlFor="nvt-answer" className="text-sm font-medium text-gray-700">
-                  Enter your answer (can be numeric, decimal, or text):
-                </Label>
-                <input
-                  id="nvt-answer"
-                  type="text"
-                  value={textAnswers[currentQuestion.id] || ''}
-                  onChange={(e) => handleTextAnswerChange(currentQuestion.id, e.target.value)}
-                  onBlur={() => submitTextAnswer(currentQuestion.id)}
-                  disabled={showTimeOverDialog}
-                  placeholder="Type your answer here..."
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:bg-gray-100 disabled:cursor-not-allowed text-base"
+          {/* Question text */}
+          <div className="mb-5">
+            <h3 className="text-base font-semibold text-slate-800 leading-relaxed">
+              {currentQuestion.question}
+            </h3>
+            {currentQuestion.questionImage && (
+              <div className="my-3">
+                <img
+                  src={normalizeImageSrc(currentQuestion.questionImage)}
+                  alt="question"
+                  className="block max-w-full h-auto rounded-lg border border-slate-200"
+                  style={{ maxHeight: '300px', objectFit: 'contain' }}
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Your answer will be auto-saved when you move to another question or submit the test.
-                </p>
               </div>
-            ) : (
-              /* MCQ Question - Radio Options */
-              <>
+            )}
+          </div>
+
+          {/* Answer Options */}
+          {currentQuestion.questionType === 'NVT' ? (
+            <div className="space-y-3">
+              <Label htmlFor="nvt-answer" className="text-sm font-medium text-slate-700">
+                Enter your answer:
+              </Label>
+              <input
+                id="nvt-answer"
+                type="text"
+                value={textAnswers[currentQuestion.id] || ''}
+                onChange={(e) => handleTextAnswerChange(currentQuestion.id, e.target.value)}
+                onBlur={() => submitTextAnswer(currentQuestion.id)}
+                disabled={showTimeOverDialog}
+                placeholder="Type your answer here..."
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-base bg-white"
+              />
+            </div>
+          ) : (
             <RadioGroup
               value={answers[currentQuestion.id] || ""}
               onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
-              disabled={showTimeOverDialog} // Disable when time is over
+              disabled={showTimeOverDialog}
             >
-              <div className="space-y-3">
-                {["A", "B", "C", "D"].map((option) => (
-                  <Label
-                    key={option}
-                    className="flex items-start p-3 bg-gray-50 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors border-2 border-gray-200 hover:border-blue-300 min-h-[3rem]"
-                  >
-                    <RadioGroupItem
-                      value={option}
-                      className="mr-3 mt-1"
-                      onClick={(e) => {
-                        if (answers[currentQuestion.id] === option) {
-                          e.preventDefault(); // Prevent RadioGroup from re-selecting
-                          handleAnswerChange(currentQuestion.id, option);
-                        }
-                      }}
-                    />
-                    <div className="flex items-start flex-1">
-                      <span className="bg-gray-200 text-gray-900 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold mr-3 flex-shrink-0 mt-0.5">
+              <div className="space-y-2.5">
+                {["A", "B", "C", "D"].map((option) => {
+                  const isSelected = answers[currentQuestion.id] === option;
+                  return (
+                    <Label
+                      key={option}
+                      className={`flex items-center p-3.5 rounded-xl cursor-pointer transition-all border-2 ${
+                        isSelected
+                          ? 'bg-blue-50 border-blue-400 shadow-sm'
+                          : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <RadioGroupItem
+                        value={option}
+                        className="mr-3"
+                        onClick={(e) => {
+                          if (answers[currentQuestion.id] === option) {
+                            e.preventDefault();
+                            handleAnswerChange(currentQuestion.id, option);
+                          }
+                        }}
+                      />
+                      <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold mr-3 flex-shrink-0 ${
+                        isSelected ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}>
                         {option}
                       </span>
-                      <span className="text-gray-900 font-medium text-sm leading-relaxed">
+                      <span className="text-sm text-slate-800 font-medium leading-relaxed flex-1">
                         {currentQuestion[`option${option}` as keyof Question]}
                       </span>
-                    </div>
-                    {/* Option image (if present) */}
-                    {/** Use `any` index access to read dynamic option image field names like optionAImage */}
-                    {(currentQuestion as any)[`option${option}Image`] && (
-                      <div className="ml-8 mt-2">
-                        <img
-                          src={normalizeImageSrc((currentQuestion as any)[`option${option}Image`])}
-                          alt={`option ${option}`}
-                          className="block max-w-xs h-auto rounded-md border border-gray-200"
-                          style={{ maxHeight: '200px', objectFit: 'contain' }}
-                          onError={(e) => {
-                            console.error(`[Image Error] Failed to load option ${option} image`);
-                            e.currentTarget.style.display = 'none';
-                          }}
-                          onLoad={() => {
-                            console.log(`[Image Success] Option ${option} image loaded`);
-                          }}
-                        />
-                      </div>
-                    )}
-                  </Label>
-                ))}
+                      {(currentQuestion as any)[`option${option}Image`] && (
+                        <div className="ml-2 mt-1">
+                          <img
+                            src={normalizeImageSrc((currentQuestion as any)[`option${option}Image`])}
+                            alt={`option ${option}`}
+                            className="block max-w-[120px] h-auto rounded-md border border-slate-200"
+                            style={{ maxHeight: '100px', objectFit: 'contain' }}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        </div>
+                      )}
+                    </Label>
+                  );
+                })}
               </div>
             </RadioGroup>
-            {/* Action buttons: Clear Answer & Bookmark */}
-            <div className="mt-3 flex gap-2">
-              {/* Clear Answer Button: only show if an answer is selected */}
-              {answers[currentQuestion.id] && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs text-gray-700 border-gray-300 hover:bg-gray-100"
-                  onClick={() => handleAnswerChange(currentQuestion.id, answers[currentQuestion.id])}
-                  disabled={showTimeOverDialog}
-                >
-                  Clear Answer
-                </Button>
-              )}
-              {/* Bookmark Button: always visible */}
-              <Button
-                variant="outline"
-                size="sm"
-                className={`text-xs border-gray-300 ${
-                  bookmarkedQuestions.has(currentQuestion.id)
-                    ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-                onClick={handleToggleBookmark}
-                disabled={showTimeOverDialog}
-              >
-                <Bookmark 
-                  className={`w-3.5 h-3.5 mr-1 ${
-                    bookmarkedQuestions.has(currentQuestion.id) ? 'fill-current' : ''
-                  }`}
-                />
-                {bookmarkedQuestions.has(currentQuestion.id) ? 'Bookmarked' : 'Bookmark'}
-              </Button>
-            </div>
-              </>
-            )}
-          </CardContent>
-
-          {/* Question Navigation Panel */}
-          <div className="bg-gray-50 border-t border-gray-200 p-4">
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">
-              Question Navigation
-            </h4>
-            <div className="grid grid-cols-8 gap-2 mb-4">
-              {testData.questions.map((question, index) => {
-                const status = getQuestionStatus(index, question.id);
-                const isCurrentQuestion = index === currentQuestionIndex;
-                return (
-                  <Button
-                    key={question.id}
-                    onClick={() => navigateToQuestion(index)}
-                    size="sm"
-                    disabled={showTimeOverDialog} // Disable question navigation when time is over
-                    className={`w-8 h-8 rounded-lg text-xs font-semibold transition-colors ${isCurrentQuestion
-                      ? "ring-2 ring-blue-500 ring-offset-2"
-                      : ""
-                      } ${getPaletteButtonClasses(status)} ${showTimeOverDialog ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    {index + 1}
-                  </Button>
-                );
-              })}
-            </div>
-            <div className="flex flex-col justify-between items-center gap-3">
-              <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-green-500 rounded mr-2"></div>
-                  <span>Answered</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-amber-500 rounded mr-2"></div>
-                  <span>Marked</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-purple-500 rounded mr-2"></div>
-                  <span>Answered &amp; Marked for Review</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-blue-500 rounded mr-2"></div>
-                  <span>Current Question</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-gray-200 rounded mr-2"></div>
-                  <span>Not Visited</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
+          )}
+        </div>
+        {/* Spacer for bottom bar */}
+        <div className="h-4"></div>
       </div>
 
-      {/* Submit Confirmation Dialog */}
+      {/* === FIXED BOTTOM BAR === */}
+      <div className="flex-shrink-0 bg-white/90 backdrop-blur-md border-t border-slate-200 z-40">
+        {/* Row 1: Clear & Mark for Review */}
+        <div className="flex items-center gap-2 px-3 pt-2 pb-1">
+          <button
+            onClick={() => { if (answers[currentQuestion.id]) handleAnswerChange(currentQuestion.id, answers[currentQuestion.id]); }}
+            disabled={showTimeOverDialog || !answers[currentQuestion.id]}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-700 bg-white border border-slate-100 hover:bg-slate-50 transition-colors disabled:opacity-40"
+          >
+            <X className="w-3.5 h-3.5 text-slate-500" />
+            Clear
+          </button>
+          {/* Bookmark button (separate from Mark for Review) */}
+          <button
+            onClick={handleToggleBookmark}
+            disabled={showTimeOverDialog}
+            aria-pressed={bookmarkedQuestions.has(currentQuestion?.id ?? -1)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors disabled:opacity-40 ${
+              bookmarkedQuestions.has(currentQuestion?.id ?? -1)
+                ? 'text-amber-700 bg-amber-50 border-amber-100'
+                : 'text-slate-700 bg-white border border-slate-100 hover:bg-slate-50'
+            }`}
+          >
+            <Bookmark
+              className={`w-3.5 h-3.5 ${bookmarkedQuestions.has(currentQuestion?.id ?? -1) ? 'text-amber-600' : 'text-slate-500'}`}
+            />
+            {bookmarkedQuestions.has(currentQuestion?.id ?? -1) ? 'Bookmarked' : 'Bookmark'}
+          </button>
+
+          {/* Mark for review (separate) */}
+          <button
+            onClick={handleMarkForReview}
+            disabled={showTimeOverDialog}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors disabled:opacity-40 ${
+              markedForReview.has(currentQuestion?.id ?? -1)
+                ? 'text-blue-700 bg-blue-50 border-blue-100'
+                : 'text-slate-700 bg-white border border-slate-100 hover:bg-slate-50'
+            }`}
+          >
+            <AlertTriangle className={`w-3.5 h-3.5 ${markedForReview.has(currentQuestion?.id ?? -1) ? 'text-blue-600' : 'text-slate-500'}`} />
+            {markedForReview.has(currentQuestion?.id ?? -1) ? 'Marked' : 'Mark for Review'}
+          </button>
+        </div>
+        {/* Row 2: Previous & Next */}
+        <div className="flex items-center gap-2 px-3 pb-3 pt-1">
+          <button
+            onClick={handlePreviousQuestion}
+            disabled={currentQuestionIndex === 0 || showTimeOverDialog}
+            className="flex items-center gap-1 flex-1 justify-center px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-300 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Previous
+          </button>
+          {currentQuestionIndex === totalQuestions - 1 ? (
+            <button
+              onClick={handleSubmitTest}
+              disabled={showTimeOverDialog || isSubmitting}
+              className="flex items-center gap-1 flex-1 justify-center px-3 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Submit
+            </button>
+          ) : (
+            <button
+              onClick={handleNextQuestion}
+              disabled={currentQuestionIndex === totalQuestions - 1 || showTimeOverDialog}
+              className="flex items-center gap-1 flex-1 justify-center px-3 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 shadow-md disabled:opacity-40 transition-colors"
+            >
+              Next
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* === DIALOGS === */}
       <SubmitDialog
         isOpen={showSubmitDialog}
         answersCount={getTotalAnsweredCount()}
@@ -1607,16 +1673,12 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         onConfirm={confirmSubmit}
         onCancel={() => setShowSubmitDialog(false)}
       />
-
-      {/* Time Over Dialog */}
       <TimeOverDialog
         isOpen={showTimeOverDialog && !timeOverHandled}
         answersCount={getTotalAnsweredCount()}
         totalQuestions={totalQuestions}
         onSubmit={handleTimeOverSubmit}
       />
-
-      {/* Quit Exam Confirmation Dialog */}
       <QuitDialog
         isOpen={showQuitDialog}
         answersCount={getTotalAnsweredCount()}
@@ -1625,48 +1687,6 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         onConfirm={handleQuitConfirm}
         onCancel={handleQuitCancel}
       />
-
-      {/* Sticky Navigation Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 py-2">
-        <div className="w-full px-2">
-          <div className="flex justify-between items-center gap-1">
-            <Button
-              onClick={handlePreviousQuestion}
-              disabled={currentQuestionIndex === 0 || showTimeOverDialog}
-              variant="outline"
-              className="px-2 py-2 border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-blue-300 text-sm flex-1 min-w-0"
-            >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">Previous</span>
-              <span className="sm:hidden">Prev</span>
-            </Button>
-            <Button
-              onClick={handleMarkForReview}
-              variant="outline"
-              className="px-2 py-2 border-amber-500 text-amber-500 hover:bg-yellow-50 text-sm flex-1 min-w-0"
-              disabled={showTimeOverDialog}
-            >
-              <Bookmark className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">Mark for Review</span>
-              <span className="sm:hidden">Mark</span>
-            </Button>
-            <Button
-              onClick={handleNextQuestion}
-              disabled={currentQuestionIndex === totalQuestions - 1 || showTimeOverDialog}
-              className="bg-blue-500 text-white px-2 py-2 hover:bg-blue-600 shadow-md text-sm flex-1 min-w-0"
-            >
-              <span className="hidden sm:inline">Next</span>
-              <span className="sm:hidden">Next</span>
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Add bottom padding to prevent content from being hidden behind footer */}
-      <div className="h-20"></div>
-
-  {/* Debug panel removed in production build */}
     </div>
   );
 }

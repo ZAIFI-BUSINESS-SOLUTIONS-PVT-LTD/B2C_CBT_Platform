@@ -10,7 +10,7 @@ import Carousel from '@/components/carousel-desktop';
 import MiniChatbot from '@/components/mini-chatbot-desktop';
 import MiniDashboard from '@/components/mini-dashboard-desktop';
 import { ArrowRight, NotebookPen, Trophy, AlertTriangle, Lock, Copy, Share2, Target, BookOpen } from "lucide-react";
-import { AnalyticsData, InsightsData } from "@/components/insight-card";
+import { AnalyticsData } from "@/components/insight-card";
 
 // =============================================================================
 // UTILITY FUNCTIONS
@@ -432,47 +432,22 @@ export default function Home() {
         enabled: isAuthenticated && !loading, // Only run when authenticated and auth finished loading
     });
 
-    const { data: insights } = useQuery<InsightsData>({
-        queryKey: ['/api/insights/student/'],
-        refetchInterval: 30000,
-        enabled: isAuthenticated && !loading,
-    });
+    // `insights` endpoint removed from backend; no client request here anymore.
 
     // Precompute insight sections (useMemo must be called unconditionally)
     const insightSections = useMemo(() => {
         const sections: any[] = [];
 
-        // Study Plan
-        if (insights?.data?.llmInsights?.studyPlan?.insights && insights.data.llmInsights.studyPlan.insights.length > 0) {
-            sections.push({ title: 'Study Plan', items: insights.data.llmInsights.studyPlan.insights.map((s: any) => s?.text ?? s), icon: <NotebookPen className="w-4 h-4" />, subtitle: 'Personalized study plan' });
-        } else if (insights?.data?.improvementTopics && insights.data.improvementTopics.length > 0) {
-            sections.push({ title: 'Study Plan', items: insights.data.improvementTopics.slice(0, 5).map((t: any) => `${t.topic} — ${t.accuracy}%`), icon: <NotebookPen className="w-4 h-4" />, subtitle: 'Recommended focus areas' });
-        } else {
-            sections.push({ title: 'Study Plan', items: ['Take tests to get AI-generated study plans!'], icon: <NotebookPen className="w-4 h-4" /> });
-        }
+        // Study Plan removed (backend student-insights flow deprecated)
 
         // Last Test section removed: backend no longer provides last-test topics or LLM feedback
 
-        // Strengths
-        if (insights?.data?.llmInsights?.strengths?.insights && insights.data.llmInsights.strengths.insights.length > 0) {
-            sections.push({ title: 'Strengths', items: insights.data.llmInsights.strengths.insights.map((s: any) => s?.text ?? s), icon: <Trophy className="w-4 h-4" /> });
-        } else if (insights?.data?.strengthTopics && insights.data.strengthTopics.length > 0) {
-            sections.push({ title: 'Strengths', items: insights.data.strengthTopics.slice(0, 5).map((t: any) => `${t.topic} — ${t.accuracy}%`), icon: <Trophy className="w-4 h-4" /> });
-        } else {
-            sections.push({ title: 'Strengths', items: ['Take tests to get AI analysis of your strengths!'], icon: <Trophy className="w-4 h-4" /> });
-        }
+        // Strengths section removed from desktop home (backend insights/study-plan flow deprecated)
 
-        // Weaknesses
-        if (insights?.data?.llmInsights?.weaknesses?.insights && insights.data.llmInsights.weaknesses.insights.length > 0) {
-            sections.push({ title: 'Weaknesses', items: insights.data.llmInsights.weaknesses.insights.map((s: any) => s?.text ?? s), icon: <AlertTriangle className="w-4 h-4" /> });
-        } else if (insights?.data?.weakTopics && insights.data.weakTopics.length > 0) {
-            sections.push({ title: 'Weaknesses', items: insights.data.weakTopics.slice(0, 5).map((t: any) => `${t.topic} — ${t.accuracy}%`), icon: <AlertTriangle className="w-4 h-4" /> });
-        } else {
-            sections.push({ title: 'Weaknesses', items: ['Take tests to get AI analysis of your weaknesses!'], icon: <AlertTriangle className="w-4 h-4" /> });
-        }
+        // Weaknesses section removed from desktop home (backend insights/study-plan flow deprecated)
 
         return sections;
-    }, [insights, analytics]);
+    }, [analytics]);
 
     // =============================================================================
     // SIDE EFFECTS
@@ -492,20 +467,10 @@ export default function Home() {
         }
     }, [activeTab]);
 
-    // Debug insights data and test relative time function
+    // Run quick tests like relative time formatting on mount
     useEffect(() => {
-        // Test the relative time function
         testRelativeTime();
-
-        if (insights) {
-            console.log('Insights data:', insights);
-            console.log('Cache info:', insights.cacheInfo);
-            if (insights.cacheInfo?.lastModified) {
-                console.log('Last modified:', insights.cacheInfo.lastModified);
-                console.log('Formatted time:', formatRelativeTime(insights.cacheInfo.lastModified));
-            }
-        }
-    }, [insights]);
+    }, []);
 
     // =============================================================================
     // EARLY RETURNS AND COMPUTED VALUES
@@ -583,7 +548,7 @@ export default function Home() {
                                                 <Lock className="h-12 w-12 text-gray-400" />
                                             </div>
                                             <h3 className="text-lg font-semibold">Get personalized insights</h3>
-                                            <p className="text-sm text-gray-600">Take your first practice test to unlock AI study plans, strengths and weaknesses analysis.</p>
+                                            <p className="text-sm text-gray-600">Take your first practice test to unlock personalized strengths and weaknesses analysis.</p>
                                             <div className="w-full mt-3 flex justify-center">
                                                 <Button
                                                     variant="default"

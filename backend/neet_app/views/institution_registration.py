@@ -6,6 +6,7 @@ Allows new institutions to register and create their admin account.
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.db import transaction
 from neet_app.models import Institution, InstitutionAdmin
 from neet_app.institution_auth import generate_institution_admin_tokens
 import json
@@ -115,43 +116,35 @@ def register_institution(request):
                 'errors': errors
             }, status=400)
         
-        # Create institution
+        # Create institution and admin atomically — if either fails, both roll back
         try:
-            institution = Institution.objects.create(
-                name=institution_name,
-                code=institution_code,
-                exam_types=[et.lower() for et in exam_types],
-                is_active=True
-            )
-            
-            logger.info(f"Created institution: {institution.name} ({institution.code})")
-            
+            with transaction.atomic():
+                institution = Institution.objects.create(
+                    name=institution_name,
+                    code=institution_code,
+                    exam_types=[et.lower() for et in exam_types],
+                    is_active=True
+                )
+
+                # Build admin, hash password in-memory, then do a single DB write
+                admin = InstitutionAdmin(
+                    username=admin_username,
+                    institution=institution,
+                    is_active=True
+                )
+                admin.set_password(admin_password)
+                admin.save()
+
+                logger.info(
+                    f"Created institution: {institution.name} ({institution.code}) "
+                    f"and admin: {admin.username}"
+                )
+
         except Exception as e:
-            logger.exception("Error creating institution")
+            logger.exception("Error creating institution or admin")
             return JsonResponse({
                 'error': 'DATABASE_ERROR',
-                'message': 'Failed to create institution'
-            }, status=500)
-        
-        # Create institution admin
-        try:
-            admin = InstitutionAdmin.objects.create(
-                username=admin_username,
-                institution=institution,
-                is_active=True
-            )
-            admin.set_password(admin_password)
-            admin.save()
-            
-            logger.info(f"Created institution admin: {admin.username} for {institution.name}")
-            
-        except Exception as e:
-            logger.exception("Error creating institution admin")
-            # Rollback: delete the institution if admin creation fails
-            institution.delete()
-            return JsonResponse({
-                'error': 'DATABASE_ERROR',
-                'message': 'Failed to create admin account'
+                'message': 'Failed to create institution. The username or institution code may already be taken.'
             }, status=500)
         
         # Generate JWT tokens for immediate login

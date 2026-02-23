@@ -11,7 +11,7 @@ from rest_framework import status
 from datetime import datetime, date
 from ..models import (
     StudentProfile, TestSession, TestAnswer, ReviewComment,
-    ChatSession, ChatMessage, ChatMemory, StudentInsight,
+    ChatSession, ChatMessage, ChatMemory,
     TestSubjectZoneInsight, Notification, PasswordReset,
     StudentActivity, PaymentOrder, Topic, Question
 )
@@ -150,13 +150,7 @@ class DeleteAccountTestCase(TestCase):
             content={'test': 'data'}
         )
         
-        StudentInsight.objects.create(
-            student=self.student,
-            test_session=self.test_session,
-            strength_topics=['topic1'],
-            weak_topics=['topic2']
-        )
-        
+        # StudentInsight model deprecated — not created in this test
         # Delete account
         url = '/api/student-profile/delete-account/'
         response = self.client.post(url, {'confirmation': 'DELETE'}, format='json')
@@ -166,4 +160,4 @@ class DeleteAccountTestCase(TestCase):
         # Verify all related data is deleted
         self.assertFalse(StudentActivity.objects.filter(student_id=self.student.student_id).exists())
         self.assertFalse(ChatMemory.objects.filter(student=self.student.student_id).exists())
-        self.assertFalse(StudentInsight.objects.filter(student=self.student.student_id).exists())
+        # StudentInsight model deprecated — no assertions for it

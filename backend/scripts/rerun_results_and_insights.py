@@ -28,10 +28,9 @@ if not django.apps.apps.ready:
 
 from neet_app.models import (
     PlatformTest, TestSession, TestAnswer, 
-    TestSubjectZoneInsight, StudentInsight
+    TestSubjectZoneInsight
 )
-from neet_app.views import insights_views
-from neet_app.services.zone_insights_service import generate_all_subject_zones
+from neet_app.services.zone_insights_service import compute_and_store_zone_insights
 
 # ============================================================
 # CONFIGURATION: Set the test name here
@@ -134,7 +133,7 @@ for idx, session in enumerate(sessions_to_update, 1):
             print(f"    🗑️ Deleted {deleted_count} old zone insight(s)")
         
         # Generate fresh zone insights using the service
-        result = generate_all_subject_zones(session.id)
+        result = compute_and_store_zone_insights(session.id)
         
         if result:
             subjects = ', '.join(result.keys())
@@ -150,114 +149,7 @@ print("✅ Zone insights regeneration complete.")
 print()
 
 # 5) Regenerate student insights for each affected student
-print("🧠 Step 3: Regenerating student insights...")
-for idx, student_id in enumerate(students_to_regen, 1):
-    try:
-        print(f"  [{idx}/{len(students_to_regen)}] Regenerating insights for student {student_id}")
-        
-        # Get thresholds
-        thresholds = insights_views.get_thresholds()
-        
-        # Calculate metrics
-        all_metrics = insights_views.calculate_topic_metrics(student_id)
-        
-        if not all_metrics or 'topics' not in all_metrics:
-            # Save empty insight
-            empty_response = {
-                'status': 'success',
-                'data': {
-                    'strength_topics': [],
-                    'weak_topics': [],
-                    'improvement_topics': [],
-                    'unattempted_topics': [],
-                    'thresholds_used': thresholds,
-                    'summary': {
-                        'total_topics_analyzed': 0,
-                        'total_tests_taken': 0,
-                        'unattempted_topics_count': 0,
-                        'message': 'No test data available for analysis'
-                    },
-                    'cached': False
-                }
-            }
-            insights_views.save_insights_to_database(student_id, empty_response)
-            print(f"    ⚠️ No test data available for student {student_id}")
-            continue
-        
-        # Classify topics
-        classification = insights_views.classify_topics(
-            all_metrics['topics'], 
-            all_metrics.get('overall_avg_time', 0), 
-            thresholds
-        )
-        
-        # Get unattempted topics
-        unattempted_topics = insights_views.get_unattempted_topics(all_metrics['topics'])
-        
-        # Generate LLM insights (optional - can be skipped if you want faster processing)
-        llm_insights = {}
-        try:
-            if classification.get('strength_topics'):
-                llm_insights['strengths'] = insights_views.generate_llm_insights(
-                    'strengths', classification['strength_topics']
-                )
-            if classification.get('weak_topics'):
-                llm_insights['weaknesses'] = insights_views.generate_llm_insights(
-                    'weaknesses', classification['weak_topics']
-                )
-            llm_insights['study_plan'] = insights_views.generate_llm_insights('study_plan', {
-                'weak_topics': classification.get('weak_topics', []),
-                'improvement_topics': classification.get('improvement_topics', []),
-                'strength_topics': classification.get('strength_topics', []),
-                'unattempted_topics': unattempted_topics
-            })
-            # last-test feedback removed; skipping generation
-        except Exception as llm_error:
-            print(f"    ⚠️ LLM insight generation skipped: {llm_error}")
-            llm_insights = {}
-        
-        # Build summary
-        from neet_app.models import TestSession as TS
-        total_tests = TS.objects.filter(student_id=student_id, is_completed=True).count()
-        latest_session = TS.objects.filter(
-            student_id=student_id, is_completed=True
-        ).order_by('-end_time').first()
-        latest_session_id = latest_session.id if latest_session else None
-        
-        summary = {
-            'total_topics_analyzed': len(all_metrics['topics']),
-            'total_tests_taken': total_tests,
-            'strengths_count': len(classification.get('strength_topics', [])),
-            'weaknesses_count': len(classification.get('weak_topics', [])),
-            'improvements_count': len(classification.get('improvement_topics', [])),
-            'unattempted_topics_count': len(unattempted_topics),
-            'overall_avg_time': round(all_metrics.get('overall_avg_time', 0), 2),
-            'last_session_id': latest_session_id
-        }
-        
-        # Build response
-        response_data = {
-            'status': 'success',
-            'data': {
-                **classification,
-                'unattempted_topics': unattempted_topics,
-                'llm_insights': llm_insights,
-                'thresholds_used': thresholds,
-                'summary': summary,
-                'cached': False
-            }
-        }
-        
-        # Save insights for student (linked to latest session)
-        insights_views.save_insights_to_database(
-            student_id, response_data, test_session_id=latest_session_id
-        )
-        
-        print(f"    ✅ Regenerated insights (latest session: {latest_session_id})")
-        
-    except Exception as e:
-        print(f"    ❌ Failed to regenerate insights for {student_id}: {e}")
-        import traceback
+print("🧠 Student-level insights regeneration skipped — feature removed.")
         traceback.print_exc()
         continue
 

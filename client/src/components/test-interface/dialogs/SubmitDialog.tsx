@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { createPortal } from "react-dom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,32 +26,53 @@ export function SubmitDialog({
   onConfirm,
   onCancel,
 }: SubmitDialogProps) {
-  return (
+    return (
     <AlertDialog
       open={isOpen}
       onOpenChange={(open) => {
         if (!open) onCancel();
       }}
     >
+      {isOpen && typeof document !== "undefined"
+        ? createPortal(
+            <img
+              src="/submit-penguin.png"
+              alt="submit-penguin"
+              className="pointer-events-none"
+              style={{
+                position: "fixed",
+                left: "50%",
+                transform: "translateX(-50%) scale(1.5)",
+                top: "calc(50% - 150px)",
+                width: "96px",
+                zIndex: 2147483647,
+                pointerEvents: "none",
+              }}
+            />,
+            document.body
+          )
+        : null}
+
       <AlertDialogContent className="bg-white border border-[#E2E8F0] rounded-xl sm:rounded-2xl shadow-lg my-8 w-[90%] max-w-sm px-6 sm:px-8">
         <AlertDialogHeader className="space-y-3">
           <AlertDialogTitle className="text-slate-900 font-bold text-base sm:text-xl text-center">Submit Test?</AlertDialogTitle>
           <div className="flex flex-col items-center gap-3">
-            <div className="w-full bg-sky-50 rounded-lg p-3">
-              <div className="flex justify-between gap-3">
-                <div className="flex-1 text-center p-3 bg-white rounded-md border border-slate-100 shadow-sm">
+            <div className="w-full bg-sky-50 rounded-lg p-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="min-w-0 text-center p-2 bg-white rounded-md border border-slate-100 shadow-sm">
                   <div className="text-sm text-slate-400">Attempted</div>
-                  <div className="text-2xl font-semibold text-slate-900 mt-1">{answersCount}</div>
+                  <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{answersCount}</div>
                 </div>
-                <div className="flex-1 text-center p-3 bg-white rounded-md border border-slate-100 shadow-sm">
+                <div className="min-w-0 text-center p-2 bg-white rounded-md border border-slate-100 shadow-sm">
                   <div className="text-sm text-slate-400">Skipped</div>
-                  <div className="text-2xl font-semibold text-slate-900 mt-1">{Math.max(0, totalQuestions - answersCount)}</div>
+                  <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{Math.max(0, totalQuestions - answersCount)}</div>
+                </div>
+                <div className="min-w-0 text-center p-2 bg-white rounded-md border border-slate-100 shadow-sm">
+                  <div className="text-sm text-slate-400">Unanswered</div>
+                  <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{Math.max(0, totalQuestions - answersCount)}</div>
                 </div>
               </div>
             </div>
-            {totalQuestions - answersCount > 0 && (
-              <div className="w-full text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-md p-2">You still have {totalQuestions - answersCount} unanswered question{totalQuestions - answersCount > 1 ? "s" : ""}</div>
-            )}
           </div>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex-col sm:flex-row gap-3 mt-4">

@@ -4,7 +4,6 @@ Django signals for automatic data processing in NEET app models
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from .models import StudentProfile, TestSession
-from .views.insights_views import get_student_insights
 
 # Global set to track processed sessions to prevent infinite loops
 _processed_sessions = set()

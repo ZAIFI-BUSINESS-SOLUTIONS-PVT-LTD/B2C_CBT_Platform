@@ -260,6 +260,13 @@ EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@inzighted.com')
 EMAIL_PROVIDER = os.environ.get('EMAIL_PROVIDER', 'django')  # 'django' | 'smtp' | 'zeptomail'
 
+# MSG91 SMS Configuration for OTP delivery
+# Get your credentials from MSG91 dashboard: https://control.msg91.com/
+MSG91_AUTH_KEY = os.environ.get('MSG91_AUTH_KEY', '470822AZqEX38U6999f1c6P1')  # <-- UPDATE: replace with your MSG91 auth key
+MSG91_TEMPLATE_ID = os.environ.get('MSG91_TEMPLATE_ID', '6999eead965c7eb3fa0f75e3')  # <-- UPDATE: replace with your MSG91 OTP template ID
+MSG91_OTP_EXPIRY = os.environ.get('MSG91_OTP_EXPIRY', '5')  # OTP expiry time in minutes
+APP_NAME = os.environ.get('APP_NAME', 'NEET Bro')  # App name used in SMS messages
+
 # AI Chatbot Configuration
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
@@ -441,3 +448,6 @@ FEATURE_INSTITUTION_TESTS = os.environ.get('FEATURE_INSTITUTION_TESTS', 'True') 
 # TTS Service Configuration
 # ----------------------
 TTS_SERVICE_URL = os.environ.get('TTS_SERVICE_URL', 'http://localhost:3001')
+
+# Redirect unauthenticated users to the institution admin login page
+LOGIN_URL = '/platform-admin/login/'

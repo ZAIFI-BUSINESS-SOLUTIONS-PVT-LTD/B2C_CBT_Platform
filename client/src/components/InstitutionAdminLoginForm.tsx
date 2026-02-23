@@ -82,7 +82,7 @@ export function InstitutionAdminLoginForm({
       if (onSuccess) {
         onSuccess();
       } else {
-        navigate("/institution-admin/dashboard");
+        navigate("/institution-admin/analytics");
       }
     } catch (err: any) {
       console.error("Login error:", err);

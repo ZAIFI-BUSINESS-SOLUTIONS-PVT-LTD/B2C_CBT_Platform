@@ -184,8 +184,8 @@ def get_student_tests(request):
 @permission_classes([IsAuthenticated])
 def get_test_zone_insights(request, test_id):
     """
-    Get checkpoint insights for a specific test.
-    Returns test summary and subject-wise checkpoints.
+    Get zone insights for a specific test.
+    Computes and stores structured metrics in TestSubjectZoneInsight table.
     
     URL: /api/zone-insights/test/<test_id>/
     
@@ -193,17 +193,12 @@ def get_test_zone_insights(request, test_id):
     {
         "status": "success",
         "test_info": {...},
-        "checkpoints": [
-            {
-                "subject": "Physics",
-                "checkpoints": [...]
-            }
-        ]
+        "subjects": [...]
     }
     """
     logger.info(f"get_test_zone_insights called for test_id={test_id}")
     try:
-        # Resolve authenticated student ID from request (supports multiple user shapes)
+        # Resolve authenticated student ID from request
         student_id = _resolve_student_id_from_request(request)
         if not student_id:
             return Response({
@@ -219,49 +214,8 @@ def get_test_zone_insights(request, test_id):
             is_completed=True
         )
 
-        # Get student profile object for DB writes
-        student_profile = test.get_student_profile()
-
-        # Calculate overall marks using the same robust approach as per-subject
-        # Treat selected_answer==None as unanswered. Derive attempted and incorrect
-        # from selected_answer presence so counts match subject breakdowns.
-        try:
-            ta_qs = TestAnswer.objects.filter(session_id=test.id)
-            attempted = ta_qs.filter(selected_answer__isnull=False).count()
-            total_correct = ta_qs.filter(is_correct=True).count()
-            total_incorrect = attempted - total_correct
-            total_q = test.total_questions or ta_qs.count()
-            total_unanswered = total_q - attempted
-            if total_unanswered < 0:
-                total_unanswered = ta_qs.filter(selected_answer__isnull=True).count()
-        except Exception:
-            total_correct = getattr(test, 'correct_answers', 0) or 0
-            total_incorrect = getattr(test, 'incorrect_answers', 0) or 0
-            total_unanswered = getattr(test, 'unanswered', 0) or 0
-            total_q = test.total_questions or 0
-
-        total_marks = (total_correct * 4) - (total_incorrect * 1)
-        max_marks = (total_q or 0) * 4
-        percentage = (total_marks / max_marks * 100) if max_marks > 0 else 0
-
-        # Test name: platform test name or Practice Test #<id>
-        if test.test_type == 'platform' and test.platform_test:
-            test_name = test.platform_test.test_name
-        else:
-            test_name = f"Practice Test #{test.id}"
-
-        # Subject-wise marks: compute directly from TestAnswer rows to ensure
-        # counts (correct/incorrect/unanswered) match the actual answers for
-        # this session. This avoids relying on possibly stale TestSession
-        # counters and guarantees consistency with DB answers.
-        from collections import defaultdict
-
-        # Initialize counters for expected subjects
-        subjects = ['Physics', 'Chemistry', 'Botany', 'Zoology', 'Biology', 'Math']
-        counters = {s: {'correct': 0, 'incorrect': 0, 'unanswered': 0, 'total_questions': 0} for s in subjects}
-
-        # Helper to normalize subject name (reuse same logic used for insights)
-        def _normalize_subject_name_for_counts(s: str) -> str:
+        # Helper to normalize subject name
+        def _normalize_subject(s: str) -> str:
             if not s:
                 return 'Other'
             s_low = s.lower()
@@ -279,97 +233,139 @@ def get_test_zone_insights(request, test_id):
                 return 'Math'
             return s.strip()
 
-        try:
-            # Build subject counters by iterating answers once and attributing each
-            # answer to exactly one subject using the question.topic.subject value.
-            # This avoids double-counting when topic.subject contains multiple
-            # keywords or when session topic lists overlap between subjects.
-            answers = TestAnswer.objects.filter(session_id=test.id).select_related('question__topic')
-
-            for a in answers:
-                q_topic = None
-                try:
-                    q_topic = a.question.topic
-                except Exception:
-                    q_topic = None
-
-                subj_name = None
-                if q_topic is not None:
-                    subj_name = getattr(q_topic, 'subject', None)
-
-                norm = _normalize_subject_name_for_counts(subj_name) if subj_name else None
-                # Only count if normalized subject is one of our tracked subjects
-                if norm not in subjects:
-                    continue
-
-                counters[norm]['total_questions'] += 1
-                # Classify answer state robustly:
-                # - If selected_answer is None or empty => unanswered
-                # - Else, if is_correct True => correct
-                # - Otherwise treat as incorrect
-                sel = getattr(a, 'selected_answer', None)
-                if sel is None or (isinstance(sel, str) and sel.strip() == ''):
-                    counters[norm]['unanswered'] += 1
-                else:
-                    if a.is_correct is True:
-                        counters[norm]['correct'] += 1
-                    else:
-                        counters[norm]['incorrect'] += 1
-
-        except Exception:
-            # If anything fails, fall back to empty counters
-            counters = {s: {'correct': 0, 'incorrect': 0, 'unanswered': 0, 'total_questions': 0} for s in subjects}
-
-        # Build subject_marks in response shape using counters
-        subject_marks = {}
-        for subj in subjects:
-            stats = counters.get(subj, {})
-            correct = stats.get('correct', 0)
-            incorrect = stats.get('incorrect', 0)
-            total_q = stats.get('total_questions', 0)
-            unanswered = stats.get('unanswered', 0)
-            marks = (correct * 4) - (incorrect * 1)
-            max_m = total_q * 4
-            # Score percentage: if subject percentage stored on TestSession prefer that, else compute
-            score_pct = getattr(test, f"{subj.lower()}_score", None)
-            if score_pct is None and max_m > 0:
-                score_pct = round((marks / max_m) * 100, 2) if max_m > 0 else 0
-
-            subject_marks[subj] = {
-                'score': score_pct if score_pct is not None else 0,
-                'correct': correct,
-                'incorrect': incorrect,
-                'unanswered': unanswered,
-                'marks': marks,
-                'max_marks': max_m
-            }
-
-        # BUILD CHECKPOINTS: use new checkpoint generation service
-        # Check if checkpoints already exist for this test
-        existing_checkpoints = TestSubjectZoneInsight.objects.filter(test_session=test)
+        # Fetch all answers for this test
+        answers = TestAnswer.objects.filter(session_id=test.id).select_related('question__topic')
         
-        checkpoints_data = []
+        # Group answers by subject
+        from collections import defaultdict
+        subjects = ['Physics', 'Chemistry', 'Botany', 'Zoology', 'Biology', 'Math']
+        subject_answers = {s: [] for s in subjects}
         
-        if not existing_checkpoints.exists():
-            # Generate checkpoints for all subjects
-            logger.info(f"Generating checkpoints for test {test_id}")
-            from ..services.zone_insights_service import generate_all_subject_checkpoints
-            
+        for answer in answers:
             try:
-                generate_all_subject_checkpoints(test_id)
-                # Reload from DB after generation
-                existing_checkpoints = TestSubjectZoneInsight.objects.filter(test_session=test)
-            except Exception as e:
-                logger.error(f"Failed to generate checkpoints for test {test_id}: {str(e)}")
+                topic = answer.question.topic
+                subject_name = getattr(topic, 'subject', None)
+                normalized = _normalize_subject(subject_name) if subject_name else None
+                if normalized in subjects:
+                    subject_answers[normalized].append(answer)
+            except Exception:
+                continue
         
-        # Load checkpoints from DB
-        for checkpoint_obj in existing_checkpoints:
-            checkpoints_data.append({
-                'subject': checkpoint_obj.subject,
-                'checkpoints': checkpoint_obj.checkpoints or []
+        # Calculate overall test metrics
+        total_questions = test.total_questions or answers.count()
+        total_correct = answers.filter(is_correct=True).count()
+        total_incorrect = answers.filter(selected_answer__isnull=False, is_correct=False).count()
+        total_skipped = answers.filter(selected_answer__isnull=True).count()
+        
+        # 1️⃣ Total Possible Marks
+        total_possible_marks = total_questions * 4
+        
+        # 2️⃣ Accuracy
+        overall_accuracy = (total_correct / total_questions * 100) if total_questions > 0 else 0
+        
+        # 3️⃣ Time Spent (Overall)
+        correct_time = sum(a.time_taken or 0 for a in answers if a.is_correct)
+        incorrect_time = sum(a.time_taken or 0 for a in answers if a.selected_answer and not a.is_correct)
+        skipped_time = sum(a.time_taken or 0 for a in answers if not a.selected_answer)
+        total_time = correct_time + incorrect_time + skipped_time
+        
+        time_spent_json = {
+            "total_time_spent": total_time,
+            "correct_time_spent": correct_time,
+            "incorrect_time_spent": incorrect_time,
+            "skipped_time_spent": skipped_time
+        }
+        
+        # 4️⃣ Total Marks (Based on Marking Scheme)
+        total_marks = (total_correct * 4) - (total_incorrect * 1)
+        
+        # 5️⃣ Subject-wise Data
+        subject_wise_data = []
+        subjects_data_list = []
+
+        for subject in subjects:
+            subject_ans = subject_answers[subject]
+            if not subject_ans:  # Skip subjects with no questions
+                continue
+
+            # Subject calculations
+            subj_total = len(subject_ans)
+            subj_correct = sum(1 for a in subject_ans if a.is_correct)
+            subj_incorrect = sum(1 for a in subject_ans if a.selected_answer and not a.is_correct)
+            subj_skipped = sum(1 for a in subject_ans if not a.selected_answer)
+            subj_total_mark = subj_total * 4
+            subj_marks = (subj_correct * 4) - (subj_incorrect * 1)
+            subj_accuracy_pct = (subj_correct / subj_total * 100) if subj_total > 0 else 0
+
+            # Subject-wise data entry (matches requested JSON structure)
+            subject_data_entry = {
+                "subject_name": subject,
+                "total_questions": subj_total,
+                "correct_answers": subj_correct,
+                "incorrect_answers": subj_incorrect,
+                "skipped_answers": subj_skipped,
+                "total_mark": subj_total_mark,
+                "marks": subj_marks,
+                "accuracy": round(subj_accuracy_pct, 2)
+            }
+            subject_wise_data.append(subject_data_entry)
+
+            subjects_data_list.append({
+                'subject': subject,
+                'mark': subj_marks,
+                'accuracy': round(subj_accuracy_pct, 2),
+                'time_spent': {
+                    "total_time_spent": sum(a.time_taken or 0 for a in subject_ans),
+                    "correct_time_spent": sum(a.time_taken or 0 for a in subject_ans if a.is_correct),
+                    "incorrect_time_spent": sum(a.time_taken or 0 for a in subject_ans if a.selected_answer and not a.is_correct),
+                    "skipped_time_spent": sum(a.time_taken or 0 for a in subject_ans if not a.selected_answer)
+                },
+                'total_mark': subj_total_mark,
+                'subject_data': subject_data_entry
             })
+
+        # Persist a single TestSubjectZoneInsight row per test session (one row = one test)
+        # Build overall values to store
+        overall_accuracy_fraction = round(((total_correct / total_questions) if total_questions > 0 else 0), 3)
+
+        # Try to fetch existing insight row (populated by submit pipeline)
+        # Only create if missing to avoid overwriting LLM-generated fields
+        insight, created = TestSubjectZoneInsight.objects.get_or_create(
+            test_session_id=test_id,
+            student_id=student_id,
+            defaults={
+                'student_id': student_id,
+                'mark': total_marks,
+                'accuracy': overall_accuracy_fraction,  # stored as fraction 0-1
+                'time_spend': time_spent_json,
+                'total_mark': total_possible_marks,
+                'subject_data': subject_wise_data,
+                'focus_zone': [],
+                'repeated_mistake': [],
+                'g_phrase': None,
+                'checkpoints': [],
+                'topics_analyzed': []
+            }
+        )
         
-        logger.info(f"Returning {len(checkpoints_data)} checkpoints for test {test_id}")
+        # If row already existed and is missing basic metrics, update only those fields
+        # (preserve LLM fields like focus_zone, repeated_mistake, g_phrase)
+        if not created and (not insight.subject_data or not insight.mark):
+            insight.mark = total_marks
+            insight.accuracy = overall_accuracy_fraction
+            insight.time_spend = time_spent_json
+            insight.total_mark = total_possible_marks
+            insight.subject_data = subject_wise_data
+            insight.save(update_fields=['mark', 'accuracy', 'time_spend', 'total_mark', 'subject_data'])
+            logger.info(f"Updated basic metrics for existing insight row {test_id} (preserved LLM fields)")
+        
+        # Test name
+        if test.test_type == 'platform' and test.platform_test:
+            test_name = test.platform_test.test_name
+        else:
+            test_name = f"Practice Test #{test.id}"
+        
+        # Prepare response
         response_data = {
             'status': 'success',
             'test_info': {
@@ -377,14 +373,17 @@ def get_test_zone_insights(request, test_id):
                 'test_name': test_name,
                 'start_time': test.start_time.isoformat() if test.start_time else None,
                 'end_time': test.end_time.isoformat() if test.end_time else None,
+                'total_questions': total_questions,
+                'total_possible_marks': total_possible_marks,
                 'total_marks': total_marks,
-                'max_marks': max_marks,
-                'percentage': round(percentage, 2),
-                'subject_marks': subject_marks
+                'accuracy': round(overall_accuracy, 2),
+                'time_spent': time_spent_json,
+                'subject_wise_data': subject_wise_data
             },
-            'checkpoints': checkpoints_data
+            'subjects': subjects_data_list
         }
-        logger.debug(f"Response data: test_name={test_name}, total_marks={total_marks}, checkpoints_count={len(checkpoints_data)}")
+        
+        logger.info(f"Processed and stored zone insights for test {test_id}")
         return Response(response_data)
         
     except TestSession.DoesNotExist:
@@ -454,20 +453,47 @@ def get_zone_insights_status(request, test_id):
         if test.math_topics:
             expected_subjects.append('Math')
         
-        # Check if insights exist
-        insights = TestSubjectZoneInsight.objects.filter(
-            test_session_id=test_id
-        ).values_list('subject', flat=True)
-        
-        subjects_with_insights = list(insights)
-        insights_generated = len(subjects_with_insights) > 0
-        
-        # Check if ALL expected subjects have been processed
-        all_subjects_complete = (
-            insights_generated and 
-            len(subjects_with_insights) >= len(expected_subjects) and
-            all(subj in subjects_with_insights for subj in expected_subjects)
-        )
+        # Prefer a single TestSubjectZoneInsight record per test session.
+        # Consider insights "generated" only when a row exists and its
+        # `subject_data` is populated and metrics like 'mark', 'accuracy',
+        # 'time_spend' and 'total_mark' are present.
+        insight = TestSubjectZoneInsight.objects.filter(test_session_id=test_id).first()
+
+        subjects_with_insights = []
+        insights_generated = False
+        all_subjects_complete = False
+
+        if insight and insight.subject_data:
+            try:
+                sd = insight.subject_data or []
+                if isinstance(sd, list) and len(sd) > 0:
+                    # Collect subject names present in the subject_data list
+                    for entry in sd:
+                        name = entry.get('subject_name') or entry.get('subject')
+                        if name:
+                            subjects_with_insights.append(name)
+
+                    # Basic validation: ensure top-level metrics exist on the row
+                    required_metrics_present = (
+                        insight.mark is not None and
+                        insight.accuracy is not None and
+                        insight.time_spend is not None and
+                        insight.total_mark is not None
+                    )
+
+                    if subjects_with_insights and required_metrics_present:
+                        insights_generated = True
+
+                        # If expected_subjects are provided, ensure they are all present
+                        if expected_subjects:
+                            all_present = all(subj in subjects_with_insights for subj in expected_subjects)
+                            all_subjects_complete = all_present
+                        else:
+                            # No expected subjects listed on session: treat presence as complete
+                            all_subjects_complete = True
+            except Exception:
+                insights_generated = False
+                all_subjects_complete = False
         
         response_data = {
             'status': 'success',
@@ -505,8 +531,8 @@ def get_zone_insights_status(request, test_id):
 @permission_classes([IsAuthenticated])
 def get_test_zone_insights_raw(request, test_id):
     """
-    Raw DB-backed checkpoint insights for a test session.
-    Returns rows from `test_subject_zone_insights` for the given test_id.
+    Raw DB-backed zone insights for a test session.
+    Returns structured data from `test_subject_zone_insights` for the given test_id.
 
     URL: /api/zone-insights/raw/<test_id>/
     """
@@ -517,23 +543,192 @@ def get_test_zone_insights_raw(request, test_id):
 
         # Verify test ownership
         test = get_object_or_404(TestSession, id=test_id, student_id=student_id)
-        student_profile = test.get_student_profile()
 
         insights_qs = TestSubjectZoneInsight.objects.filter(test_session_id=test_id)
 
         insights = []
         for row in insights_qs:
             insights.append({
-                'subject': row.subject,
-                'checkpoints': row.checkpoints or [],
-                'topics_analyzed': row.topics_analyzed or [],
+                'mark': row.mark,
+                'accuracy': row.accuracy,
+                'time_spend': row.time_spend or {},
+                'total_mark': row.total_mark,
+                'subject_data': row.subject_data or [],
+                'focus_zone': row.focus_zone or [],
+                'repeated_mistake': row.repeated_mistake or [],
+                'g_phrase': row.g_phrase,
                 'created_at': row.created_at.isoformat() if row.created_at else None
             })
 
-        return Response({'status': 'success', 'test_id': test_id, 'raw_insights': insights})
+        return Response({'status': 'success', 'test_id': test_id, 'insights': insights})
 
     except TestSession.DoesNotExist:
         return Response({'status': 'error', 'message': 'Test not found or access denied'}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         logger.exception(f"Error in get_test_zone_insights_raw: {e}")
         return Response({'status': 'error', 'message': f'Internal server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_test_focus_zone(request, test_id):
+    """
+    Generate focus zone and repeated mistakes data for a specific test using LLM.
+    
+    **Important**: These insights are ONLY generated for platform tests.
+    For custom tests, the fields are set to empty/null.
+    
+    This endpoint analyzes:
+    1. Focus Zone: Wrong and skipped questions from THIS test
+    2. Repeated Mistakes: Wrong answers from ALL platform tests for patterns
+    
+    Both generate subject-wise insights (2 points per subject).
+    
+    URL: /api/zone-insights/focus-zone/<test_id>/
+    Method: POST
+    
+    Returns (Platform Test):
+    {
+        "status": "success",
+        "test_id": 123,
+        "test_type": "platform",
+        "focus_zone": {
+            "Physics": [
+                "Student confused velocity with acceleration in motion equations.\\nPractice 10 motion problems focusing on unit identification.",
+                "..."
+            ],
+            "Chemistry": [...],
+            ...
+        },
+        "repeated_mistake": {
+            "Physics": [
+                {
+                    "topic": "Mechanics",
+                    "line1": "Student repeatedly confused velocity with acceleration in 3 tests.",
+                    "line2": "Practice 10 motion problems daily focusing on units and formulas."
+                },
+                {
+                    "topic": "Thermodynamics",
+                    "line1": "Consistently mixed up isothermal and adiabatic processes across 2 tests.",
+                    "line2": "Create comparison chart and solve 15 PV diagram problems."
+                }
+            ],
+            "Chemistry": [
+                {
+                    "topic": "Redox Reactions",
+                    "line1": "Repeatedly confused oxidation-reduction in 3 tests, mixing electron gain-loss.",
+                    "line2": "Create flashcards for OIL RIG rule and practice redox daily."
+                },
+                ...
+            ],
+            ...
+        }
+    }
+    
+    Returns (Custom Test):
+    {
+        "status": "success",
+        "test_id": 456,
+        "test_type": "custom",
+        "message": "Focus zone and repeated mistakes are only generated for platform tests.",
+        "focus_zone": {},
+        "repeated_mistake": {}
+    }
+    """
+    try:
+        student_id = _resolve_student_id_from_request(request)
+        if not student_id:
+            return Response({
+                'status': 'error',
+                'message': 'User not properly authenticated'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Verify test ownership
+        test = get_object_or_404(TestSession, id=test_id, student_id=student_id)
+        
+        # Check if test is completed
+        if not test.is_completed:
+            return Response({
+                'status': 'error',
+                'message': 'Test must be completed before generating focus zone'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if zone insights exist
+        insight = TestSubjectZoneInsight.objects.filter(
+            test_session_id=test_id,
+            student_id=student_id
+        ).first()
+        
+        if not insight:
+            return Response({
+                'status': 'error',
+                'message': 'Zone insights must be generated before focus zone. Please call /api/zone-insights/test/<test_id>/ first.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if this is a platform test
+        # Focus zone and repeated mistakes are only generated for platform tests
+        if test.test_type != 'platform':
+            logger.info(f"ℹ️ Test {test_id} is a custom test. Skipping focus zone and repeated mistakes generation.")
+            
+            # Set fields to empty/null for custom tests
+            insight.focus_zone = {}
+            insight.repeated_mistake = {}
+            insight.save(update_fields=['focus_zone', 'repeated_mistake'])
+            
+            return Response({
+                'status': 'success',
+                'test_id': test_id,
+                'test_type': test.test_type,
+                'message': 'Focus zone and repeated mistakes are only generated for platform tests.',
+                'focus_zone': {},
+                'repeated_mistake': {}
+            })
+        
+        # Import the generation functions
+        from ..services.zone_insights_service import generate_focus_zone, generate_repeated_mistakes
+        
+        logger.info(f"🎯 Generating focus zone and repeated mistakes for platform test {test_id}")
+        
+        # Generate focus zone (current test only)
+        logger.info(f"📊 Step 1/2: Generating focus zone for test {test_id}")
+        focus_zone_data = generate_focus_zone(test_id)
+        
+        if not focus_zone_data:
+            logger.warning(f"⚠️ Failed to generate focus zone for test {test_id}")
+        
+        # Generate repeated mistakes (all platform tests)
+        logger.info(f"📊 Step 2/2: Generating repeated mistakes for student {student_id}")
+        repeated_mistakes_data = generate_repeated_mistakes(student_id, test_id)
+        
+        if not repeated_mistakes_data:
+            logger.warning(f"⚠️ Failed to generate repeated mistakes for student {student_id}")
+        
+        # Check if at least one succeeded
+        if not focus_zone_data and not repeated_mistakes_data:
+            return Response({
+                'status': 'error',
+                'message': 'Failed to generate insights. No data available or LLM error.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Refresh the insight object to get updated data
+        insight.refresh_from_db()
+        
+        return Response({
+            'status': 'success',
+            'test_id': test_id,
+            'test_type': test.test_type,
+            'focus_zone': insight.focus_zone or {},
+            'repeated_mistake': insight.repeated_mistake or {}
+        })
+        
+    except TestSession.DoesNotExist:
+        return Response({
+            'status': 'error',
+            'message': 'Test not found or access denied'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error in generate_test_focus_zone: {str(e)}")
+        return Response({
+            'status': 'error',
+            'message': f'Internal server error: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

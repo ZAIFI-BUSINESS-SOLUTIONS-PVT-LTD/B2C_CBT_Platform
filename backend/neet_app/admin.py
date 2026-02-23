@@ -1,10 +1,10 @@
 from django.contrib import admin
 from django import forms
 from django.contrib.admin.widgets import FilteredSelectMultiple
-from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, StudentInsight, PasswordReset, PlatformTest
+from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, PasswordReset, PlatformTest
 from .models import UserActivity, PlatformTestAudit
 from .models import PlatformAdmin, PaymentOrder, RazorpayOrder
-from .models import Institution, InstitutionAdmin
+from .models import Institution, InstitutionAdmin, QuestionOfTheDay
 
 @admin.register(PlatformTest)
 class PlatformTestAdmin(admin.ModelAdmin):
@@ -188,12 +188,7 @@ class TestAnswerAdmin(admin.ModelAdmin):
         return obj.question.question[:50] + "..." if len(obj.question.question) > 50 else obj.question.question
     question_preview.short_description = 'Question'
 
-@admin.register(StudentInsight)
-class StudentInsightAdmin(admin.ModelAdmin):
-    list_display = ['student', 'test_session', 'llm_strengths','llm_study_plan','llm_weaknesses','created_at']
-    list_filter = ['student']
-    search_fields = ['student__full_name', 'test_session__id', 'llm_strengths', 'llm_study_plan', 'llm_weaknesses']
-    ordering = ['-created_at']
+# StudentInsight admin removed as StudentInsight model is deprecated
 
 @admin.register(PasswordReset)
 class PasswordResetAdmin(admin.ModelAdmin):
@@ -221,6 +216,32 @@ class PlatformTestAuditAdmin(admin.ModelAdmin):
 class PlatformAdminAdmin(admin.ModelAdmin):
     list_display = ['username', 'is_active', 'created_at']
     readonly_fields = ['created_at']
+
+    # Provide a nicer admin form for setting a plaintext password which will be
+    # hashed before saving. Expose a `password` writable field while keeping
+    # `password_hash` hidden from direct editing.
+    fields = ('username', 'password', 'is_active', 'created_at')
+
+    def get_form(self, request, obj=None, **kwargs):
+        # Dynamically create a form that includes a `password` field.
+        from django import forms
+
+        class PlatformAdminForm(forms.ModelForm):
+            password = forms.CharField(required=not bool(obj), widget=forms.PasswordInput, help_text='Enter plaintext password to set or change.')
+
+            class Meta:
+                model = PlatformAdmin
+                fields = ('username', 'password', 'is_active')
+
+        return PlatformAdminForm
+
+    def save_model(self, request, obj, form, change):
+        # When saving from admin, if a plaintext password was provided, hash it.
+        pwd = form.cleaned_data.get('password')
+        if pwd:
+            obj.set_password(pwd)
+        # Ensure we don't accidentally overwrite created_at etc.
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(PaymentOrder)
@@ -269,3 +290,22 @@ class PaymentOrderAdmin(admin.ModelAdmin):
 
 # Note: RazorpayOrder is now an alias for PaymentOrder (defined in models.py)
 # No separate admin registration needed since they're the same model
+
+
+@admin.register(QuestionOfTheDay)
+class QuestionOfTheDayAdmin(admin.ModelAdmin):
+    """Admin interface for Question of the Day entries"""
+    list_display = ['id', 'student', 'date', 'question_preview', 'selected_option', 'is_correct', 'created_at']
+    list_filter = ['date', 'is_correct', 'created_at']
+    search_fields = ['student__student_id', 'student__full_name', 'question__question']
+    readonly_fields = ['created_at']
+    ordering = ['-date', '-created_at']
+    date_hierarchy = 'date'
+    
+    def question_preview(self, obj):
+        """Show first 50 characters of the question"""
+        return obj.question.question[:50] + '...' if len(obj.question.question) > 50 else obj.question.question
+    question_preview.short_description = 'Question'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('student', 'question')

@@ -22,9 +22,12 @@ print(f'Count: {zones.count()}\n')
 
 for z in zones:
     print(f'Subject: {z.subject}')
-    print(f'  Steady zone: {z.steady_zone}')
-    print(f'  Edge zone: {z.edge_zone}')
-    print(f'  Focus zone: {z.focus_zone}')
+    # Backwards-compatible access to renamed fields
+    print(f'  Checkpoints: {getattr(z, "checkpoints", [])}')
+    print(f'  Topics analyzed: {getattr(z, "topics_analyzed", [])}')
+    # New structured fields (if present)
+    print(f'  Subject data: {getattr(z, "subject_data", None)}')
+    print(f'  Time spent: {getattr(z, "time_spend", None)}')
     print()
 
 if zones.count() == 0:

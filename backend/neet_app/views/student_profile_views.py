@@ -476,7 +476,7 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         from django.db import transaction
         from ..models import (
             TestSession, TestAnswer, ReviewComment, ChatSession, ChatMessage,
-            ChatMemory, StudentInsight, TestSubjectZoneInsight, Notification,
+            ChatMemory, TestSubjectZoneInsight, Notification,
             PasswordReset, StudentActivity, PaymentOrder
         )
         
@@ -526,9 +526,8 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
                 # 2. Delete test sessions
                 test_sessions.delete()
                 
-                # 3. Delete test-derived insights
+                # 3. Delete test-derived zone insights (student-level insights deprecated)
                 TestSubjectZoneInsight.objects.filter(student=student).delete()
-                StudentInsight.objects.filter(student=student).delete()
                 
                 # 4. Delete chat data
                 chat_sessions = ChatSession.objects.filter(student_id=student_id)

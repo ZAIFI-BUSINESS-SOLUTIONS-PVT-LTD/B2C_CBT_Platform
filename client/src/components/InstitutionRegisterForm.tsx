@@ -104,7 +104,7 @@ export function InstitutionRegisterForm({ onSuccess, onBack, onSwitchToLogin }: 
       if (onSuccess) {
         onSuccess();
       } else {
-        navigate("/institution-admin/dashboard");
+        navigate("/institution-admin/analytics");
       }
     } catch (err: any) {
       console.error("Registration error:", err);

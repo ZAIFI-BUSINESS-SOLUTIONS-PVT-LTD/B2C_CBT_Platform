@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Upload, FileSpreadsheet, LogOut, Building2, CheckCircle, FileText, FileCode } from "lucide-react";
+import { AlertCircle, Upload, FileSpreadsheet, LogOut, Building2, CheckCircle, FileText, FileCode, BarChart2 } from "lucide-react";
 
 interface InstitutionAdminData {
   id: number;
@@ -254,6 +254,10 @@ export default function InstitutionAdminDashboard() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 md:mt-0">
+            <Button variant="outline" onClick={() => navigate('/institution-admin/analytics')}>
+              <BarChart2 className="h-4 w-4 mr-2" />
+              Student Analytics
+            </Button>
             <Button variant="outline" onClick={() => navigate('/offline-results-upload')}>
               <FileText className="h-4 w-4 mr-2" />
               Upload Offline Results

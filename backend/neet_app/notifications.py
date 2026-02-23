@@ -196,24 +196,7 @@ def dispatch_test_result_email(user, results: Dict) -> bool:
         except Exception:
             logger.exception('Unhandled exception sending test result email')
 
-    # First check if Celery workers are available to avoid Redis connection delays
-    try:
-        from .views.insights_views import is_celery_worker_available
-        
-        if not is_celery_worker_available():
-            print(f"⚠️ No Celery workers available, using background thread for email to {user.student_id}")
-            # Immediately fall back to background thread
-            thread = threading.Thread(target=_worker, daemon=True)
-            thread.start()
-            print(f"🚀 Background email thread started for user {user.student_id}")
-            return True
-    except Exception as check_e:
-        print(f"⚠️ Error checking Celery availability for email, using background thread: {str(check_e)}")
-        # Fall back to background thread if worker check fails
-        thread = threading.Thread(target=_worker, daemon=True)
-        thread.start()
-        print(f"🚀 Background email thread started for user {user.student_id}")
-        return True
+    # Attempt to enqueue Celery email task; fall back to background thread on failure.
 
     # If workers are available, try Celery first
     try:

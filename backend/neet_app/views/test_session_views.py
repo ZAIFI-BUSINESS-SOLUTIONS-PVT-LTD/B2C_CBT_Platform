@@ -573,20 +573,63 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             'detailed_answers': detailed_answers
         }
 
-        # Enqueue complete test processing pipeline on Celery workers
-        # This orchestrator chains: compute_results → zone_insights → student_insights
-        # Frontend shows loading video and polls for completion
-        try:
-            from ..tasks import process_test_submission_task
-            print(f"🚀 Enqueuing test submission pipeline for session {session.id}")
-            # Enqueue the orchestrator which will chain all processing tasks
-            task = process_test_submission_task.apply_async(args=[session.id])
-            print(f"✅ Pipeline orchestrator enqueued with ID: {task.id}")
-        except Exception as e:
-            # Don't fail submission if task enqueue fails - log and continue
-            # The synchronous computation above ensures results are available
-            logger.exception(f"Failed to enqueue pipeline orchestrator for session {session.id}: {e}")
-            print(f"❌ Pipeline orchestrator enqueue failed: {e}")
+        # Enqueue test processing pipeline.
+        # In DEBUG mode, always use fallback thread to ensure immediate execution.
+        # In production, ping Celery workers and fall back if unavailable.
+        import threading as _threading
+
+        def _run_pipeline_sync(sid, student_id, test_type):
+            """Run zone-insight generation directly (used when no Celery worker found)."""
+            try:
+                from ..services.zone_insights_service import compute_and_store_zone_insights
+                print(f"🔄 [fallback-thread] Computing zone insights for session {sid}")
+                compute_and_store_zone_insights(sid)
+                print(f"✅ [fallback-thread] Zone insights done for session {sid}")
+            except Exception as _e:
+                logger.exception(f"[fallback-thread] compute_and_store_zone_insights failed for session {sid}: {_e}")
+                return  # can't generate focus_zone without the base row
+
+            if test_type == 'platform':
+                try:
+                    from ..services.zone_insights_service import generate_focus_zone, generate_repeated_mistakes
+                    print(f"🎯 [fallback-thread] Generating focus_zone for session {sid}")
+                    generate_focus_zone(sid)
+                    print(f"🔁 [fallback-thread] Generating repeated_mistake for session {sid}")
+                    generate_repeated_mistakes(student_id, sid)
+                    print(f"✅ [fallback-thread] focus_zone + repeated_mistake done for session {sid}")
+                except Exception as _e:
+                    logger.exception(f"[fallback-thread] focus_zone/repeated_mistake failed for session {sid}: {_e}")
+
+        _pipeline_enqueued = False
+        
+        # In DEBUG mode, skip Celery and always use fallback thread for immediate execution
+        if settings.DEBUG:
+            print(f"🔧 DEBUG mode active — forcing fallback thread for session {session.id}")
+        else:
+            try:
+                from celery import current_app as _celery_app
+                for _attempt in range(1, 3):   # two attempts
+                    _workers = _celery_app.control.ping(timeout=1.0)
+                    if _workers:
+                        from ..tasks import process_test_submission_task
+                        _task = process_test_submission_task.apply_async(args=[session.id])
+                        print(f"✅ Pipeline enqueued via Celery (attempt {_attempt}) ID: {_task.id}")
+                        _pipeline_enqueued = True
+                        break
+                    print(f"⚠️ No Celery workers (attempt {_attempt}/2) — {'retrying...' if _attempt == 1 else 'giving up.'}")
+            except Exception as _ce:
+                logger.warning(f"Celery ping/enqueue error: {_ce} — will run pipeline in background thread")
+
+        if not _pipeline_enqueued:
+            print(f"🚀 No Celery worker available — running pipeline in background thread for session {session.id}")
+            print(f"🔎 [fallback] session.test_type={session.test_type}, student_id={session.student_id}")
+            _t = _threading.Thread(
+                target=_run_pipeline_sync,
+                args=(session.id, session.student_id, session.test_type),
+                daemon=False,
+                name=f"zone-insights-pipeline-{session.id}"
+            )
+            _t.start()
 
         # Send test result email asynchronously (best-effort)
         try:

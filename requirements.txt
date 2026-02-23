@@ -47,9 +47,10 @@ google-auth-oauthlib==1.2.0
 # Redis for OTP caching and rate limiting
 redis==5.0.1
 
-# AWS SDK for SMS via SNS
-boto3==1.35.9
-botocore==1.35.9
+# SMS via MSG91 (replaced AWS SNS)
+# MSG91 uses standard Python http.client (no additional packages needed)
+# boto3==1.35.9  # <-- Removed: Previously used for AWS SNS
+# botocore==1.35.9  # <-- Removed: Previously used for AWS SNS
 
 # Excel file processing for institution uploads
 openpyxl==3.1.2

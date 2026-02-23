@@ -1,6 +1,6 @@
 # your_app_name/serializers.py
 from rest_framework import serializers
-from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, ChatMemory, PlatformTest, RazorpayOrder
+from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, ChatMemory, PlatformTest, RazorpayOrder, QuestionOfTheDay
 from django.db.models import F
 from django.utils import timezone
 
@@ -794,3 +794,18 @@ class RazorpayOrderSerializer(serializers.ModelSerializer):
         model = RazorpayOrder
         fields = ['id', 'student', 'plan', 'amount', 'currency', 'razorpay_order_id', 'status', 'created_at']
         read_only_fields = ['id', 'razorpay_order_id', 'status', 'created_at']
+
+
+class QuestionOfTheDaySerializer(serializers.ModelSerializer):
+    """Serializer for Question of the Day responses"""
+    question_data = QuestionSerializer(source='question', read_only=True)
+    
+    class Meta:
+        model = QuestionOfTheDay
+        fields = ['id', 'student', 'question', 'question_data', 'date', 'selected_option', 'is_correct', 'created_at']
+        read_only_fields = ['id', 'student', 'date', 'is_correct', 'created_at']
+
+
+class QuestionOfTheDaySubmitSerializer(serializers.Serializer):
+    """Serializer for submitting Question of the Day answer"""
+    selected_option = serializers.ChoiceField(choices=['A', 'B', 'C', 'D'], required=True)

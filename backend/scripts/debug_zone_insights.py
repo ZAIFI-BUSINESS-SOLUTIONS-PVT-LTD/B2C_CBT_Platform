@@ -46,9 +46,11 @@ if ts:
     print(f"Zone insights count: {zones.count()}")
     for z in zones:
         print(f"  Subject: {z.subject}")
-        print(f"    Steady: {len(z.steady_zone)} points")
-        print(f"    Edge: {len(z.edge_zone)} points")
-        print(f"    Focus: {len(z.focus_zone)} points")
+        # Backwards-compatible display: newer model stores checkpoints and topics_analyzed
+        checkpoints = getattr(z, 'checkpoints', []) or []
+        topics_analyzed = getattr(z, 'topics_analyzed', []) or []
+        print(f"    Checkpoints: {len(checkpoints)} items")
+        print(f"    Topics analyzed: {len(topics_analyzed)} items")
     
     # Check subjects in test
     print(f"\n--- Subject Topics in Test ---")

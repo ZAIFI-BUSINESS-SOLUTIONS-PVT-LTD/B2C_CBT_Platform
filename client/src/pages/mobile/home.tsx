@@ -17,12 +17,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from "wouter";
-import { StudentProfile } from "@/components/profile-avatar";
 import Logo from "@/assets/images/logo.svg";
 import MiniChatbot from '@/components/mini-chatbot';
 import { ArrowRight, History, NotebookPen, Trophy, AlertTriangle, Crown, Lock, GraduationCap, Timer, HelpCircle, FileText, ChevronRight, ClipboardList, Bookmark } from "lucide-react";
 import MobileDock from "@/components/mobile-dock";
-import { AnalyticsData, InsightsData } from "@/components/insight-card";
+import { AnalyticsData } from "@/components/insight-card";
 import NeetCountdown from '@/components/coundown';
 import Share from '@/components/share';
 import Stat from '@/components/ui/stat-mobile';
@@ -256,11 +255,7 @@ export default function Home() {
     enabled: isAuthenticated && !loading, // Only run when authenticated and auth finished loading
   });
 
-  const { data: insights } = useQuery<InsightsData>({
-    queryKey: ['/api/insights/student/'],
-    refetchInterval: 30000,
-    enabled: isAuthenticated && !loading,
-  });
+  // `insights` endpoint removed from backend; no client request here anymore.
 
   // =============================================================================
   // SIDE EFFECTS
@@ -280,20 +275,10 @@ export default function Home() {
     }
   }, [activeTab]);
 
-  // Debug insights data and test relative time function
+  // Run quick debug tests on mount
   useEffect(() => {
-    // Test the relative time function
     testRelativeTime();
-
-    if (insights) {
-      console.log('Insights data:', insights);
-      console.log('Cache info:', insights.cacheInfo);
-      if (insights.cacheInfo?.lastModified) {
-        console.log('Last modified:', insights.cacheInfo.lastModified);
-        console.log('Formatted time:', formatRelativeTime(insights.cacheInfo.lastModified));
-      }
-    }
-  }, [insights]);
+  }, []);
 
   // =============================================================================
   // EARLY RETURNS AND COMPUTED VALUES
@@ -359,7 +344,6 @@ export default function Home() {
               >
                 <Crown className="h-5 w-5 text-amber-600" />
               </Button>
-              <StudentProfile />
             </div>
           </div>
         </div>
@@ -458,37 +442,8 @@ export default function Home() {
             {/* INSIGHTS SECTION - Show tabs always; if no tests, show friendly fallback cards */}
             {/* ============================================================================= */}
             <>
-              {/* Tab Headers - Modern design with colored backgrounds */}
-              <div className="px-4 pt-4">
-                <div className="flex space-x-3">
-                  {[
-                    { id: 0, label: 'Focus Zone', icon: AlertTriangle, key: 'yetToDecide' },
-                    { id: 1, label: 'Steady Zone', icon: Trophy, key: 'keyStrengths' }
-                  ].map((tab) => {
-                    const isActive = activeTab === tab.id;
-                    let activeClasses = '';
-                    if (isActive) {
-                      if (tab.key === 'keyStrengths') {
-                        activeClasses = 'bg-green-100 text-green-900 shadow-sm shadow-green-200/50 border border-green-300';
-                      } else if (tab.key === 'yetToDecide') {
-                        activeClasses = 'bg-orange-100 text-orange-900 shadow-sm shadow-orange-200/60 border border-orange-300';
-                      }
-                    }
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex-1 py-2 px-2 text-sm font-semibold rounded-xl transition-all duration-300 ease-out transform scale-[1.02] ${isActive
-                          ? activeClasses
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-white/50 active:scale-95'
-                          }`}
-                      >
-                        {tab.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              {/* Focus/Steady tabs removed (backend insights flow deprecated) */}
+              <div className="px-4 pt-4"></div>
 
               {/* Tab Content Card */}
               <div className="select-none insights-container relative bg-white">
@@ -532,83 +487,8 @@ export default function Home() {
                     ) : (
                       // Existing content when user has data
                       <>
-                        {/* Focus Zone Tab */}
-                        {activeTab === 0 && (
-                          <div className="space-y-2">
-                            {insights?.data?.llmInsights?.weaknesses?.insights ? (
-                              <div className="space-y-2">
-                                {insights.data.llmInsights.weaknesses.insights.length > 0 && (() => {
-                                  const firstInsight = insights.data.llmInsights.weaknesses.insights[0] as any;
-                                  return (
-                                    <InsightCard key={firstInsight?.id ?? firstInsight} variant="red">
-                                      {firstInsight?.text ?? firstInsight}
-                                    </InsightCard>
-                                  );
-                                })()}
-                              </div>
-                            ) : insights?.data?.weakTopics && insights.data.weakTopics.length > 0 ? (
-                              <div>
-                                <p className="text-xs text-red-700 mb-2">Topics needing focus:</p>
-                                <ul className="space-y-1 text-xs">
-                                  {insights.data.weakTopics.slice(0, 3).map((topic: any, idx: number) => (
-                                    <li key={idx} className="flex justify-between">
-                                      <span>{topic.topic}</span>
-                                      <span className="text-red-600">{topic.accuracy}%</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <InsightCard variant="red">
-                                  Take some tests to get AI analysis of your weaknesses!
-                                </InsightCard>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Steady Zone Tab */}
-                        {activeTab === 1 && (
-                          <div className="space-y-2">
-                            {(!analytics || analytics.totalTests === 0) ? (
-                              <div className="space-y-2">
-                                <InsightCard variant="gray">
-                                  Complete practice tests to unlock your strengths!
-                                </InsightCard>
-                              </div>
-                            ) : insights?.data?.llmInsights?.strengths?.insights ? (
-                              <div className="space-y-2">
-                                {insights.data.llmInsights.strengths.insights.length > 0 && (() => {
-                                  const firstInsight = insights.data.llmInsights.strengths.insights[0] as any;
-                                  return (
-                                    <InsightCard key={firstInsight?.id ?? firstInsight} variant="green">
-                                      {firstInsight?.text ?? firstInsight}
-                                    </InsightCard>
-                                  );
-                                })()}
-                              </div>
-                            ) : insights?.data?.strengthTopics && insights.data.strengthTopics.length > 0 ? (
-                              <div>
-                                <p className="text-xs text-green-700 mb-2">Your top performing topics:</p>
-                                <ul className="space-y-1 text-xs">
-                                  {insights.data.strengthTopics.slice(0, 3).map((topic: any, idx: number) => (
-                                    <li key={idx} className="flex justify-between">
-                                      <span>{topic.topic}</span>
-                                      <span className="text-green-600">{topic.accuracy}%</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                <InsightCard variant="green">
-                                  Take some tests to get AI analysis of your strengths!
-                                </InsightCard>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        
+                              <></>
                       </>
                     )}
                   </div>

@@ -1,15 +1,11 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import MobileOtpLogin from "@/components/MobileOtpLogin";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { RegisterForm } from "@/components/RegisterForm";
-import GoogleSignIn from "@/components/google-signin";
-import MobileOtpLogin from "@/components/MobileOtpLogin";
-import Logo from "@/assets/images/logo.svg";
-
 import { AlertCircle, Eye, EyeOff, Smartphone } from "lucide-react";
+import GoogleSignIn from "@/components/google-signin";
 
 export function LoginForm() {
   const { login, loading, error } = useAuth();
@@ -19,6 +15,7 @@ export function LoginForm() {
   // register modal removed; standalone /register page now
   const [showPassword, setShowPassword] = useState(false);
   const [showOtpLogin, setShowOtpLogin] = useState(false);
+  const [, navigate] = useLocation();
 
   // Check if there's any authentication error
   const hasAuthError = formError || error;
@@ -94,16 +91,12 @@ export function LoginForm() {
   return (
     // Page wrappers (e.g. `pages/login.tsx` / `pages/register.tsx`) are now responsible for background
     <div>
-      {/* Login Form */}
+      {/*
       <div className="w-full flex flex-col items-center justify-center md:max-w-md">
         <form
           onSubmit={handleSubmit}
-          className="space-y-4 w-full p-6 pb-6 pt-8 bg-white rounded-t-2xl shadow-lg md:rounded-2xl md:mx-4 md:px-6 md:py-8"
+          className="space-y-4 w-full p-6 pb-6 pt-8 bg-white/8 backdrop-blur-md border border-white/10 rounded-2xl shadow-lg md:mx-4 md:px-6 md:py-8"
         >
-          <div className="space-y-1 items-center text-center text-sm text-gray-600">
-            <img src={Logo} alt="Logo" className="h-6 mx-auto mb-2" />
-            Login
-          </div>
           <div className="space-y-1">
             <Input
               type="text"
@@ -111,15 +104,15 @@ export function LoginForm() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className={`transition-all duration-200 text-base h-12 rounded-xl ${hasAuthError
-                ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
-                : "focus:border-blue-500 focus:ring-blue-500"
+              className={`transition-all duration-200 text-base h-12 rounded-xl bg-white/10 placeholder-white/70 text-white border border-white/20 focus:bg-white/20 focus:border-blue-300 ${hasAuthError
+                ? "ring-1 ring-red-400"
+                : ""
                 }`}
               aria-invalid={hasAuthError ? "true" : "false"}
               aria-describedby={hasAuthError ? "login-error" : undefined}
             />
           </div>
-          {/* Password Input */}
+          {/* Password Input 
           <div className="space-y-1 relative">
             <Input
               type={showPassword ? "text" : "password"}
@@ -127,14 +120,14 @@ export function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className={`transition-all duration-200 pr-10 text-base h-12 rounded-xl ${hasAuthError
-                ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-red-50"
-                : "focus:border-blue-500 focus:ring-blue-500"
+              className={`transition-all duration-200 pr-10 text-base h-12 rounded-xl bg-white/10 placeholder-white/70 text-white border border-white/20 focus:bg-white/20 focus:border-blue-300 ${hasAuthError
+                ? "ring-1 ring-red-400"
+                : ""
                 }`}
               aria-invalid={hasAuthError ? "true" : "false"}
               aria-describedby={hasAuthError ? "login-error" : undefined}
             />
-            {/* Password Toggle Button */}
+            {/* Password Toggle Button
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
@@ -145,7 +138,7 @@ export function LoginForm() {
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
-          {/* Error Message - Positioned between password and login button */}
+          {/* Error Message - Positioned between password and login button
           {getCleanErrorMessage() && (
             <div
               id="login-error"
@@ -157,7 +150,7 @@ export function LoginForm() {
             </div>
           )}
 
-          {/* Forgot password link shown for authentication errors */}
+          {/* Forgot password link shown for authentication errors
           {showForgotLink && (
             <div className="w-full text-left mt-2">
               <Link
@@ -169,9 +162,15 @@ export function LoginForm() {
             </div>
           )}
 
-          {/* Login Button and link to Register page */}
+          {/* Login Button
           <div className="flex flex-col w-full gap-3">
-            <Button variant="default" type="submit" disabled={loading} size={"lg"} className="w-full rounded-xl h-12">
+            <Button
+              variant="default"
+              type="submit"
+              disabled={loading}
+              size={"lg"}
+              className="w-full rounded-xl h-12 bg-gradient-to-r from-blue-500/95 to-blue-400/95 text-white shadow-lg hover:from-blue-500/100 hover:to-blue-400/100 transition-all duration-200"
+            >
               {loading ? (
                 <div className="flex items-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -181,71 +180,40 @@ export function LoginForm() {
                 "Login"
               )}
             </Button>
-            {/* Google Sign-In Button */}
-
+          </div>
+          {/* Google Sign-In Button
+          <div className="flex flex-col w-full gap-3">
             <GoogleSignIn
-              onSuccess={(data) => {
-                console.log("Google sign-in successful:", data);
-              }}
-              onError={(error) => {
-                console.error("Google sign-in error:", error);
-                setFormError(error);
-              }}
+              onSuccess={(data) => console.log('Google sign-in success', data)}
+              onError={(err) => setFormError(String(err))}
               disabled={loading}
+              className="w-full rounded-xl h-12 bg-white/10 text-white border border-white/20"
             />
-            {/*
-            {/* Mobile OTP Login Button 
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => setShowOtpLogin(true)}
-              disabled={loading}
-              className="w-full text-lg py-3 border-green-300 hover:bg-green-50 hover:border-green-400 text-green-700 hover:text-green-800"
-            >
-              <Smartphone className="h-5 w-5 mr-2" />
-              Login with Mobile OTP
-            </Button>
-            */}
           </div>
 
-          {/* OR Divider */}
-          <div className="relative flex items-center justify-center my-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative bg-white px-4 text-sm text-gray-500 font-medium">OR</div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Button asChild type="button" size={"lg"} variant="outline" className="w-full rounded-xl h-12 ">
+          {/* Create Profile
+          <div className="flex flex-col w-full gap-3">
+            <Button asChild type="button" size={"lg"} variant="outline" className="w-full rounded-xl h-12 bg-white/6 text-white/90 border border-white/10">
               <Link href="/register" className="w-full text-center">
                 Create Profile
               </Link>
             </Button>
           </div>
+            {/* (OTP button moved outside form)
+
         </form>
-        {/* Mobile OTP Login Dialog */}
-        <Dialog open={showOtpLogin} onOpenChange={setShowOtpLogin}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>
-                <span className="block text-center text-green-700 text-2xl font-bold">Mobile OTP Login</span>
-              </DialogTitle>
-            </DialogHeader>
+        */}
+        {/* Inline Mobile OTP UI (show phone input + Get OTP directly) */}
+        <div className="w-full max-w-md -mt-28">
+          <div className="bg-white/6 p-4 rounded-2xl shadow-sm">
             <MobileOtpLogin
               onSuccess={() => {
-                console.log("Mobile OTP login successful");
-                setTimeout(() => setShowOtpLogin(false), 100);
+                setShowOtpLogin(false);
+                navigate('/dashboard');
               }}
-              onError={(error) => {
-                console.error("Mobile OTP login error:", error);
-                // Don't close dialog on error, let user retry
-              }}
-              onBack={() => setShowOtpLogin(false)}
             />
-          </DialogContent>
-        </Dialog>
+          </div>
+        </div>
       </div>
-    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
@@ -26,6 +26,8 @@ export default function MobileOtpLogin({
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
   const [canResend, setCanResend] = useState(true);
+  const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''));
+  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
 
   // Countdown timer for OTP expiry (5 minutes)
   useEffect(() => {
@@ -111,14 +113,14 @@ export default function MobileOtpLogin({
     e.preventDefault();
     setError(null);
     setLoading(true);
-
-    if (!otp.trim()) {
+    const enteredOtp = otpDigits.join('');
+    if (!enteredOtp) {
       setError("OTP is required");
       setLoading(false);
       return;
     }
 
-    if (otp.length !== 6) {
+    if (enteredOtp.length !== 6) {
       setError("Please enter a valid 6-digit OTP");
       setLoading(false);
       return;
@@ -126,14 +128,11 @@ export default function MobileOtpLogin({
 
     try {
       const normalizedMobile = normalizeMobileNumber(mobileNumber);
-      const response = await verifyOtp(normalizedMobile, otp);
+      const response = await verifyOtp(normalizedMobile, enteredOtp);
       console.log("OTP verified successfully:", response);
 
       // Set authentication using the same method as other login flows
-      setAuthFromTokens(
-        { access: response.access, refresh: response.refresh },
-        response.student
-      );
+      setAuthFromTokens({ access: response.access, refresh: response.refresh }, response.student);
 
       if (onSuccess) {
         onSuccess();
@@ -160,7 +159,7 @@ export default function MobileOtpLogin({
     if (!canResend || loading) return;
     
     setError(null);
-    setOtp("");
+    setOtpDigits(Array(6).fill(''));
     
     try {
       setLoading(true);
@@ -182,7 +181,7 @@ export default function MobileOtpLogin({
   const handleBack = () => {
     if (step === 'otp') {
       setStep('mobile');
-      setOtp("");
+      setOtpDigits(Array(6).fill(''));
       setError(null);
       setCountdown(0);
     } else if (onBack) {
@@ -190,72 +189,128 @@ export default function MobileOtpLogin({
     }
   };
 
+  useEffect(() => {
+    if (step === 'otp') {
+      // focus first input when entering otp step
+      setTimeout(() => inputsRef.current[0]?.focus(), 50);
+    }
+  }, [step]);
+
+  const handleOtpInputChange = (index: number, value: string) => {
+    // accept only digits
+    const digits = value.replace(/\D/g, '');
+    setOtpDigits(prev => {
+      const next = [...prev];
+      if (digits.length === 1) {
+        next[index] = digits;
+      } else if (digits.length > 1) {
+        // pasted multiple digits - fill from index
+        for (let i = 0; i < digits.length && index + i < next.length; i++) {
+          next[index + i] = digits.charAt(i);
+        }
+      } else {
+        next[index] = '';
+      }
+      return next;
+    });
+
+    // move focus
+    if (digits.length === 1) {
+      const nextInput = inputsRef.current[index + 1];
+      if (nextInput) nextInput.focus();
+    } else if (digits.length > 1) {
+      const pos = Math.min(6, index + digits.length);
+      const nextInput = inputsRef.current[pos];
+      if (nextInput) nextInput.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const key = e.key;
+    if (key === 'Backspace') {
+      if (otpDigits[index]) {
+        setOtpDigits(prev => {
+          const next = [...prev];
+          next[index] = '';
+          return next;
+        });
+      } else {
+        const prevInput = inputsRef.current[index - 1];
+        if (prevInput) prevInput.focus();
+      }
+    }
+    if (key === 'ArrowLeft') {
+      const prevInput = inputsRef.current[index - 1];
+      if (prevInput) prevInput.focus();
+    }
+    if (key === 'ArrowRight') {
+      const nextInput = inputsRef.current[index + 1];
+      if (nextInput) nextInput.focus();
+    }
+  };
+
   if (step === 'mobile') {
     return (
-      <div className="space-y-4">
+      <div className="w-full flex flex-col items-center">
         {onBack && (
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={handleBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-2"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to login options
           </Button>
         )}
-        
-        <div className="text-center">
-          <Smartphone className="h-8 w-8 mx-auto text-blue-600 mb-2" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">
-            Login with Mobile OTP
-          </h3>
+
+        <div className="w-full max-w-xs bg-white/6 p-4 rounded-2xl shadow-inner border border-white/10">
           <p className="text-sm text-gray-600">
-            Enter your mobile number to receive a verification code
+            Enter your mobile number
           </p>
-        </div>
 
-        <form onSubmit={handleSendOtp} className="space-y-4">
-          <div>
-            <Input
-              type="tel"
-              placeholder="Enter mobile number (e.g., 9876543210)"
-              value={mobileNumber}
-              onChange={(e) => setMobileNumber(e.target.value)}
-              required
-              disabled={loading || disabled}
-              className="text-base py-3"
-              maxLength={13}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Enter 10-digit Indian mobile number
-            </p>
-          </div>
-
-          {error && (
-            <div className="flex items-center space-x-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-md p-3">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <span>{error}</span>
+          <form onSubmit={handleSendOtp} className="space-y-3">
+            <div className="flex items-center bg-white/90 rounded-xl overflow-hidden border border-white/20 shadow-sm">
+              <span className="px-3 text-sm text-gray-700 bg-transparent">+91</span>
+              <Input
+                type="tel"
+                placeholder="98765 43210"
+                value={mobileNumber}
+                onChange={(e) => setMobileNumber(e.target.value.replace(/[^0-9\s]/g, ''))}
+                required
+                disabled={loading || disabled}
+                className="flex-1 text-base h-12 rounded-none px-2"
+                maxLength={13}
+              />
             </div>
-          )}
 
-          <Button
-            type="submit"
-            disabled={loading || disabled}
-            className="w-full text-base py-3"
-            size="lg"
-          >
-            {loading ? (
-              <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>Sending OTP...</span>
+            {error && (
+              <div className="flex items-center space-x-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-md p-3">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>{error}</span>
               </div>
-            ) : (
-              "Send OTP"
             )}
-          </Button>
-        </form>
+
+            <Button
+              type="submit"
+              disabled={loading || disabled}
+              className="w-full h-12 rounded-full bg-gradient-to-r from-blue-500 to-blue-400 text-white shadow-lg"
+              size="lg"
+            >
+              {loading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Sending OTP...</span>
+                </div>
+              ) : (
+                "Get OTP"
+              )}
+            </Button>
+
+            <p className="text-center text-xs text-gray-500">OTP will be sent for verification.</p>
+          </form>
+        </div>
       </div>
     );
   }
@@ -274,34 +329,34 @@ export default function MobileOtpLogin({
       </Button>
 
       <div className="text-center">
-        <Smartphone className="h-8 w-8 mx-auto text-green-600 mb-2" />
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">
-          Enter OTP
-        </h3>
         <p className="text-sm text-gray-600">
           We've sent a 6-digit code to
         </p>
         <p className="text-sm font-medium text-gray-900">
-          {mobileNumber}
+          {normalizeMobileNumber(mobileNumber)}
         </p>
       </div>
 
       <form onSubmit={handleVerifyOtp} className="space-y-4">
         <div>
-          <Input
-            type="text"
-            placeholder="Enter 6-digit OTP"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            required
-            disabled={loading || disabled}
-            className="text-center text-xl font-mono py-3 tracking-widest"
-            maxLength={6}
-            autoComplete="one-time-code"
-          />
-          
+          <div className="flex items-center justify-center gap-2">
+            {otpDigits.map((digit, idx) => (
+              <input
+                key={idx}
+                ref={(el) => (inputsRef.current[idx] = el)}
+                value={digit}
+                onChange={(e) => handleOtpInputChange(idx, e.target.value)}
+                onKeyDown={(e) => handleOtpKeyDown(e as any, idx)}
+                inputMode="numeric"
+                pattern="\d*"
+                maxLength={1}
+                className="w-12 h-12 md:w-14 md:h-14 bg-white/90 border border-blue-300 rounded-md text-center text-xl font-mono focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            ))}
+          </div>
+
           {countdown > 0 && (
-            <p className="text-xs text-gray-500 mt-1 text-center">
+            <p className="text-xs text-gray-500 mt-2 text-center">
               OTP expires in {formatCountdown(countdown)}
             </p>
           )}
@@ -316,8 +371,8 @@ export default function MobileOtpLogin({
 
         <Button
           type="submit"
-          disabled={loading || disabled || otp.length !== 6}
-          className="w-full text-base py-3"
+          disabled={loading || disabled || otpDigits.join('').length !== 6}
+          className="w-full text-base py-3 rounded-full bg-gradient-to-r from-blue-500 to-blue-400 text-white"
           size="lg"
         >
           {loading ? (
