@@ -93,9 +93,9 @@ export default function LandingDashboard() {
     }
 
     return (
-        <div className="flex min-h-screen bg-gray-50">
+        <div className="flex min-h-screen bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('/testpage-bg.png')" }}>
             <HeaderDesktop />
-            <main className="flex-1 flex flex-col bg-gray-50 mt-24 mb-24 transition-all duration-300 md:ml-64">
+            <main className="flex-1 flex flex-col mt-24 mb-24 transition-all duration-300 md:ml-64">
                 <div className="w-full max-w-7xl mx-auto px-4">
                     <div className="md:flex md:items-start md:space-x-6">
                         <div className="flex-1">

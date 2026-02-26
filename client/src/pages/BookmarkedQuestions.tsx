@@ -123,27 +123,33 @@ export default function BookmarkedQuestions() {
 
   const getOptionClass = (option: string, correctAnswer: string, selectedAnswer: string | null) => {
     if (option === correctAnswer) {
-      return "border-2 border-green-500 bg-green-50";
+      return "border-2 border-green-400 bg-green-500/20";
     }
     if (selectedAnswer && option === selectedAnswer && option !== correctAnswer) {
-      return "border-2 border-red-500 bg-red-50";
+      return "border-2 border-red-400 bg-red-500/20";
     }
-    return "border border-gray-200";
+    return "border border-white/40 bg-white/25";
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 pb-20">
-        <div className="sticky top-0 bg-white z-10 border-b border-gray-200">
-          <div className="w-full mx-auto py-3 px-4 flex items-center gap-3">
-            <Skeleton className="h-8 w-8 rounded-lg" />
-            <Skeleton className="h-6 w-48" />
+      <div 
+        className="min-h-screen bg-cover bg-center bg-no-repeat bg-fixed relative pb-20"
+        style={{ backgroundImage: "url('/testpage-bg.png')", backgroundAttachment: 'fixed' }}
+      >
+        <div className="absolute inset-0 bg-transparent"></div>
+        <div className="relative z-10">
+          <div className="sticky top-0 bg-transparent z-10 border-b border-transparent">
+            <div className="w-full mx-auto py-3 px-4 flex items-center gap-3">
+              <Skeleton className="h-8 w-8 rounded-lg bg-transparent" />
+              <Skeleton className="h-6 w-48 bg-transparent" />
+            </div>
           </div>
-        </div>
-        <div className="p-4 space-y-4">
-          <Skeleton className="h-12 w-full rounded-lg" />
-          <Skeleton className="h-64 w-full rounded-lg" />
-          <Skeleton className="h-64 w-full rounded-lg" />
+          <div className="p-4 space-y-4">
+            <Skeleton className="h-12 w-full rounded-lg bg-transparent" />
+            <Skeleton className="h-64 w-full rounded-lg bg-transparent" />
+            <Skeleton className="h-64 w-full rounded-lg bg-transparent" />
+          </div>
         </div>
       </div>
     );
@@ -152,70 +158,81 @@ export default function BookmarkedQuestions() {
   const totalBookmarks = sessions?.reduce((sum, s) => sum + s.bookmark_count, 0) || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Header */}
-      <div className="sticky top-0 bg-white z-10 border-b border-gray-200">
-        <div className="w-full mx-auto py-3 px-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="secondary"
-              size="icon"
-              className="size-8"
-              onClick={() => navigate('/')}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <h1 className="text-lg font-bold text-gray-900">Bookmarked Questions</h1>
-          </div>
-          <Badge variant="secondary" className="flex items-center gap-1">
-            <Bookmark className="h-3 w-3" />
-            {totalBookmarks}
-          </Badge>
-        </div>
-      </div>
+    <div 
+      className="min-h-screen bg-cover bg-center bg-no-repeat bg-fixed relative pb-20"
+      style={{ backgroundImage: "url('/testpage-bg.png')", backgroundAttachment: 'fixed' }}
+    >
+      {/* Removed overlay so background image shows through */}
+      <div className="absolute inset-0 bg-transparent"></div>
 
-      {/* Empty State */}
-      {!bookmarks || bookmarks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center px-4 py-16">
-          <div className="bg-amber-50 border-2 border-amber-100 rounded-full p-6 mb-4">
-            <Bookmark className="h-12 w-12 text-amber-600" />
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Bookmarks Yet</h2>
-          <p className="text-gray-600 text-center mb-6 max-w-sm">
-            Bookmark questions during tests to review them later. Click the bookmark button next to any question.
-          </p>
-          <Button onClick={() => navigate('/topics')} className="bg-blue-600 hover:bg-blue-700">
-            <BookOpen className="h-4 w-4 mr-2" />
-            Take a Test
-          </Button>
-        </div>
-      ) : (
-        <>
-          {/* Filter Section */}
-          <div className="sticky top-14 bg-white z-10 border-b border-gray-200 px-4 py-3">
+      {/* Content */}
+      <div className="relative z-10">
+        {/* Header */}
+        <div className="sticky top-0 bg-white/90 backdrop-blur-md z-30 border-b border-white/90">
+          <div className="w-full mx-auto py-3 px-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-slate-600" />
-                <span className="text-sm text-slate-600">Filter by test:</span>
-              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="bg-transparent border border-transparent text-gray-900 hover:bg-white/5 h-10 w-10"
+                onClick={() => navigate('/profile')}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <h1 className="text-lg font-bold text-gray-900">Bookmarked Questions</h1>
+            </div>
+            <Badge className="bg-transparent border-transparent text-gray-900 flex items-center gap-1">
+              <Bookmark className="h-3 w-3 text-gray-700" />
+              {totalBookmarks}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Empty State */}
+        {!bookmarks || bookmarks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-4 py-16">
+            <div className="bg-transparent border-2 border-transparent rounded-full p-6 mb-4">
+              <Bookmark className="h-12 w-12 text-gray-900" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">No Bookmarks Yet</h2>
+            <p className="text-gray-700 text-center mb-6 max-w-sm">
+              Bookmark questions during tests to review them later. Click the bookmark button next to any question.
+            </p>
+            <Button 
+              onClick={() => navigate('/topics')} 
+              className="bg-transparent border border-transparent text-gray-900 hover:bg-white/5"
+            >
+              <BookOpen className="h-4 w-4 mr-2" />
+              Take a Test
+            </Button>
+          </div>
+        ) : (
+          <>
+            {/* Filter Section */}
+            <div className="sticky top-14 bg-white/90 backdrop-blur-md z-30 border-b border-white/90 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="h-4 w-4 text-gray-700" />
+                  <span className="text-sm text-gray-700">Filter by test:</span>
+                </div>
               <div className="relative inline-block" ref={rootRef}>
                 <button
                   type="button"
                   onClick={() => setMenuOpen((s) => !s)}
                   aria-haspopup="menu"
                   aria-expanded={menuOpen}
-                  className="flex items-center justify-between w-44 sm:w-56 gap-3 text-sm px-3 py-2 border rounded-lg bg-white shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-200"
+                  className="flex items-center justify-between w-44 sm:w-56 gap-3 text-sm px-3 py-2 border border-transparent rounded-lg bg-transparent shadow-sm hover:bg-white/5 focus:outline-none focus:ring-0"
                 >
-                  <span className="truncate text-sm text-slate-700">
+                  <span className="truncate text-sm text-gray-900">
                     {selectedSession === null
                       ? `All Tests (${totalBookmarks})`
                       : sessions?.find((s) => s.id === selectedSession)?.test_name || 'Select Test'}
                   </span>
-                  <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-4 w-4 text-gray-700 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-44 sm:w-56 bg-white rounded-lg shadow-lg border ring-1 ring-black ring-opacity-5 z-40">
+                  <div className="absolute right-0 mt-2 w-44 sm:w-56 bg-white/95 backdrop-blur-md rounded-lg shadow-lg border border-transparent ring-1 ring-black/5 z-40">
                     <ul role="menu" className="max-h-48 overflow-auto">
                       <li
                         role="menuitem"
@@ -223,7 +240,7 @@ export default function BookmarkedQuestions() {
                           setSelectedSession(null);
                           setMenuOpen(false);
                         }}
-                        className="px-3 py-2 hover:bg-amber-50 cursor-pointer border-b last:border-b-0"
+                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0 text-gray-800"
                       >
                         All Tests ({totalBookmarks})
                       </li>
@@ -235,7 +252,7 @@ export default function BookmarkedQuestions() {
                             setSelectedSession(session.id);
                             setMenuOpen(false);
                           }}
-                          className="px-3 py-2 hover:bg-amber-50 cursor-pointer flex items-center justify-between"
+                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer flex items-center justify-between text-gray-800"
                         >
                           <span className="truncate">{session.test_name}</span>
                           <span className="ml-2 text-xs text-slate-500">{session.bookmark_count}</span>
@@ -254,31 +271,31 @@ export default function BookmarkedQuestions() {
               const q = bookmark.questionDetails;  // Changed from question_details to questionDetails
               if (!q) return null; // guard against missing question details
               return (
-                <Card key={bookmark.id} className="hover:shadow-md transition-shadow">
+                <Card key={bookmark.id} className="bg-white/80 backdrop-blur-sm border-transparent hover:bg-white/90 transition-all duration-200 shadow-lg">
                   <CardContent className="p-4">
                     {/* Question Header */}
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="outline" className="text-xs bg-transparent text-gray-900 border-transparent">
                           Question {index + 1}
                         </Badge>
                         {q.subject && (
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge className="text-xs bg-transparent text-gray-900 border-transparent">
                             {q.subject}
                           </Badge>
                         )}
                         {bookmark.markedForReview && (  // Changed from marked_for_review
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge className="text-xs bg-amber-500/30 text-gray-900 border-amber-400/40">
                             Marked for Review
                           </Badge>
                         )}
                       </div>
-                      <Bookmark className="h-4 w-4 text-amber-600 fill-current" />
+                      <Bookmark className="h-4 w-4 text-amber-300 fill-current" />
                     </div>
 
                     {/* Question Text */}
                     <div className="mb-4">
-                      <p className="text-sm text-gray-800 leading-relaxed">{q.question}</p>
+                      <p className="text-sm text-gray-900 leading-relaxed">{q.question}</p>
                       {q.questionImage && (  // Changed from question_image
                         <img
                           src={normalizeImageSrc(q.questionImage)}
@@ -306,9 +323,9 @@ export default function BookmarkedQuestions() {
                             )}`}
                           >
                             <div className="flex items-start gap-2">
-                              <span className="font-semibold text-sm">{option}.</span>
+                              <span className="font-semibold text-sm text-gray-900">{option}.</span>
                               <div className="flex-1">
-                                <p className="text-sm">{optionText}</p>
+                                <p className="text-sm text-gray-900">{optionText}</p>
                                 {optionImage && (
                                   <img
                                     src={normalizeImageSrc(optionImage)}
@@ -324,27 +341,27 @@ export default function BookmarkedQuestions() {
                     </div>
 
                     {/* Answer Status */}
-                    <div className="mb-3 p-2 rounded-lg bg-slate-50 border border-slate-200">
+                    <div className="mb-3 p-2 rounded-lg bg-white/90 border border-white/90">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-600">Your Answer:</span>
-                        <span className="font-semibold">
+                        <span className="text-gray-700">Your Answer:</span>
+                        <span className="font-semibold text-gray-900">
                           {bookmark.selectedAnswer || 'Not Answered'}  {/* Changed from selected_answer */}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-xs mt-1">
-                        <span className="text-slate-600">Correct Answer:</span>
-                        <span className="font-semibold text-green-700">{q.correctAnswer}</span>  {/* Changed from correct_answer */}
+                        <span className="text-gray-700">Correct Answer:</span>
+                        <span className="font-semibold text-green-600">{q.correctAnswer}</span>  {/* Changed from correct_answer */}
                       </div>
                     </div>
 
                     {/* Explanation */}
                     {q.explanation && (
-                      <div className="border-t border-gray-200 pt-3">
-                        <p className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                      <div className="border-t border-transparent pt-3">
+                        <p className="text-xs font-semibold text-gray-900 mb-2 flex items-center gap-1">
                           <BookOpen className="h-3 w-3" />
                           Explanation
                         </p>
-                        <p className="text-sm text-slate-600 leading-relaxed">{q.explanation}</p>
+                        <p className="text-sm text-gray-800 leading-relaxed">{q.explanation}</p>
                         {q.explanationImage && (  // Changed from explanation_image
                           <img
                             src={normalizeImageSrc(q.explanationImage)}
@@ -362,7 +379,8 @@ export default function BookmarkedQuestions() {
         </>
       )}
 
-      <MobileDock />
+        <MobileDock />
+      </div>
     </div>
   );
 }

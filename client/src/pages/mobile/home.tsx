@@ -19,7 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from "wouter";
 import Logo from "@/assets/images/logo.svg";
 import MiniChatbot from '@/components/mini-chatbot';
-import { ArrowRight, History, NotebookPen, Trophy, AlertTriangle, Crown, Lock, GraduationCap, Timer, HelpCircle, FileText, ChevronRight, ClipboardList, Bookmark } from "lucide-react";
+import { ArrowRight, History, NotebookPen, Trophy, AlertTriangle, Lock, GraduationCap, Timer, HelpCircle, FileText, ChevronRight, ClipboardList, Bookmark } from "lucide-react";
 import MobileDock from "@/components/mobile-dock";
 import { AnalyticsData } from "@/components/insight-card";
 import NeetCountdown from '@/components/coundown';
@@ -335,15 +335,7 @@ export default function Home() {
             </div>
             {/* Right side with profile */}
             <div className="flex items-center space-x-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate('/payment')}
-                className="aspect-square bg-orange-100 rounded-full h-10 w-10"
-                aria-label="Go to Payment"
-              >
-                <Crown className="h-5 w-5 text-amber-600" />
-              </Button>
+              {/* crown button removed — moved to topics/test page */}
             </div>
           </div>
         </div>

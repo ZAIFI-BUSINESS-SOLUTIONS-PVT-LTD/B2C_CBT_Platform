@@ -1,23 +1,17 @@
 import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { authenticatedFetch } from "@/lib/auth";
-import { API_CONFIG } from "@/config/api";
-import LoadingVideo from "@/components/LoadingVideo";
+import { Progress } from "@/components/ui/progress";
 
 /**
  * Loading Results Page
  *
  * Flow
  * ────
- * 1. Loading video loops while the backend generates zone insights.
- * 2. Poll `/api/zone-insights/status/<id>/` every 1.5 s.
- * 3. "Ready" means the TestSubjectZoneInsight row for this session has been
- *    written with populated subject_data (mark, accuracy, time_spend, total_mark,
- *    subject_data all present) → backend signals this via `all_subjects_complete`.
- * 4. Once ready, let the current video loop play to its natural end.
- * 5. After the video ends → redirect to /dashboard.
- * 6. Hard fallback: redirect after 60 s regardless (in case pipeline is slow).
+ * 1. Show loading page with result-bg background for exactly 5 seconds
+ * 2. Progress bar animates from 0% to 100% over 5 seconds
+ * 3. Automatically redirect to /results/:sessionId after 5 seconds
+ * 4. Backend processes zone insights asynchronously in background
+ * 5. Results page will display test results and zone insights data
  */
 export default function LoadingResultsPage() {
   const [, navigate] = useLocation();
@@ -25,66 +19,87 @@ export default function LoadingResultsPage() {
   const sessionId = params?.sessionId;
 
   /* ── state ───────────────────────────────────────────── */
-  const [dataReady, setDataReady] = useState(false); // zone insights written to DB
+  const [progress, setProgress] = useState(0); // animated progress bar
 
   /* ── redirect if no session ──────────────────────────── */
   useEffect(() => {
     if (!sessionId) {
-      console.warn('No session ID provided, redirecting to dashboard');
-      navigate('/dashboard', { replace: true });
+      console.warn('No session ID provided, redirecting to landing');
+      navigate('/', { replace: true });
     }
   }, [sessionId, navigate]);
 
-  /* ── poll backend for status ─────────────────────────── */
-  const { data: statusData } = useQuery({
-    queryKey: [`/api/zone-insights/status/${sessionId}/`, sessionId],
-    queryFn: async () => {
-      const url = `${API_CONFIG.BASE_URL}/api/zone-insights/status/${sessionId}/`;
-      const res = await authenticatedFetch(url);
-      if (!res.ok) throw new Error('Failed to fetch zone insights status');
-      return res.json();
-    },
-    refetchInterval: dataReady ? false : 1500, // stop polling once ready
-    refetchIntervalInBackground: true,
-    retry: true,
-    enabled: !!sessionId && !dataReady,
-  });
-
-  /* ── mark ready when TestSubjectZoneInsight data is complete ── */
+  /* ── redirect after 5 seconds ────────────────────────── */
   useEffect(() => {
-    if (!statusData || dataReady) return;
+    if (!sessionId) return;
 
-    // Backend sets all_subjects_complete=true once TestSubjectZoneInsight row
-    // has subject_data (with mark, accuracy, time_spend, total_mark) for every
-    // expected subject in the test session.
-    if (statusData.all_subjects_complete === true) {
-      console.log('✅ Zone insights ready – redirecting after video ends');
-      setDataReady(true);
-    }
-  }, [statusData, dataReady]);
+    const redirectTimer = setTimeout(() => {
+      console.log('✅ 5 second loading complete – redirecting to results');
+      navigate(`/results/${sessionId}`, { replace: true });
+    }, 5000); // 5 seconds
 
-  /* ── redirect immediately once data is ready ───────── */
+    return () => clearTimeout(redirectTimer);
+  }, [sessionId, navigate]);
+
+  /* ── animate progress bar ────────────────────────────── */
   useEffect(() => {
-    if (dataReady) {
-      console.log('🚀 Zone insights ready — redirecting to dashboard');
-      navigate('/dashboard', { replace: true });
-    }
-  }, [dataReady, navigate]);
+    // Smoothly animate progress from 0 to 100% over 5 seconds
+    const duration = 5000; // 5 seconds
+    const interval = 50; // update every 50ms for smooth animation
+    const increment = (100 / duration) * interval;
+    
+    const timer = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 100) return 100; // cap at 100%
+        return Math.min(prev + increment, 100);
+      });
+    }, interval);
 
-  /* ── fallback: redirect after 60 s regardless ────────── */
-  useEffect(() => {
-    const t = setTimeout(() => {
-      console.log('⏰ Fallback redirect to dashboard after 60 s');
-      navigate('/dashboard', { replace: true });
-    }, 60_000);
-    return () => clearTimeout(t);
-  }, [navigate]);
+    return () => clearInterval(timer);
+  }, []);
 
   /* ── render ───────────────────────────────────────────── */
   return (
-    <div className="relative">
-      {/* Video loops while waiting; we redirect immediately when insights ready */}
-      <LoadingVideo keepLooping={!dataReady} />
+    <div 
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{
+        backgroundImage: 'url(/loading-bg.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
+      <div className="w-full max-w-md relative">
+        {/* Penguin mascot in a separate div (larger by 100%) */}
+        <div className="flex justify-center -mt-12 mb-4 z-20 relative">
+          <div className="w-48 h-48 rounded-full flex items-center justify-center bg-transparent">
+            <img
+              src="/happy-penguin.png"
+              alt="Loading"
+              className="w-full h-full object-contain animate-bounce"
+            />
+          </div>
+        </div>
+
+        {/* Card with translucent white gradient, white border and subtle shadow */}
+        <div className="bg-gradient-to-b from-white/60 to-white/10 backdrop-blur-sm rounded-2xl shadow-md border border-white/40 p-8 relative z-10">
+          {/* Loading text */}
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              Analyzing Your Performance
+            </h2>
+            {/* Phrase removed as requested */}
+          </div>
+
+          {/* Progress bar */}
+          <div className="space-y-2">
+            <Progress value={progress} className="h-3" />
+            <p className="text-center text-xs text-gray-500">
+              {Math.round(progress)}% complete
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

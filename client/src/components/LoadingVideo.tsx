@@ -20,6 +20,17 @@ export default function LoadingVideo({ onVideoEnd, keepLooping = true }: Loading
     }
   };
 
+  // Cleanup: pause video when component unmounts to ensure clean navigation
+  React.useEffect(() => {
+    return () => {
+      const v = videoRef.current;
+      if (v) {
+        v.pause();
+        v.currentTime = 0;
+      }
+    };
+  }, []);
+
   return (
     <div className="fixed inset-0 z-50 bg-black">
       {/* Full-screen video (cover) */}

@@ -18,7 +18,8 @@ export default function LoginPage() {
             if (!student?.phoneNumber) {
                 navigate("/get-number");
             } else {
-                navigate("/dashboard");
+                // Landing page after login should be Topics
+                navigate("/topics");
             }
         }
     }, [loading, isAuthenticated, student, navigate]);
@@ -28,10 +29,10 @@ export default function LoginPage() {
             {/* Mobile / small screens: use public logo-bg.jpg as background */}
             <div className="min-h-screen w-full flex items-end justify-center relative overflow-hidden md:hidden" style={{ backgroundImage: "url('/login-bg.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
                 {/* Penguin mascot positioned near top-center of viewport */}
-                <img src="/login-penguin.png" alt="Login mascot" className="absolute top-16 left-1/2 w-28 sm:w-32 pointer-events-none" style={{ transform: 'translateX(-50%) scale(1.5)' }} />
+                <img src="/penguin_welcome.png" alt="Login mascot" className="absolute top-14 left-1/2 w-28 sm:w-32 pointer-events-none mt-32" style={{ transform: 'translateX(-50%) scale(2.0)' }} />
 
                 {/* Headline + subtext under penguin */}
-                <div className="absolute left-1/2 transform -translate-x-1/2 text-center w-11/12 max-w-2xl" style={{ top: '40%' }}>
+                <div className="absolute left-1/2 transform -translate-x-1/2 text-center w-11/12 max-w-2xl" style={{ top: '50%' }}>
                     <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold leading-tight" style={{ color: '#233a56' }}>
                         <span className="block">Get ready for NEET</span>
                         <span className="block">with NEET Bro!</span>

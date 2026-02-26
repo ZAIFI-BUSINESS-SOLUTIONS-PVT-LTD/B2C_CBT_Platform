@@ -15,6 +15,16 @@ interface Institution {
   exam_types?: string[]; // optional because some payloads may omit this
 }
 
+interface TestAttempt {
+  session_id: number;
+  start_time: string;
+  end_time?: string | null;
+  is_completed: boolean;
+  score_percentage: number;
+  correct_answers: number;
+  total_questions: number;
+}
+
 interface InstitutionTest {
   id: number;
   test_name: string;
@@ -26,6 +36,8 @@ interface InstitutionTest {
   description: string;
   created_at: string;
   scheduled_date_time?: string | null; // optional - fetch from platform test details when available
+  user_attempts?: TestAttempt[]; // completed test sessions
+  latest_attempt?: TestAttempt | null; // most recent attempt
 }
 
 interface InstitutionTestsListProps {
@@ -46,14 +58,14 @@ export function InstitutionTestsList({ institution, onBack }: InstitutionTestsLi
     fetchTests();
   }, [selectedExamType, institution.id]);
 
-  // After loading tests, fetch per-test details to obtain scheduled_date_time when present
+  // After loading tests, fetch per-test details to obtain scheduled_date_time and user_attempts
   useEffect(() => {
     if (!tests || tests.length === 0) return;
 
     let mounted = true;
 
     const fetchDetailsForTests = async () => {
-      const toFetch = tests.filter((t) => !t.scheduled_date_time).map((t) => t.id);
+      const toFetch = tests.filter((t) => !t.scheduled_date_time || !t.user_attempts).map((t) => t.id);
       if (toFetch.length === 0) return;
 
       try {
@@ -71,22 +83,33 @@ export function InstitutionTestsList({ institution, onBack }: InstitutionTestsLi
         const updated = [...tests];
         results.forEach((r, idx) => {
           if (r.status === 'fulfilled' && r.value) {
-            // Support both snake_case and camelCase keys from backend
-            const remoteScheduled = r.value.scheduled_date_time ?? r.value.scheduledDateTime ?? null;
-            if (typeof remoteScheduled === 'string' && remoteScheduled) {
-              const testId = toFetch[idx];
-              const i = updated.findIndex((x) => x.id === testId);
-              if (i >= 0) {
-                updated[i] = { ...updated[i], scheduled_date_time: remoteScheduled };
-              }
+            const testId = toFetch[idx];
+            const i = updated.findIndex((x) => x.id === testId);
+            if (i >= 0) {
+              // Support both snake_case and camelCase keys from backend
+              const remoteScheduled = r.value.scheduled_date_time ?? r.value.scheduledDateTime ?? null;
+              const userAttempts = r.value.user_attempts ?? r.value.userAttempts ?? [];
+              
+              // Find latest completed attempt
+              const completedAttempts = userAttempts.filter((a: TestAttempt) => a.is_completed);
+              const latestAttempt = completedAttempts.length > 0 
+                ? completedAttempts[completedAttempts.length - 1] 
+                : null;
+
+              updated[i] = { 
+                ...updated[i], 
+                scheduled_date_time: typeof remoteScheduled === 'string' ? remoteScheduled : updated[i].scheduled_date_time,
+                user_attempts: userAttempts,
+                latest_attempt: latestAttempt
+              };
             }
           }
         });
 
         setTests(updated);
       } catch (e) {
-        // Non-fatal; scheduled time is optional
-        console.debug('Failed to fetch platform test details for scheduled times', e);
+        // Non-fatal; scheduled time and attempts are optional
+        console.debug('Failed to fetch platform test details', e);
       }
     };
 
@@ -341,15 +364,51 @@ export function InstitutionTestsList({ institution, onBack }: InstitutionTestsLi
                 </div>
               )}
 
-              <CardFooter>
-                <Button
-                  className="w-full"
-                  onClick={() => handleStartTest(test.id)}
-                  disabled={!isTestAvailable(test)}
-                >
-                  <Play className="mr-2 h-4 w-4" />
-                  {isTestAvailable(test) ? 'Start Test' : (getTestStatus(test) === 'upcoming' ? 'Not Started Yet' : 'Test Expired')}
-                </Button>
+              <CardFooter className="flex flex-col gap-2">
+                {test.latest_attempt ? (
+                  // Show completed test metadata with Review button
+                  <>
+                    <div className="w-full bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-green-700">✓ Completed</span>
+                        <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
+                          {test.latest_attempt.score_percentage.toFixed(1)}%
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                        <div>
+                          <span className="font-medium">Score:</span> {test.latest_attempt.correct_answers}/{test.latest_attempt.total_questions}
+                        </div>
+                        <div>
+                          <span className="font-medium">Accuracy:</span> {test.latest_attempt.score_percentage.toFixed(1)}%
+                        </div>
+                      </div>
+                      {test.latest_attempt.end_time && (
+                        <div className="text-xs text-gray-500">
+                          Completed: {new Date(test.latest_attempt.end_time).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => setLocation(`/results/${test.latest_attempt.session_id}`)}
+                    >
+                      <BookOpen className="mr-2 h-4 w-4" />
+                      Review Answers
+                    </Button>
+                  </>
+                ) : (
+                  // Show Start Test button for not-yet-attempted tests
+                  <Button
+                    className="w-full"
+                    onClick={() => handleStartTest(test.id)}
+                    disabled={!isTestAvailable(test)}
+                  >
+                    <Play className="mr-2 h-4 w-4" />
+                    {isTestAvailable(test) ? 'Start Test' : (getTestStatus(test) === 'upcoming' ? 'Not Started Yet' : 'Test Expired')}
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           ))}

@@ -318,16 +318,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       return response;
     },
     onSuccess: () => {
-      // Exit fullscreen (best-effort) before navigating away
-      // Only exit if we're still in fullscreen and not already exiting
-      if (document.fullscreenElement && !suppressFullscreenExitDialogRef.current) {
-        try { exitFullscreen(); } catch (e) { /* ignore */ }
-      }
-
-      // Disable navigation blocking before navigating away
-      setIsNavigationBlocked(false);
-
-      // Invalidate all relevant queries to refresh dashboard data
+      // Navigation already handled in confirmSubmit - no need to navigate again
+      // Just invalidate queries to refresh dashboard data
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/analytics/'] }); // Main dashboard
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/comprehensive-analytics/'] }); // Landing dashboard
       queryClient.invalidateQueries({ queryKey: [`testSession-${sessionId}`] }); // Current test session
@@ -349,24 +341,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         }
       });
 
-      // Redirect to loading results page where video plays while insights generate
-      // Once insights are ready, loading page will redirect to dashboard
-      try {
-        // Clear any post-test UI flags rather than setting them so UI remains functional
-        setPostTestHidden(false);
-      } catch (e) {
-        console.warn('Could not clear post test hidden flag', e);
-      }
-      try {
-        // Unlock audio in the same user gesture before navigating so autoplay can work
-        // Store it on window so LoadingResultsPage can reuse the unlocked Audio element
-        // (best-effort; ignore any errors)
-        (window as any).__unlockedAudio = unlockAudio();
-      } catch (e) {
-        console.warn('Failed to unlock audio before navigation', e);
-      }
-      navigate(`/loading-results/${sessionId}`);
-      // Clean up state after navigation
+      // Clean up state
       setIsSubmitting(false);
       setSuppressFullscreenExitDialog(false);
     },
@@ -841,8 +816,18 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       setPauseStartTime(null);
     }
 
-    // Submit the test immediately without exiting fullscreen here
-    // The fullscreen exit will be handled in the mutation success callback
+    // Exit fullscreen and disable navigation blocking immediately
+    try { 
+      if (document.fullscreenElement) {
+        exitFullscreen(); 
+      }
+    } catch (e) { /* ignore */ }
+    setIsNavigationBlocked(false);
+
+    // Navigate to loading page immediately (don't wait for mutation)
+    navigate(`/loading-results/${sessionId}`);
+
+    // Submit the test in background (mutation will complete while loading page is shown)
     submitTestMutation.mutate();
   };
 
@@ -863,7 +848,20 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     // mark submitting to prevent other handlers from running
     setIsSubmitting(true);
     const autoSubmitTimeout = setTimeout(() => {
+      // Exit fullscreen and disable navigation blocking
+      try { 
+        if (document.fullscreenElement) {
+          exitFullscreen(); 
+        }
+      } catch (e) { /* ignore */ }
+      setIsNavigationBlocked(false);
+
+      // Navigate to loading page immediately
+      navigate(`/loading-results/${sessionId}`);
+
+      // Submit mutation in background
       submitTestMutation.mutate();
+
       // only update state if still mounted
       if (mountedRef.current) {
         setShowTimeOverDialog(false);
@@ -898,8 +896,18 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       setPauseStartTime(null);
     }
 
-    // Submit the test immediately without exiting fullscreen here
-    // The fullscreen exit will be handled in the mutation success callback
+    // Exit fullscreen and disable navigation blocking immediately
+    try { 
+      if (document.fullscreenElement) {
+        exitFullscreen(); 
+      }
+    } catch (e) { /* ignore */ }
+    setIsNavigationBlocked(false);
+
+    // Navigate to loading page immediately (don't wait for mutation)
+    navigate(`/loading-results/${sessionId}`);
+
+    // Submit the test in background
     submitTestMutation.mutate();
   };  // Clean up timeout on component unmount
   useEffect(() => {
@@ -1478,7 +1486,6 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
               <span className="text-sm text-slate-400 font-medium">/ {totalQuestions}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="bg-blue-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">NEET 2025</span>
               <button
                 onClick={handleToggleBookmark}
                 disabled={showTimeOverDialog}
@@ -1598,27 +1605,12 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           <button
             onClick={() => { if (answers[currentQuestion.id]) handleAnswerChange(currentQuestion.id, answers[currentQuestion.id]); }}
             disabled={showTimeOverDialog || !answers[currentQuestion.id]}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-700 bg-white border border-slate-100 hover:bg-slate-50 transition-colors disabled:opacity-40"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-700 bg-white border border-black/40 hover:bg-slate-50 transition-colors disabled:opacity-40"
           >
             <X className="w-3.5 h-3.5 text-slate-500" />
             Clear
           </button>
-          {/* Bookmark button (separate from Mark for Review) */}
-          <button
-            onClick={handleToggleBookmark}
-            disabled={showTimeOverDialog}
-            aria-pressed={bookmarkedQuestions.has(currentQuestion?.id ?? -1)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors disabled:opacity-40 ${
-              bookmarkedQuestions.has(currentQuestion?.id ?? -1)
-                ? 'text-amber-700 bg-amber-50 border-amber-100'
-                : 'text-slate-700 bg-white border border-slate-100 hover:bg-slate-50'
-            }`}
-          >
-            <Bookmark
-              className={`w-3.5 h-3.5 ${bookmarkedQuestions.has(currentQuestion?.id ?? -1) ? 'text-amber-600' : 'text-slate-500'}`}
-            />
-            {bookmarkedQuestions.has(currentQuestion?.id ?? -1) ? 'Bookmarked' : 'Bookmark'}
-          </button>
+          
 
           {/* Mark for review (separate) */}
           <button
@@ -1627,7 +1619,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors disabled:opacity-40 ${
               markedForReview.has(currentQuestion?.id ?? -1)
                 ? 'text-blue-700 bg-blue-50 border-blue-100'
-                : 'text-slate-700 bg-white border border-slate-100 hover:bg-slate-50'
+                : 'text-slate-700 bg-white border border-black/40 hover:bg-slate-50'
             }`}
           >
             <AlertTriangle className={`w-3.5 h-3.5 ${markedForReview.has(currentQuestion?.id ?? -1) ? 'text-blue-600' : 'text-slate-500'}`} />
@@ -1639,7 +1631,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           <button
             onClick={handlePreviousQuestion}
             disabled={currentQuestionIndex === 0 || showTimeOverDialog}
-            className="flex items-center gap-1 flex-1 justify-center px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-300 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1 flex-none basis-1/3 justify-center px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 border border-slate-300 hover:bg-slate-50 disabled:opacity-40 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
             Previous
@@ -1648,7 +1640,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
             <button
               onClick={handleSubmitTest}
               disabled={showTimeOverDialog || isSubmitting}
-              className="flex items-center gap-1 flex-1 justify-center px-3 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1 flex-none basis-2/3 justify-center px-3 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Submit
             </button>
@@ -1656,7 +1648,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
             <button
               onClick={handleNextQuestion}
               disabled={currentQuestionIndex === totalQuestions - 1 || showTimeOverDialog}
-              className="flex items-center gap-1 flex-1 justify-center px-3 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 shadow-md disabled:opacity-40 transition-colors"
+              className="flex items-center gap-1 flex-none basis-2/3 justify-center px-3 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 shadow-md disabled:opacity-40 transition-colors"
             >
               Next
               <ChevronRight className="w-4 h-4" />

@@ -10,6 +10,7 @@ import { API_CONFIG } from "@/config/api";
 import { authenticatedFetch } from "@/lib/auth";
 import TestZoneInsights from "@/components/test-zone-insights";
 import TestHistory from "@/components/test-history";
+import LatestTestSummary from "@/components/latest-test-summary";
 import MobileDock from "@/components/mobile-dock";
 import { AnalyticsData, InsightsData } from "@/types/dashboard";
 
@@ -70,22 +71,29 @@ export default function LandingDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 pb-20">
-      <div className="w-full">
-        {/* Sticky Header with Tabs */}
-        <div className="sticky top-0 bg-white z-10 border-b border-gray-200">
-          {/* Header Section */}
-          <header className="sticky top-0 z-10 max-w-7xl mx-auto px-4 py-4 border-b bg-white">
-            <h1 className="text-xl font-bold text-gray-900">Analysis</h1>
-          </header>
-        </div>
-        <div className="p-4">
-          <TestZoneInsights />
-          <div className="mt-6">
-            <TestHistory />
-          </div>
-        </div>
+    <div
+      className="h-screen flex flex-col overflow-hidden bg-cover bg-center bg-no-repeat"
+      style={{
+        backgroundImage: 'url(/testpage-bg.png)'
+      }}
+    >
+      {/* Fixed Header (transparent) */}
+      <div className="bg-transparent z-10 border-b border-transparent">
+        <header className="max-w-7xl mx-auto px-4 py-4">
+          <h1 className="text-xl font-bold text-gray-900">Analysis</h1>
+        </header>
       </div>
+
+      {/* Fixed Latest Test Summary */}
+      <div className="p-4 flex-shrink-0 max-w-6xl mx-auto w-full">
+        <LatestTestSummary />
+      </div>
+
+      {/* Scrollable Test History Container */}
+      <div className="flex-1 overflow-y-auto pb-20">
+        <TestHistory />
+      </div>
+
       <MobileDock />
     </div>
   );

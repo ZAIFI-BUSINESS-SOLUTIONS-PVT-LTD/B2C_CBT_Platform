@@ -3,13 +3,13 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { UserRound } from "lucide-react";
+import { UserRound, Crown } from "lucide-react";
 
 /**
  * Lightweight StudentProfile avatar used in headers.
  * Clicking the avatar navigates to the full /profile page.
  */
-export function StudentProfile({ avatarClassName }: { avatarClassName?: string } = {}) {
+export function StudentProfile({ avatarClassName, showCrown }: { avatarClassName?: string; showCrown?: boolean } = {}) {
   const { student } = useAuth();
   const [, navigate] = useLocation();
 
@@ -27,7 +27,7 @@ export function StudentProfile({ avatarClassName }: { avatarClassName?: string }
   return (
     <Button
       variant="ghost"
-      className="p-1 rounded-full hover:bg-gray-100 touch-none"
+      className="p-1 rounded-full hover:bg-gray-100 touch-none relative"
       onClick={() => navigate('/profile')}
     >
       <Avatar className={avatarClassName ?? "h-10 w-10 sm:h-12 sm:w-12"}>
@@ -40,6 +40,13 @@ export function StudentProfile({ avatarClassName }: { avatarClassName?: string }
             </div>
           </AvatarFallback>
         )}
+
+      {/* Optional crown badge positioned near the avatar */}
+      {showCrown && (
+        <span className="absolute -top-1 -right-1 h-6 w-6 rounded-full flex items-center justify-center bg-blue-100 border-2 border-blue-900 text-sky-400 shadow-sm">
+          <Crown className="h-3 w-3" />
+        </span>
+      )}
       </Avatar>
     </Button>
   );

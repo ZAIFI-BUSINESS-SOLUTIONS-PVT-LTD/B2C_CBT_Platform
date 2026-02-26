@@ -96,7 +96,7 @@ const SUBJECTS = [
   },
 ] as const;
 
-const QUESTION_PRESETS = [5, 10, 15, 20, 25, 30, 60, 90, 180];
+const QUESTION_PRESETS = [5, 10, 15, 20, 25, 30];
 const MAX_TIME_MULTIPLIER = 1.5;
 
 /* ------------------------------------------------------------------ */
@@ -313,21 +313,22 @@ export function QuickTestWizard({ onClose, onInsufficientQuestions }: QuickTestW
       className="fixed inset-0 z-[99999] flex flex-col bg-cover bg-center bg-no-repeat"
       style={{ backgroundImage: "url('/testselection-bg.jpg')" }}
     >
-      {/* Dark scrim for legibility */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" />
+      {/* Background overlay (removed dark scrim for visual vibrancy) */}
+      <div className="absolute inset-0 bg-transparent" />
 
       {/* ---- Header ---- */}
       <header className="relative z-10 flex items-center gap-3 px-4 pt-safe pt-4 pb-2">
         <button
           onClick={handleBack}
-          className="flex items-center justify-center size-9 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors"
+          className="flex items-center justify-center size-9 rounded-full text-white shadow-sm hover:opacity-90 transition-colors"
+          style={{ backgroundColor: '#BCD0EC' }}
           aria-label="Back"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
 
         <div className="flex-1 min-w-0">
-          <p className="text-white font-extrabold text-xl tracking-tight leading-none drop-shadow">
+          <p className="text-black font-extrabold text-xl tracking-tight leading-none">
             Quick Test
           </p>
           {/* Progress bars */}
@@ -336,26 +337,26 @@ export function QuickTestWizard({ onClose, onInsufficientQuestions }: QuickTestW
               <div
                 key={n}
                 className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                  n <= step ? "bg-white" : "bg-white/30"
+                  n <= step ? "bg-blue-800" : "bg-blue-200"
                 }`}
               />
             ))}
           </div>
         </div>
 
-        <span className="text-white/80 text-sm font-semibold tabular-nums">{step} / 3</span>
+        <span className="text-black/80 text-sm font-semibold tabular-nums">{step} / 3</span>
       </header>
 
       {/* ---- Step label ---- */}
       <div className="relative z-10 px-4 pb-3">
-        <span className="text-white/70 text-xs font-semibold uppercase tracking-[0.15em]">
+        <span className="text-black/70 text-xs font-semibold uppercase tracking-[0.15em]">
           Step {step} · {STEP_LABELS[step - 1]}
         </span>
       </div>
 
       {/* ---- Scrollable card content ---- */}
       <div className="relative z-10 flex-1 overflow-y-auto px-4 pb-4">
-        <div className="bg-white/30 backdrop-blur-sm rounded-2xl shadow-2xl p-4 pb-3">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl p-4 pb-3">
           {/* ================= STEP 1: Subjects ================= */}
           {step === 1 && (
             <div className="space-y-4">

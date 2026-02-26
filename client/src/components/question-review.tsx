@@ -63,12 +63,12 @@ export function QuestionReview({
         <div>
             <div className="px-3">
                 {/* Filter Section */}
-                <div className="sticky top-28 -mx-3 px-3 py-3 mb-2 bg-white">
+                <div className="sticky top-14 -mx-3 px-3 py-3 mb-2 bg-white/90 backdrop-blur-md border-b border-white/90 z-30">
                     <div className="flex items-center gap-2">
                         {/* Filter Label */}
                         <div className="flex items-center space-x-2">
-                            <SlidersHorizontal className="h-4 w-4 text-slate-600" />
-                            <span className="text-xs text-slate-600">Filter:</span>
+                            <SlidersHorizontal className="h-4 w-4 text-gray-700" />
+                            <span className="text-xs text-gray-700">Filter:</span>
                         </div>
 
                         {/* Horizontal Scroll Container for Filter Options */}
@@ -79,7 +79,7 @@ export function QuestionReview({
                                         variant={reviewFilter === "all" ? "secondary" : "outline"}
                                         size="sm"
                                         onClick={() => setReviewFilter("all")}
-                                        className="rounded-lg text-xs border"
+                                        className="rounded-lg text-xs border bg-transparent text-gray-900 hover:bg-white/5"
                                     >
                                         All ({detailedAnswers.length})
                                     </Button>
@@ -87,7 +87,7 @@ export function QuestionReview({
                                         variant={reviewFilter === "correct" ? "secondary" : "outline"}
                                         size="sm"
                                         onClick={() => setReviewFilter("correct")}
-                                        className="rounded-lg text-xs text-green-700 border"
+                                        className="rounded-lg text-xs text-green-700 border bg-transparent hover:bg-white/5"
                                     >
                                         <CheckCircle className="h-3 w-3 mr-1" />
                                         Correct ({correctAnswers})
@@ -96,7 +96,7 @@ export function QuestionReview({
                                         variant={reviewFilter === "incorrect" ? "secondary" : "outline"}
                                         size="sm"
                                         onClick={() => setReviewFilter("incorrect")}
-                                        className="rounded-lg text-xs text-red-700 border"
+                                        className="rounded-lg text-xs text-red-700 border bg-transparent hover:bg-white/5"
                                     >
                                         <XCircle className="h-3 w-3 mr-1" />
                                         Incorrect ({incorrectAnswers})
@@ -105,7 +105,7 @@ export function QuestionReview({
                                         variant={reviewFilter === "unanswered" ? "secondary" : "outline"}
                                         size="sm"
                                         onClick={() => setReviewFilter("unanswered")}
-                                        className="rounded-lg text-xs text-amber-700 border"
+                                        className="rounded-lg text-xs text-amber-700 border bg-transparent hover:bg-white/5"
                                     >
                                         <Clock className="h-3 w-3 mr-1" />
                                         Unanswered ({unansweredQuestions})
@@ -120,26 +120,26 @@ export function QuestionReview({
                 <div className="mt-6">
                     {getFilteredAnswers().length === 0 ? (
                         <div className="text-center py-12">
-                            <div className="text-slate-400 mb-4">
+                            <div className="text-gray-400 mb-4">
                                 <SlidersHorizontal className="h-12 w-12 mx-auto" />
                             </div>
-                            <p className="text-slate-600">No questions match the selected filter.</p>
+                            <p className="text-gray-700">No questions match the selected filter.</p>
                         </div>
                     ) : (
                         <div className="space-y-6">
                             {getFilteredAnswers().map((answer, index) => {
                                 const originalIndex = detailedAnswers.findIndex(a => a.questionId === answer.questionId);
                                 return (
-                                    <Card key={answer.questionId} className="mb-4 hover:shadow-md transition-shadow">
+                                    <Card key={answer.questionId} className="mb-4 bg-white/80 backdrop-blur-sm border-transparent hover:bg-white/90 transition-all duration-200 shadow-lg">
                                         <CardContent className="p-4">
                                             <div className="flex flex-col space-y-2 mb-3">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center">
-                                                        <Badge variant="outline" className="text-xs">
+                                                        <Badge variant="outline" className="text-xs bg-transparent text-gray-900 border-transparent">
                                                             Question {originalIndex + 1}
                                                         </Badge>
                                                         {answer.markedForReview && (
-                                                            <Badge variant="secondary" className="ml-1 text-xs">
+                                                            <Badge className="ml-1 text-xs bg-amber-500/30 text-gray-900 border-amber-400/40">
                                                                 Marked for Review
                                                             </Badge>
                                                         )}
@@ -161,7 +161,7 @@ export function QuestionReview({
                                                     </div>
                                                 </div>
 
-                                                <h5 className="font-medium text-slate-900 mb-3 leading-relaxed text-sm">
+                                                <h5 className="font-medium text-gray-900 mb-3 leading-relaxed text-sm">
                                                     {answer.question}
                                                 </h5>
 
@@ -175,23 +175,24 @@ export function QuestionReview({
                                                 )}
                                                 <div className="grid grid-cols-1 gap-4">
                                                     <div className="space-y-2">
-                                                        <h6 className="text-sm font-medium text-slate-700 mb-2">Answer Options</h6>
+                                                        <h6 className="text-sm font-medium text-gray-700 mb-2">Answer Options</h6>
                                                         {["A", "B", "C", "D"].map((option) => {
                                                             const isSelected = answer.selectedAnswer === option;
                                                             const isCorrect = answer.correctAnswer === option;
 
-                                                            let bgColor = "bg-slate-50 border-slate-200";
-                                                            let textColor = "text-slate-700";
-                                                            let borderColor = "border-slate-200";
+                                                            // Make options use the same glassmorphic translucent container as bookmarks
+                                                            let bgColor = "bg-white/25";
+                                                            let textColor = "text-gray-900";
+                                                            let borderColor = "border border-transparent";
 
                                                             if (isCorrect) {
-                                                                bgColor = "bg-green-50 border-green-200";
+                                                                bgColor = "bg-green-500/20";
                                                                 textColor = "text-green-800";
-                                                                borderColor = "border-green-200";
+                                                                borderColor = "border-2 border-green-400";
                                                             } else if (isSelected && !isCorrect) {
-                                                                bgColor = "bg-red-50 border-red-200";
+                                                                bgColor = "bg-red-500/20";
                                                                 textColor = "text-red-800";
-                                                                borderColor = "border-red-200";
+                                                                borderColor = "border-2 border-red-400";
                                                             }
 
                                                             const optionKey = `option${option}`;
@@ -201,8 +202,8 @@ export function QuestionReview({
                                                             const optionImageSrc = normalizeImageSrc(optionImage);
 
                                                             return (
-                                                                <div key={option} className={`flex items-center text-sm p-2 rounded-lg border ${bgColor} ${borderColor}`}>
-                                                                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 font-medium ${isCorrect ? "bg-green-600 text-white" : isSelected ? "bg-red-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+                                                                <div key={option} className={`flex items-center text-sm p-2 rounded-lg ${bgColor} ${borderColor}`}>
+                                                                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 font-medium ${isCorrect ? "bg-green-600 text-white" : isSelected ? "bg-red-600 text-white" : "bg-white/30 text-gray-900"}`}>
                                                                         {option}
                                                                     </span>
                                                                     <span className={`${textColor} flex-1`}>{optionText}</span>
@@ -221,8 +222,8 @@ export function QuestionReview({
                                                         })}
                                                     </div>
 
-                                                    <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 mt-3">
-                                                        <h6 className="font-medium text-blue-900 mb-2 flex items-center">
+                                                    <div className="bg-white/90 p-3 rounded-lg border border-transparent mt-3">
+                                                        <h6 className="font-medium text-gray-900 mb-2 flex items-center">
                                                             <BookOpen className="h-4 w-4 mr-2" />
                                                             Explanation
                                                         </h6>
@@ -234,7 +235,7 @@ export function QuestionReview({
                                                                     className="w-full rounded-md mb-3 object-contain max-h-48"
                                                                 />
                                                             )}
-                                                            <p className="text-xs text-blue-800 leading-relaxed">{answer.explanation}</p>
+                                                            <p className="text-xs text-gray-800 leading-relaxed">{answer.explanation}</p>
                                                     </div>
                                                 </div>
                                             </div>

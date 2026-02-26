@@ -33,12 +33,11 @@ export default function MobileDock() {
     // Check if user is institution student (only by institution presence)
     const hasInstitution = !!student?.institution;
 
+    // Footer items: removed Home and Chatbot as per design
     const allItems = [
-        { key: "home", href: "/", label: "Home", icon: <Home className="h-5 w-5" /> },
         { key: "test", href: "/topics", label: "Test", icon: <NotepadText className="h-5 w-5" />, lockedForInstitution: true },
         { key: "institution", href: "/institution-tests", label: "Institution", icon: <School className="h-4 w-4" />, hideForNormal: true },
         { key: "analysis", href: "/dashboard", label: "Analysis", icon: <FileChartPie className="h-5 w-5" /> },
-        { key: "chatbot", href: "/chatbot", label: "Chatbot", icon: <MessageSquareMore className="h-5 w-5" />, lockedForInstitution: true },
     ];
 
     // Filter items based on user type
@@ -53,7 +52,7 @@ export default function MobileDock() {
     return (
         <nav
             aria-label="Mobile navigation"
-            className="fixed bottom-0 left-0 right-0 md:hidden bg-white border border-gray-200 shadow-lg rounded-t-2xl z-50 pointer-events-auto"
+            className="fixed bottom-0 left-0 right-0 md:hidden z-50 pointer-events-auto"
             style={{
                 WebkitTapHighlightColor: 'transparent',
                 // ensure dock sits above safe-area (iPhone notch / home indicator)
@@ -61,8 +60,22 @@ export default function MobileDock() {
                 touchAction: 'manipulation'
             }}
         >
-            <div className="max-w-4xl mx-auto pt-2">
-                <ul className="flex justify-between items-center h-16">
+            <div className="w-full">
+                    <div
+                        className="w-full"
+                        style={{
+                            width: '100%',
+                            // grounded footer: rounded top corners only
+                            borderTopLeftRadius: 18,
+                            borderTopRightRadius: 18,
+                            background: 'rgba(255,255,255,0.98)',
+                            // subtle glass effect removed for a solid footer look
+                            backdropFilter: 'none',
+                            borderTop: '1px solid rgba(0,0,0,0.06)',
+                            boxShadow: '0 -6px 18px rgba(2,6,23,0.06)'
+                        }}
+                    >
+                    <ul className="flex justify-between items-center h-14 px-0">
                     {items.map((it) => {
                         const active = isActive(it.href);
                         
@@ -90,16 +103,19 @@ export default function MobileDock() {
                                     className={`w-full h-full flex flex-col items-center justify-center gap-0 transition-colors duration-200 focus:outline-none ${isDisabled ? 'filter blur-sm opacity-60 cursor-not-allowed' : ''}`}
                                 >
                                     <div
-                                        className={`mb-1 p-2 rounded-full transition-transform duration-200 ease-in-out ${active
-                                            ? 'bg-gradient-to-br from-blue-50/60 to-indigo-50/40 text-blue-600 scale-105 ring-1 ring-blue-200'
-                                            : 'text-gray-600 hover:text-gray-800'
-                                            }`}
+                                        className="mb-1 p-2 rounded-full transition-transform duration-200 ease-in-out"
+                                        style={{
+                                            // active/inactive icon colors
+                                            color: active ? '#2F6BFF' : '#9AA6BF',
+                                            transform: active ? 'scale(1.05)' : undefined,
+                                            backgroundColor: active ? 'rgba(47,107,255,0.06)' : 'transparent'
+                                        }}
                                     >
                                         {it.icon}
                                     </div>
                                     <span
-                                        className={`text-[11px] leading-3 tracking-wide transition-colors duration-200 ${active ? 'text-blue-700 font-semibold' : 'text-gray-500'
-                                            }`}
+                                        className={`text-[11px] leading-3 tracking-wide transition-colors duration-200 ${active ? 'font-semibold' : ''}`}
+                                        style={{ color: active ? '#2F6BFF' : '#9AA6BF' }}
                                     >
                                         {it.label}
                                     </span>
@@ -112,7 +128,8 @@ export default function MobileDock() {
                             </li>
                         );
                     })}
-                </ul>
+                    </ul>
+                </div>
             </div>
 
                 {/* Coming soon modal for mobile chatbot click */}

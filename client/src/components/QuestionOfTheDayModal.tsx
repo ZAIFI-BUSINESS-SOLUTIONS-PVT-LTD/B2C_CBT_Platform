@@ -88,19 +88,22 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
   });
 
-  // Reset state when modal opens
+  // Reset state when modal closes; when opening, allow QOD API to control showing results
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) {
       setSelectedAnswer(null);
       setShowResult(false);
       setResultData(null);
     }
   }, [isOpen]);
 
-  // If already attempted, show result immediately
+  // If already attempted, show result immediately (even if selectedOption wasn't returned)
+  // Watch both qodData AND isOpen so this runs when modal reopens with cached data
   useEffect(() => {
-    if (qodData?.alreadyAttempted && qodData.qod.selectedOption) {
-      setSelectedAnswer(qodData.qod.selectedOption);
+    if (isOpen && qodData?.alreadyAttempted && qodData.qod) {
+      // Use selectedOption if provided, otherwise keep null
+      const sel = qodData.qod.selectedOption ?? null;
+      setSelectedAnswer(sel);
       setShowResult(true);
       setResultData({
         isCorrect: qodData.qod.isCorrect ?? false,
@@ -110,15 +113,17 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
         qod: qodData.qod,
       });
     }
-  }, [qodData]);
+  }, [qodData, isOpen]);
 
   // Submit answer mutation
   const submitMutation = useMutation({
     mutationFn: async (answer: string) => {
+      const payload: any = { selected_option: answer };
+      if (question && (question as any).id) payload.question_id = (question as any).id;
       const response = await authenticatedFetch(`${API_CONFIG.BASE_URL}/api/qod/submit/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selected_option: answer }),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -161,12 +166,7 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 animate-in fade-in duration-200">
       <Card 
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border-0"
-        style={{ 
-          backgroundImage: "url('/testscreen-bg.jpg')", 
-          backgroundSize: 'cover', 
-          backgroundPosition: 'center' 
-        }}
+        className="relative w-full max-w-2xl rounded-2xl shadow-2xl border-0 overflow-hidden"
       >
         {/* Close button */}
         <button
@@ -177,10 +177,11 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
           <X className="w-5 h-5 text-gray-600" />
         </button>
 
-        <CardContent className="p-6 sm:p-8 bg-white/80 backdrop-blur-sm rounded-2xl">{/* Header */}
+        <CardContent
+          className="p-6 sm:p-8 bg-gradient-to-b from-blue-50 to-blue-100 rounded-2xl max-h-[90vh] overflow-y-auto"
+        >{/* Header */}
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Question of the Day</h2>
-            <p className="text-sm text-gray-500">Challenge yourself with today's question!</p>
           </div>
 
           {/* Loading state */}
@@ -229,16 +230,18 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
                 <div className="space-y-3">
                   {["A", "B", "C", "D"].map((option) => {
                     const isSelected = selectedAnswer === option;
+                    const optionId = `qod-option-${option}`;
                     return (
                       <Label
                         key={option}
+                        htmlFor={optionId}
                         className={`flex items-center p-4 rounded-xl cursor-pointer transition-all border-2 ${
                           isSelected
                             ? 'bg-blue-50 border-blue-400 shadow-sm'
                             : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                         }`}
                       >
-                        <RadioGroupItem value={option} className="mr-3" />
+                        <RadioGroupItem value={option} id={optionId} className="mr-3" />
                         <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold mr-3 flex-shrink-0 ${
                           isSelected ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
                         }`}>
@@ -299,38 +302,45 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
               </div>
 
               {/* Result overlay - centered */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                {/* Penguin image */}
-                <img
-                  src={isCorrect ? '/happy-penguin.png' : '/sad-penguin.png'}
-                  alt={isCorrect ? 'Success' : 'Try again'}
-                  className="w-40 h-40 object-contain mb-6"
-                />
+              <div className="absolute top-24 inset-x-0 bottom-0 flex flex-col items-center justify-start pt-4 px-2 gap-2 -mt-7">
+                  {/* Question attempted - placed on top of penguin */}
+                  <div className="mb-2 text-center px-2 -mt-20 -mb-9">
+                    <p className="text-sm text-gray-700 font-medium leading-relaxed">{question.question}</p>
+                  </div>
 
-                {/* Result message */}
-                {isCorrect ? (
-                  <h3 className="text-4xl font-bold text-green-600 mb-4">Correct!</h3>
-                ) : (
-                  <>
-                    <h3 className="text-4xl font-bold text-red-600 mb-4">Sorry!</h3>
-                    <p className="text-gray-700 text-lg mb-3">Not quite right. Keep learning! 💪</p>
-                    <div className="bg-white/90 backdrop-blur-sm px-6 py-3 rounded-xl">
-                      <p className="text-sm text-gray-600 mb-1">Correct Answer:</p>
-                      <p className="text-xl font-bold text-green-700">
-                        {resultData.correctAnswer}. {question[`option${resultData.correctAnswer}` as keyof typeof question] as string}
-                      </p>
-                    </div>
-                  </>
-                )}
+                  {/* Penguin image (increased by additional 20%) */}
+                  <img
+                    src={isCorrect ? '/happy-penguin.png' : '/sad-penguin.png'}
+                    alt={isCorrect ? 'Success' : 'Try again'}
+                    className="object-contain -mb-11"
+                    style={{ width: '12.5rem', height: '14.5rem' }}
+                  />
 
-                {/* Close button */}
-                <Button
-                  onClick={onClose}
-                  className="mt-8 px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold shadow-lg"
-                >
-                  Done
-                </Button>
-              </div>
+                  {/* Result message (reduced sizes by ~20%) */}
+                  {isCorrect ? (
+                    <h3 className="text-3xl font-bold text-green-600 mb-1">Correct!</h3>
+                  ) : (
+                    <>
+                      <h3 className="text-3xl font-bold text-red-600 mb-1">Sorry!</h3>
+                      <p className="text-sm text-gray-700 font-medium mb-2">Not quite right. Keep learning! 💪</p>
+                      <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl">
+                        <p className="text-sm text-gray-700 font-medium mb-1">Correct Answer:</p>
+                        <p className="text-sm font-bold text-green-700 font-medium
+                        ">
+                          {resultData.correctAnswer}. {question[`option${resultData.correctAnswer}` as keyof typeof question] as string}
+                        </p>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Close button */}
+                  <Button
+                    onClick={onClose}
+                    className="mt-2 px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold shadow-lg"
+                  >
+                    Done
+                  </Button>
+                </div>
             </div>
           )}
         </CardContent>

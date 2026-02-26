@@ -43,8 +43,8 @@ export function SubmitDialog({
                 position: "fixed",
                 left: "50%",
                 transform: "translateX(-50%) scale(1.5)",
-                top: "calc(50% - 150px)",
-                width: "96px",
+                top: "calc(50% - 220px)",
+                width: "100px",
                 zIndex: 2147483647,
                 pointerEvents: "none",
               }}
@@ -57,22 +57,22 @@ export function SubmitDialog({
         <AlertDialogHeader className="space-y-3">
           <AlertDialogTitle className="text-slate-900 font-bold text-base sm:text-xl text-center">Submit Test?</AlertDialogTitle>
           <div className="flex flex-col items-center gap-3">
-            <div className="w-full bg-sky-50 rounded-lg p-2">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="min-w-0 text-center p-2 bg-white rounded-md border border-slate-100 shadow-sm">
-                  <div className="text-sm text-slate-400">Attempted</div>
-                  <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{answersCount}</div>
-                </div>
-                <div className="min-w-0 text-center p-2 bg-white rounded-md border border-slate-100 shadow-sm">
-                  <div className="text-sm text-slate-400">Skipped</div>
-                  <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{Math.max(0, totalQuestions - answersCount)}</div>
-                </div>
-                <div className="min-w-0 text-center p-2 bg-white rounded-md border border-slate-100 shadow-sm">
-                  <div className="text-sm text-slate-400">Unanswered</div>
-                  <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{Math.max(0, totalQuestions - answersCount)}</div>
+            <div className="w-full bg-sky-100 rounded-lg p-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="min-w-0 text-center p-2 bg-white rounded-md border border-slate-200 shadow-sm">
+                    <div className="text-xs text-slate-500">Attempted</div>
+                    <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{answersCount}</div>
+                  </div>
+                  <div className="min-w-0 text-center p-2 bg-white rounded-md border border-slate-200 shadow-sm">
+                    <div className="text-xs text-slate-500">Skipped</div>
+                    <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{Math.max(0, totalQuestions - answersCount)}</div>
+                  </div>
+                  <div className="min-w-0 text-center p-2 bg-white rounded-md border border-slate-200 shadow-sm">
+                    <div className="text-xs text-slate-500">Unanswered</div>
+                    <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{Math.max(0, totalQuestions - answersCount)}</div>
+                  </div>
                 </div>
               </div>
-            </div>
           </div>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex-col sm:flex-row gap-3 mt-4">

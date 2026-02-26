@@ -37,10 +37,12 @@ def get_question_of_the_day(request):
     student = request.user
     today = date.today()
     
-    # Check if student has already attempted QOD today
+    # Check if student has already attempted (answered) QOD today
+    # Only consider entries with a selected_option (i.e. answered)
     existing_qod = QuestionOfTheDay.objects.filter(
         student_id=student.student_id,
-        date=today
+        date=today,
+        selected_option__isnull=False,
     ).first()
     
     # Calculate QOD streak (consecutive days with an attempted QOD)
@@ -96,23 +98,32 @@ def get_question_of_the_day(request):
             institution__isnull=True
         )
     
-    # Select a random question
+    # Select a random question and return it to the client without persisting
+    # a QuestionOfTheDay row. The QOD record will be created only when the
+    # student submits an answer.
     if available_questions.exists():
         total_count = available_questions.count()
         random_index = random.randint(0, total_count - 1)
         selected_question = available_questions[random_index]
-        
-        # Create QOD entry (not yet answered)
-        qod = QuestionOfTheDay.objects.create(
-            student=student,
-            question=selected_question,
-            date=today
-        )
-        
-        serializer = QuestionOfTheDaySerializer(qod)
+
+        # Use QuestionSerializer to build the question payload
+        question_serialized = QuestionSerializer(selected_question).data
+
+        # Construct a QOD-like response object (no DB record yet)
+        qod_payload = {
+            'id': None,
+            'student': student.student_id,
+            'question': selected_question.id,
+            'question_data': question_serialized,
+            'date': str(today),
+            'selected_option': None,
+            'is_correct': None,
+            'created_at': None,
+        }
+
         return Response({
             'already_attempted': False,
-            'qod': serializer.data,
+            'qod': qod_payload,
             'streak': _calculate_streak(student.student_id),
         })
     else:
@@ -153,17 +164,33 @@ def submit_question_of_the_day(request):
         )
     
     selected_option = submit_serializer.validated_data['selected_option']
-    
-    # Get today's QOD entry
+    question_id = submit_serializer.validated_data.get('question_id')
+
+    # Get today's QOD entry (if any)
     qod = QuestionOfTheDay.objects.filter(
         student_id=student.student_id,
         date=today
     ).first()
-    
+
+    # If no qod row exists (we no longer create on GET), create one now using
+    # the question_id sent by the client. If question_id not provided, return
+    # an error to avoid guessing which question was shown.
     if not qod:
-        return Response(
-            {'error': 'No question of the day found for today. Please fetch the question first.'},
-            status=status.HTTP_404_NOT_FOUND
+        if not question_id:
+            return Response(
+                {'error': 'No question of the day found for today. Include question_id in submit payload.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        # Validate question exists
+        try:
+            question_obj = Question.objects.get(id=question_id)
+        except Question.DoesNotExist:
+            return Response({'error': 'Invalid question_id provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        qod = QuestionOfTheDay.objects.create(
+            student=student,
+            question=question_obj,
+            date=today
         )
     
     # Check if already answered
@@ -177,7 +204,7 @@ def submit_question_of_the_day(request):
     correct_answer = qod.question.correct_answer
     is_correct = selected_option == correct_answer
     
-    # Update QOD entry
+    # Update QOD entry with the submitted answer
     qod.selected_option = selected_option
     qod.is_correct = is_correct
     qod.save()

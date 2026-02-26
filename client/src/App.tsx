@@ -5,7 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { NotFound, Home, Test, Results, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, InstitutionTesterPage, InstitutionRegisterPage, InstitutionAdminDashboard, OfflineResultsUpload, AnswerKeyUpload, JSONQuestionUpload, ThankYou, GetNumberPage, Policy, DeleteAccount, InstitutionStudentAnalytics } from "@/pages";
+import { NotFound, Home, Test, Results, Review, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, InstitutionTesterPage, InstitutionRegisterPage, InstitutionAdminDashboard, OfflineResultsUpload, AnswerKeyUpload, JSONQuestionUpload, ThankYou, GetNumberPage, Policy, DeleteAccount, InstitutionStudentAnalytics } from "@/pages";
 import LoadingResultsPage from "@/pages/LoadingResultsPage";
 import BookmarkedQuestions from "@/pages/BookmarkedQuestions";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -126,7 +126,9 @@ function Router() {
       <Route path="/auth/google/callback" component={GoogleCallback} /> {/* Google OAuth popup callback */}
       <Route path="/test/:sessionId" component={Test} />           {/* Test taking interface */}
       <Route path="/results/:sessionId" component={Results} />     {/* Test results and analytics */}
+      <Route path="/review/:sessionId" component={Review} />       {/* Review answers page */}
       <Route path="/bookmarks" component={requirePhoneNumber(BookmarkedQuestions)} /> {/* Bookmarked questions page */}
+      <Route path="/bookmarked-questions" component={requirePhoneNumber(BookmarkedQuestions)} /> {/* Bookmarked questions page (alternate path) */}
       <Route path="/test-history" component={TestHistory} />
       <Route path="/thank-you" component={ThankYou} />
       <Route path="/error" component={ErrorPageRoute} />               {/* Error page for critical errors */}

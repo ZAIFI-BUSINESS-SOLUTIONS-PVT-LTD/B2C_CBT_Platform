@@ -42,8 +42,19 @@ const PaymentButtons: React.FC = () => {
   const { student } = useAuth();
   const [, navigate] = useLocation();
 
+  const [scrolled, setScrolled] = useState(false);
+
   useEffect(() => {
     loadSubscriptionStatus();
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setScrolled(window.scrollY > 8);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   // Development-only debug: print out sources used for current plan
@@ -105,13 +116,13 @@ const PaymentButtons: React.FC = () => {
     if (!plan && !expiresRaw) {
       return (
         <div className="w-full mb-4 px-4">
-          <Card className="w-full">
+          <Card className="w-full bg-white/80 backdrop-blur-sm border border-white/30 rounded-2xl shadow-lg">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-sm text-gray-500">Current plan</p>
-                  <p className="text-lg font-semibold">None</p>
-                  <p className="text-sm text-gray-600">Expires: Never</p>
+                  <p className="text-sm text-gray-700">Current plan</p>
+                  <p className="text-lg font-semibold text-gray-900">None</p>
+                  <p className="text-sm text-gray-700">Expires: Never</p>
                 </div>
                 <div className="ml-4">
                   <Badge variant="outline" className="text-xs">NO PLAN</Badge>
@@ -132,13 +143,13 @@ const PaymentButtons: React.FC = () => {
 
     return (
       <div className="w-full mb-4 px-4">
-        <Card className="w-full">
+        <Card className="w-full bg-white/80 backdrop-blur-sm border border-white/30 rounded-2xl shadow-lg">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <p className="text-sm text-gray-500">Current plan</p>
-                <p className="text-lg font-semibold">{plan ? plan.toUpperCase() : 'None'}</p>
-                <p className="text-sm text-gray-600">Expires: {expires}</p>
+                <p className="text-sm text-gray-700">Current plan</p>
+                <p className="text-lg font-semibold text-gray-900">{plan ? plan.toUpperCase() : 'None'}</p>
+                <p className="text-sm text-gray-700">Expires: {expires}</p>
               </div>
               <div className="ml-4">
                 {isActive ? (
@@ -417,11 +428,11 @@ const PaymentButtons: React.FC = () => {
 
   if (loadingStatus) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen">
         {/* Header */}
-        <div className="sticky top-0 bg-white z-50 border-b border-gray-200 shadow-sm">
-          <div className="w-full px-4 py-3 inline-flex items-center gap-3">
-            <Button variant="secondary" size="icon" className="size-8" onClick={() => navigate('/')}>
+        <div className={"sticky top-0 z-50 transition-colors duration-200 " + (scrolled ? "bg-white/80 backdrop-blur-sm border-b border-white/30" : "bg-transparent border-b border-transparent")}>
+            <div className="w-full px-4 py-3 inline-flex items-center gap-3">
+            <Button variant="secondary" size="icon" className="size-8" onClick={() => navigate('/topics')}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <h1 className="text-lg font-bold text-gray-900">Payment</h1>
@@ -437,11 +448,11 @@ const PaymentButtons: React.FC = () => {
 
   if (subscriptionStatus?.is_active) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen">
         {/* Header */}
-        <div className="sticky top-0 bg-white z-50 border-b border-gray-200 shadow-sm">
+        <div className={"sticky top-0 z-50 transition-colors duration-200 " + (scrolled ? "bg-white/80 backdrop-blur-sm border-b border-white/30" : "bg-transparent border-b border-transparent")}>
           <div className="w-full px-4 py-3 inline-flex items-center gap-3">
-            <Button variant="secondary" size="icon" className="size-8" onClick={() => navigate('/')}>
+            <Button variant="secondary" size="icon" className="size-8" onClick={() => navigate('/topics')}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <h1 className="text-lg font-bold text-gray-900">Payment</h1>
@@ -451,13 +462,13 @@ const PaymentButtons: React.FC = () => {
         <div className="space-y-6 py-6 pt-20">
           <CurrentPlanCard />
           <div className="px-4">
-            <Card className="w-full">
+            <Card className="w-full bg-white/80 backdrop-blur-sm border border-white/30 rounded-2xl shadow-lg">
               <CardHeader className="text-center pb-4">
                 <div className="flex justify-center mb-3">
                   <CheckCircle className="h-12 w-12 text-green-500" />
                 </div>
                 <CardTitle className="text-xl text-green-600">Active Subscription</CardTitle>
-                <CardDescription className="text-sm">
+                <CardDescription className="text-sm text-gray-700">
                   You have an active {(
                     (subscriptionStatus as any)?.subscription_plan ??
                     (subscriptionStatus as any)?.subscriptionPlan ??
@@ -478,7 +489,7 @@ const PaymentButtons: React.FC = () => {
                     ''
                   )?.toUpperCase()} PLAN
                 </Badge>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-700">
                   <Clock className="h-4 w-4 inline mr-1" />
                   Expires: {formatExpiry((subscriptionStatus as any)?.subscription_expires_at ?? (subscriptionStatus as any)?.subscriptionExpiresAt ?? subscriptionStatus?.subscription_expires_at ?? subscriptionStatus?.subscriptionExpiresAt)}
                 </p>
@@ -491,11 +502,11 @@ const PaymentButtons: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen">
       {/* Header */}
-      <div className="sticky top-0 bg-white z-50 border-b border-gray-200 shadow-sm">
+      <div className={"sticky top-0 z-50 transition-colors duration-200 " + (scrolled ? "bg-white/80 backdrop-blur-sm border-b border-white/30" : "bg-transparent border-b border-transparent")}>
         <div className="w-full px-4 py-3 inline-flex items-center gap-3">
-          <Button variant="secondary" size="icon" className="size-8" onClick={() => navigate('/')}>
+          <Button variant="secondary" size="icon" className="size-8" onClick={() => navigate('/topics')}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-lg font-bold text-gray-900">Payment</h1>
@@ -506,40 +517,40 @@ const PaymentButtons: React.FC = () => {
         <CurrentPlanCard />
         <div className="text-center mb-6 px-4">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Choose Your Plan</h2>
-          <p className="text-sm text-gray-600">Unlock premium features and boost your NEET preparation</p>
+          <p className="text-sm text-gray-800">Unlock premium features and boost your NEET preparation</p>
         </div>
 
         <div className="space-y-4 px-4">
           {/* Basic Plan */}
-          <Card className="w-full border-2 hover:border-blue-300 transition-colors">
+          <Card className="w-full bg-white/80 backdrop-blur-sm border-2 border-blue-300 hover:border-blue-400 transition-colors rounded-2xl shadow-lg">
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <CardTitle className="text-lg text-blue-600">Basic Plan</CardTitle>
-                  <CardDescription className="text-sm">Perfect for getting started</CardDescription>
+                  <CardDescription className="text-sm text-gray-700">Perfect for getting started</CardDescription>
                 </div>
                 <Badge variant="outline" className="text-xs ml-2">Starter</Badge>
               </div>
               <div className="mt-3">
-                <span className="text-2xl font-bold">₹720</span>
-                <span className="text-sm text-gray-500">/3 months</span>
+                <span className="text-2xl font-bold text-gray-900">₹720</span>
+                <span className="text-sm text-gray-700">/3 months</span>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
               <ul className="space-y-2 mb-4">
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   Unlimited practice tests
                 </li>
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   Performance analytics
                 </li>
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   Basic study insights
                 </li>
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   Chapter-wise tests
                 </li>
@@ -562,7 +573,7 @@ const PaymentButtons: React.FC = () => {
           </Card>
 
           {/* Premium Plan */}
-          <Card className="w-full border-2 border-orange-300 hover:border-orange-400 transition-colors relative">
+          <Card className="w-full bg-white/80 backdrop-blur-sm border-2 border-orange-300 hover:border-orange-400 transition-colors rounded-2xl shadow-lg relative">
             <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
               <Badge className="bg-orange-600 hover:bg-orange-700 text-xs px-2 py-1">
                 <Star className="h-3 w-3 mr-1" />
@@ -573,34 +584,34 @@ const PaymentButtons: React.FC = () => {
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <CardTitle className="text-lg text-orange-600">Premium Plan</CardTitle>
-                  <CardDescription className="text-sm">Best value for serious students</CardDescription>
+                  <CardDescription className="text-sm text-gray-700">Best value for serious students</CardDescription>
                 </div>
                 <Star className="h-5 w-5 text-orange-600 flex-shrink-0" />
               </div>
               <div className="mt-3">
-                <span className="text-2xl font-bold">₹7,200</span>
-                <span className="text-sm text-gray-500">/3 months</span>
+                <span className="text-2xl font-bold text-gray-900">₹7,200</span>
+                <span className="text-sm text-gray-700">/3 months</span>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
               <ul className="space-y-2 mb-4">
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   Everything in Basic Plan
                 </li>
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   Advanced performance analytics
                 </li>
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   AI-powered study insights
                 </li>
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   Personalized study plans
                 </li>
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   AI chatbot tutor
                 </li>
@@ -622,8 +633,8 @@ const PaymentButtons: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Pro Plan */}
-          <Card className="w-full border-2 border-purple-300 hover:border-purple-400 transition-colors relative">
+          {/* Pro Plan 
+          <Card className="w-full bg-white/80 backdrop-blur-sm border-2 border-purple-300 hover:border-purple-400 transition-colors rounded-2xl shadow-lg relative">
             <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
               <Badge className="bg-purple-600 hover:bg-purple-700 text-xs px-2 py-1">
                 <Crown className="h-3 w-3 mr-1" />
@@ -634,38 +645,38 @@ const PaymentButtons: React.FC = () => {
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <CardTitle className="text-lg text-purple-600">Pro Plan</CardTitle>
-                  <CardDescription className="text-sm">Complete NEET preparation suite</CardDescription>
+                  <CardDescription className="text-sm text-gray-700">Complete NEET preparation suite</CardDescription>
                 </div>
                 <Crown className="h-5 w-5 text-purple-600 flex-shrink-0" />
               </div>
               <div className="mt-3">
-                <span className="text-2xl font-bold">₹17,000</span>
-                <span className="text-sm text-gray-500">/3 months</span>
+                <span className="text-2xl font-bold text-gray-900">₹17,000</span>
+                <span className="text-sm text-gray-700">/3 months</span>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
               <ul className="space-y-2 mb-4">
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   Everything in Premium Plan
                 </li>
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   Advanced AI chatbot tutor
                 </li>
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   Priority support (24/7)
                 </li>
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   Exclusive mock test series
                 </li>
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   One-on-one mentorship sessions
                 </li>
-                <li className="flex items-center text-sm">
+                <li className="flex items-center text-sm text-gray-800">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   Doubt resolution within 1 hour
                 </li>
@@ -686,11 +697,7 @@ const PaymentButtons: React.FC = () => {
               </Button>
             </CardContent>
           </Card>
-        </div>
-
-        <div className="text-center text-xs text-gray-500 mt-6 px-4">
-          <p className="mb-1">Secure payments powered by Razorpay & Google Play</p>
-          <p>All plans are for 3-month subscription period with auto-renewal</p>
+          */}
         </div>
       </div>
     </div>

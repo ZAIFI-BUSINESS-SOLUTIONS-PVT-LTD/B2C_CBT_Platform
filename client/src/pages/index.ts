@@ -16,6 +16,7 @@ export { default as GoogleAuthCallback } from "./login-register/google-auth-call
 export { default as GoogleCallback } from "./login-register/GoogleCallback";
 export { default as Test } from "./test";
 export { default as Results } from "./results";
+export { default as Review } from "./review";
 export { default as TestHistory } from "../components/test-history";
 export { default as ThankYou } from "./thank-you";
 export { default as NotFound } from "./not-found";

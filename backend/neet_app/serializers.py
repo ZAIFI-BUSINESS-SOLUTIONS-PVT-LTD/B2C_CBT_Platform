@@ -809,3 +809,7 @@ class QuestionOfTheDaySerializer(serializers.ModelSerializer):
 class QuestionOfTheDaySubmitSerializer(serializers.Serializer):
     """Serializer for submitting Question of the Day answer"""
     selected_option = serializers.ChoiceField(choices=['A', 'B', 'C', 'D'], required=True)
+    # Optional question id shown to the user. When GET does not persist a QOD
+    # record, the frontend must send this so the backend can create the record
+    # at submit time and associate it with the correct question.
+    question_id = serializers.IntegerField(required=False)

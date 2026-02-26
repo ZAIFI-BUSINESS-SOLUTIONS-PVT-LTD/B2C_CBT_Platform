@@ -20,7 +20,7 @@ from .views.test_views import (
 )
 from .views.zone_insights_views import (
     get_student_tests, get_test_zone_insights, get_zone_insights_status, get_test_zone_insights_raw,
-    generate_test_focus_zone
+    generate_test_focus_zone, get_advanced_metrics
 )
 from .views.insights_compat_views import insights_cache
 from .views.task_status_view import task_status
@@ -139,6 +139,7 @@ urlpatterns = [
     path('zone-insights/raw/<int:test_id>/', get_test_zone_insights_raw, name='zone-insights-raw'),
     path('zone-insights/status/<int:test_id>/', get_zone_insights_status, name='zone-insights-status'),
     path('zone-insights/focus-zone/<int:test_id>/', generate_test_focus_zone, name='zone-insights-focus-zone'),
+    path('zone-insights/advanced/<int:test_id>/', get_advanced_metrics, name='zone-insights-advanced'),
     # Compatibility endpoint for legacy frontend requests
     path('insights/cache/', insights_cache, name='insights-cache'),
     

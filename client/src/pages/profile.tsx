@@ -18,6 +18,12 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -34,6 +40,9 @@ import {
     LogOut,
     ChevronLeft,
     Trash2,
+    Bookmark,
+    ChevronRight,
+    MoreVertical,
 } from "lucide-react";
 
 // Helper: safely get initials from a name (handles undefined/null)
@@ -78,35 +87,14 @@ interface StudentProfile {
 /**
  * Main Student Profile Component
  * 
- * DETAILED FUNCTIONALITY:
- * This component serves as the primary interface for student profile display
- * and management. It handles the complete profile lifecycle from initial
- * creation to ongoing updates, with proper state management and error handling.
- * 
- * COMPONENT STATE:
- * - showProfileDialog: Controls modal dialog visibility
- * - isEditing: Toggles between view and edit modes
- * - currentProfile: Stores current profile data for editing
- * - toast: Handles user notifications
- * - queryClient: Manages React Query cache invalidation
- * 
- * AUTHENTICATION INTEGRATION:
- * - Uses demo email for development/testing
- * - Designed to integrate with full authentication system
- * - Supports dynamic user identification
- * 
- * REAL-TIME FEATURES:
- * - Optimistic updates for immediate user feedback
- * - Automatic cache invalidation on profile changes
- * - Loading states during API operations
- * - Error recovery with user-friendly messages
- * 
- * Displays profile info and handles profile management
+ * Restructured with glassmorphic menu-based design
+ * - Background: testpage-bg.png
+ * - Glassmorphic containers
+ * - Menu items: Profile, Bookmarks, Logout
+ * - Profile modal for editing user details
  */
 export function StudentProfile() {
-    // page mode: editing or viewing handled by isEditing
-    const [isEditing, setIsEditing] = useState(false);
-    const [currentProfile, setCurrentProfile] = useState<StudentProfile | null>(null);
+    const [showProfileDialog, setShowProfileDialog] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [deleteConfirmation, setDeleteConfirmation] = useState("");
     const { toast } = useToast();
@@ -114,25 +102,24 @@ export function StudentProfile() {
     const { isAuthenticated, student, logout } = useAuth();
     const [, navigate] = useLocation();
 
-    // Fetch student profile (only when authenticated)
+    // Fetch student profile
     const { data: profile, isLoading } = useQuery<StudentProfile>({
         queryKey: ['/api/students/me/'],
         retry: false,
-        enabled: isAuthenticated && !!student, // Only run this query when user is authenticated and student data exists
+        enabled: isAuthenticated && !!student,
     });
 
-    // Create/Update profile mutation
+    // Update profile mutation
     const profileMutation = useMutation({
         mutationFn: async (data: ProfileFormData) => {
-            if (currentProfile) {
-                return await apiRequest(`/api/student-profile/update/${currentProfile.studentId}/`, "PUT", data);
+            if (profile) {
+                return await apiRequest(`/api/student-profile/update/${profile.studentId}/`, "PUT", data);
             } else {
                 return await apiRequest("/api/student-profile", "POST", data);
             }
         },
-        onSuccess: (data) => {
-            setCurrentProfile(data);
-            setIsEditing(false);
+        onSuccess: () => {
+            setShowProfileDialog(false);
             queryClient.invalidateQueries({ queryKey: ['/api/students/me/'] });
             toast({
                 title: "Profile saved successfully",
@@ -161,7 +148,6 @@ export function StudentProfile() {
                 description: "Your account and all associated data have been permanently deleted.",
             });
             try {
-                // Immediately clear auth and cache so user can't remain on protected pages
                 await logout();
             } catch (e) {
                 console.warn('Logout after deletion failed:', e);
@@ -172,17 +158,14 @@ export function StudentProfile() {
                 console.warn('Failed to clear query client:', e);
             }
 
-            // Navigate to login page and force reload as a fallback to ensure no stale state
             try {
                 navigate('/login');
-                // If navigation doesn't remove protected view (cached state), reload the page
                 setTimeout(() => {
                     if (window.location.pathname !== '/login') {
                         window.location.href = '/login';
                     }
                 }, 300);
             } catch (e) {
-                // Final fallback
                 window.location.href = '/login';
             }
         },
@@ -211,7 +194,6 @@ export function StudentProfile() {
     // Update form when profile data is available
     useEffect(() => {
         if (profile) {
-            setCurrentProfile(profile);
             form.reset({
                 fullName: profile.fullName,
                 email: profile.email,
@@ -236,256 +218,244 @@ export function StudentProfile() {
         }
     };
 
-    // Display name and initials are handled by module-level helpers
-
-    // If not loading and no profile, show the full-page create profile form
-    if (!isLoading && !profile) {
-        return (
-            <main className="min-h-screen w-full flex flex-col items-center py-8 px-4 bg-slate-50">
-                {/* Sticky header */}
-                <header className="sticky top-0 z-10 w-full bg-transparent">
-                    <div className="w-full mx-auto border-b border-gray-200 inline-flex items-center gap-3 px-4 sm:px-6 lg:px-8">
-                        <Button
-                            variant="secondary"
-                            size="icon"
-                            onClick={() => navigate('/')}
-                            aria-label="Go home"
-                            className="size-8"
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <h1 className="text-lg font-bold text-gray-900">Create Profile</h1>
-                    </div>
-                </header>
-
-                <div className="w-full max-w-3xl mt-6 mx-4 sm:mx-6 lg:mx-8">
-                    <Card className="shadow-md rounded-lg overflow-hidden">
-                        <CardContent className="p-4 sm:p-6 lg:p-8">
-                            <div className="flex flex-col items-center text-center space-y-3 mb-4">
-                                <Avatar className="h-16 w-16">
-                                    <AvatarFallback className="bg-blue-600 text-white">
-                                        <Plus className="h-5 w-5" />
-                                    </AvatarFallback>
-                                </Avatar>
-                                <h2 className="text-lg font-semibold">Create Your Profile</h2>
-                                <p className="text-sm text-gray-600">Add basic details so we can personalise your experience.</p>
-                            </div>
-
-                            <div className="mt-4">
-                                <ProfileForm
-                                    form={form}
-                                    onSubmit={onSubmit}
-                                    isLoading={profileMutation.isPending}
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            </main>
-        );
-    }
+    const handleLogout = async () => {
+        await logout();
+        navigate('/topics');
+    };
 
     // Show loading state
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center min-h-40">
-                <div className="w-12 h-12 bg-gray-200 rounded-full animate-pulse"></div>
+            <div className="min-h-screen w-full bg-gradient-to-br from-purple-100 via-blue-100 to-indigo-100 flex items-center justify-center">
+                <div className="w-12 h-12 bg-white/30 rounded-full animate-pulse backdrop-blur-sm"></div>
             </div>
         );
     }
 
-    // Main profile display as a dedicated page with sticky header
-    return (
-        <main className="min-h-screen w-full flex flex-col items-center bg-gray-50">
-            <header className="sticky top-0 z-10 w-full border-b border-gray-200 bg-white">
-                <div className="w-full mx-auto py-3 inline-flex items-center gap-3 px-4 sm:px-6 lg:px-8">
-                    <Button variant="secondary" size="icon" className="rounded-xl h-8 w-8" onClick={() => navigate('/')}>
-                        <ChevronLeft />
-                    </Button>
-                    <h1 className="text-lg font-bold text-gray-900">Profile</h1>
+    // If no profile, show create profile form in glassmorphic style
+    if (!profile) {
+        return (
+            <div 
+                className="min-h-screen w-full bg-cover bg-center bg-no-repeat relative"
+                style={{ backgroundImage: "url('/testpage-bg.png')" }}
+            >
+                {/* overlay removed to restore background vibrancy */}
+                
+                {/* Content */}
+                <div className="relative z-10 min-h-screen flex flex-col">
+                    {/* Header */}
+                    <header className="p-4">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => navigate('/topics')}
+                            className="bg-white/10 backdrop-blur-md border border-white/20 text-gray-900 hover:bg-white/20 h-10 w-10"
+                        >
+                            <ChevronLeft className="h-5 w-5 text-gray-700" />
+                        </Button>
+                    </header>
+
+                    {/* Create Profile Card */}
+                    <div className="flex-1 flex items-center justify-center p-4">
+                        <Card className="w-full max-w-md bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl rounded-3xl">
+                            <CardContent className="p-6 text-gray-900">
+                                <div className="flex flex-col items-center text-center space-y-3 mb-6">
+                                    <Avatar className="h-20 w-20 bg-gradient-to-br from-blue-400 to-blue-600">
+                                        <AvatarFallback className="bg-transparent text-white text-2xl">
+                                            <Plus className="h-8 w-8" />
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <h2 className="text-xl font-bold text-gray-900">Create Your Profile</h2>
+                                    <p className="text-sm text-gray-700">Add basic details to personalize your experience</p>
+                                </div>
+
+                                <ProfileForm
+                                    form={form}
+                                    onSubmit={onSubmit}
+                                    isLoading={profileMutation.isPending}
+                                    glassmorphic={true}
+                                />
+                            </CardContent>
+                        </Card>
+                    </div>
                 </div>
-            </header>
-            <div className="w-full max-w-3xl mt-6 mx-3 sm:mx-6 lg:mx-8">
-                <Card className="mt-4 shadow-md rounded-lg overflow-hidden">
-                    <CardContent className="p-4 sm:p-6 lg:p-8">
-                        {!isEditing ? (
-                            <ProfileView
-                                profile={profile!}
-                                onEdit={() => setIsEditing(true)}
-                                onLogout={async () => {
-                                    await logout();
-                                    navigate('/');
-                                }}
-                                onDeleteAccount={() => {
-                                    setDeleteConfirmation("");
-                                    setShowDeleteDialog(true);
-                                }}
-                            />
-                        ) : (
+            </div>
+        );
+    }
+
+    // Main profile page with glassmorphic menu design
+    return (
+        <div 
+            className="min-h-screen w-full bg-cover bg-center bg-no-repeat relative"
+            style={{ backgroundImage: "url('/testpage-bg.png')" }}
+        >
+        {/* overlay removed to restore background vibrancy */}
+            
+            {/* Content */}
+            <div className="relative z-10 min-h-screen flex flex-col">
+                {/* Header */}
+                <header className="p-4 flex items-center justify-between">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => navigate('/topics')}
+                        className="bg-white/10 backdrop-blur-md border border-white/20 text-gray-900 hover:bg-white/20 h-10 w-10"
+                    >
+                        <ChevronLeft className="h-5 w-5 text-gray-700" />
+                    </Button>
+                    <h1 className="text-xl font-bold text-gray-900">Profile</h1>
+                    <div className="w-10"></div> {/* Spacer for symmetry */}
+                </header>
+
+                {/* Profile Content */}
+                    <div className="flex-1 flex flex-col items-center px-4 pt-8 pb-20">
+                    <div className="w-full max-w-md bg-white/10 backdrop-blur-md rounded-3xl p-6 shadow-2xl border border-white/20 text-gray-900">
+                        {/* Avatar and User Info */}
+                        <div className="flex flex-col items-center text-center mb-8">
+                            <Avatar className="h-32 w-32 mb-4 bg-gradient-to-br from-blue-400 to-blue-600 ring-4 ring-white/30">
+                                <AvatarFallback className="bg-transparent text-white text-[3.12rem] font-bold leading-none">
+                                    {getInitials(getDisplayName(profile))}
+                                </AvatarFallback>
+                            </Avatar>
+                            <h2 className="text-2xl font-bold text-gray-900 mb-1">
+                                {getDisplayName(profile) || 'User'}
+                            </h2>
+                            <p className="text-gray-700 text-sm">
+                                @{profile.studentId}
+                            </p>
+                        </div>
+
+                        {/* Menu Items */}
+                        <div className="w-full space-y-3">
+                            {/* Profile Menu Item */}
+                            <button
+                                onClick={() => setShowProfileDialog(true)}
+                                className="w-full bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 flex items-center justify-between hover:bg-white/15 transition-all duration-200 shadow-lg"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-white/20 p-2 rounded-xl">
+                                        <User className="h-5 w-5 text-gray-700" />
+                                    </div>
+                                    <span className="text-gray-900 font-medium">Profile</span>
+                                </div>
+                                <ChevronRight className="h-5 w-5 text-gray-700/60" />
+                            </button>
+
+                            {/* Bookmarks Menu Item */}
+                            <button
+                                onClick={() => navigate('/bookmarked-questions')}
+                                className="w-full bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 flex items-center justify-between hover:bg-white/15 transition-all duration-200 shadow-lg"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-white/20 p-2 rounded-xl">
+                                        <Bookmark className="h-5 w-5 text-gray-700" />
+                                    </div>
+                                    <span className="text-gray-900 font-medium">Bookmarks</span>
+                                </div>
+                                <ChevronRight className="h-5 w-5 text-gray-700/60" />
+                            </button>
+
+                            {/* Logout Menu Item */}
+                            <button
+                                onClick={handleLogout}
+                                className="w-full bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 flex items-center justify-between hover:bg-white/15 transition-all duration-200 shadow-lg"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-red-50 p-2 rounded-xl">
+                                        <LogOut className="h-5 w-5 text-red-400" />
+                                    </div>
+                                    <span className="text-red-400 font-medium">Logout</span>
+                                </div>
+                                <ChevronRight className="h-5 w-5 text-red-300/60" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Profile Edit Dialog */}
+            <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
+                <DialogContent className="w-[calc(100%-3rem)] max-w-md rounded-2xl bg-white/90 backdrop-blur-sm border border-gray-200 shadow-xl overflow-hidden p-0">
+                    <div className="max-h-[85vh] overflow-y-auto">
+                        <div className="p-6">
+                            <DialogHeader className="mb-4">
+                                <DialogTitle className="text-xl font-bold text-gray-900">Edit Profile</DialogTitle>
+                            </DialogHeader>
+                            
                             <ProfileForm
                                 form={form}
                                 onSubmit={onSubmit}
                                 isLoading={profileMutation.isPending}
-                                onCancel={() => setIsEditing(false)}
+                                onCancel={() => setShowProfileDialog(false)}
+                                glassmorphic={true}
                             />
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
+                            
+                            {/* Delete Account Button */}
+                            <div className="mt-6 pt-4 border-t border-gray-200">
+                                <button
+                                    onClick={() => {
+                                        setShowProfileDialog(false);
+                                        setDeleteConfirmation("");
+                                        setShowDeleteDialog(true);
+                                    }}
+                                    className="w-full flex items-center justify-center gap-2 text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 rounded-lg py-3 transition-colors"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="font-medium">Delete Account</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* Delete Account Confirmation Dialog */}
             <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Account</AlertDialogTitle>
-                        <AlertDialogDescription className="space-y-4">
-                            <p>
-                                This action cannot be undone. This will permanently delete your account
-                                and remove all your data from our servers, including:
-                            </p>
-                            <ul className="list-disc list-inside space-y-1 text-sm">
-                                <li>All test sessions and answers</li>
-                                <li>Performance insights and analytics</li>
-                                <li>Chat history and conversations</li>
-                                <li>Subscription and payment records</li>
-                                <li>Profile information</li>
-                            </ul>
-                            <div className="pt-2">
-                                <Label htmlFor="delete-confirmation" className="text-sm font-medium">
-                                    Type <span className="font-bold">DELETE</span> to confirm:
-                                </Label>
-                                <Input
-                                    id="delete-confirmation"
-                                    value={deleteConfirmation}
-                                    onChange={(e) => setDeleteConfirmation(e.target.value)}
-                                    placeholder="DELETE"
-                                    className="mt-2"
-                                />
-                            </div>
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setDeleteConfirmation("")}>
-                            Cancel
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handleDeleteAccount}
-                            disabled={deleteConfirmation !== "DELETE" || deleteAccountMutation.isPending}
-                            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-                        >
-                            {deleteAccountMutation.isPending ? "Deleting..." : "Delete Account"}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
+                <AlertDialogContent className="w-[calc(100%-3rem)] max-w-md rounded-2xl bg-white/95 backdrop-blur-sm border border-gray-200 shadow-xl overflow-hidden p-0">
+                    <div className="max-h-[70vh] overflow-y-auto p-6">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="text-gray-900">Delete Account</AlertDialogTitle>
+                            <AlertDialogDescription className="space-y-4 text-gray-600">
+                                <p>
+                                    This action cannot be undone. This will permanently delete your account
+                                    and remove all your data from our servers, including:
+                                </p>
+                                <ul className="list-disc list-inside space-y-1 text-sm">
+                                    <li>All test sessions and answers</li>
+                                    <li>Performance insights and analytics</li>
+                                    <li>Chat history and conversations</li>
+                                    <li>Subscription and payment records</li>
+                                    <li>Profile information</li>
+                                </ul>
+                                <div className="pt-2">
+                                    <Label htmlFor="delete-confirmation" className="text-sm font-medium text-gray-700">
+                                        Type <span className="font-bold">DELETE</span> to confirm:
+                                    </Label>
+                                    <Input
+                                        id="delete-confirmation"
+                                        value={deleteConfirmation}
+                                        onChange={(e) => setDeleteConfirmation(e.target.value)}
+                                        placeholder="DELETE"
+                                        className="mt-2"
+                                    />
+                                </div>
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter className="mt-6">
+                            <AlertDialogCancel onClick={() => setDeleteConfirmation("")}>
+                                Cancel
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={handleDeleteAccount}
+                                disabled={deleteConfirmation !== "DELETE" || deleteAccountMutation.isPending}
+                                className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                            >
+                                {deleteAccountMutation.isPending ? "Deleting..." : "Delete Account"}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </div>
                 </AlertDialogContent>
             </AlertDialog>
-        </main>
-    );
-}
-
-/**
- * Profile View Component
- * Shows read-only profile information
- */
-interface ProfileViewProps {
-    profile: StudentProfile;
-    onEdit: () => void;
-    onLogout: () => void;
-    onDeleteAccount: () => void;
-}
-
-function ProfileView({ profile, onEdit, onLogout, onDeleteAccount }: ProfileViewProps) {
-    return (
-        <div className="space-y-6 ">
-            {/* Profile Header */}
-            <div className="flex items-center gap-4">
-                <div className="flex-shrink-0">
-                    <Avatar className="h-14 w-14 md:h-20 md:w-20 ring-2 ring-white shadow-sm">
-                        <AvatarFallback className="bg-blue-600 text-white text-lg">
-                            {getInitials(getDisplayName(profile))}
-                        </AvatarFallback>
-                    </Avatar>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                    <h3 className="text-lg md:text-2xl font-semibold truncate">{getDisplayName(profile) || 'User'}</h3>
-                    <p className="text-sm text-gray-600 truncate">{profile.email || profile.phoneNumber || '—'}</p>
-                    <div className="mt-2 flex items-center gap-2">
-                        {profile.targetExamYear && (
-                            <Badge variant="outline">
-                                NEET {profile.targetExamYear}
-                            </Badge>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Profile Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {profile.phoneNumber && (
-                    <div className="flex items-start space-x-3">
-                        <Phone className="h-5 w-5 text-gray-500 mt-1" />
-                        <div>
-                            <p className="text-sm font-medium">Phone Number</p>
-                            <p className="text-sm text-gray-600">{profile.phoneNumber}</p>
-                        </div>
-                    </div>
-                )}
-
-                {profile.dateOfBirth && (
-                    <div className="flex items-start space-x-3">
-                        <Calendar className="h-5 w-5 text-gray-500 mt-1" />
-                        <div>
-                            <p className="text-sm font-medium">Date of Birth</p>
-                            <p className="text-sm text-gray-600">
-                                {new Date(profile.dateOfBirth).toLocaleDateString()}
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {profile.schoolName && (
-                    <div className="flex items-start space-x-3">
-                        <GraduationCap className="h-5 w-5 text-gray-500 mt-1" />
-                        <div>
-                            <p className="text-sm font-medium">School/College</p>
-                            <p className="text-sm text-gray-600">{profile.schoolName}</p>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="pt-4 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:justify-end sm:items-center gap-3">
-                    <div className="flex-1 sm:flex-none">
-                        <Button
-                            variant="outline"
-                            onClick={onLogout}
-                            className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 w-full sm:w-auto justify-center"
-                        >
-                            <LogOut className="h-4 w-4" />
-                            Logout
-                        </Button>
-                    </div>
-
-                    <Button onClick={onEdit} className="flex items-center gap-2 w-full sm:w-auto justify-center">
-                        <Edit className="h-4 w-4" />
-                        Edit Profile
-                    </Button>
-                </div>
-
-                {/* Delete Account Button - Separate row for emphasis */}
-                <div className="pt-2 border-t border-gray-200">
-                    <Button
-                        variant="outline"
-                        onClick={onDeleteAccount}
-                        className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 w-full sm:w-auto justify-center"
-                    >
-                        <Trash2 className="h-4 w-4" />
-                        Delete Account
-                    </Button>
-                </div>
-            </div>
         </div>
     );
 }
@@ -493,76 +463,89 @@ function ProfileView({ profile, onEdit, onLogout, onDeleteAccount }: ProfileView
 /**
  * Profile Form Component
  * Handles creating/editing profile information
+ * Supports glassmorphic design for overlay backgrounds
  */
 interface ProfileFormProps {
     form: any;
     onSubmit: (data: ProfileFormData) => void;
     isLoading: boolean;
     onCancel?: () => void;
+    glassmorphic?: boolean;
 }
 
-function ProfileForm({ form, onSubmit, isLoading, onCancel }: ProfileFormProps) {
+function ProfileForm({ form, onSubmit, isLoading, onCancel, glassmorphic = false }: ProfileFormProps) {
+    const inputClasses = glassmorphic
+        ? "bg-white/50 border border-gray-200 text-gray-900 placeholder:text-gray-500 rounded-md px-3 py-2 shadow-sm focus:ring-2 focus:ring-blue-200"
+        : "";
+    const labelClasses = glassmorphic ? "text-gray-700 font-medium" : "";
+    const buttonClasses = glassmorphic ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded-md px-4 py-2" : "";
+
     return (
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                    <Label htmlFor="fullName">Full Name *</Label>
+            <div className="space-y-4">
+                <div>
+                    <Label htmlFor="fullName" className={labelClasses}>Full Name *</Label>
                     <Input
                         id="fullName"
                         {...form.register("fullName")}
                         placeholder="Enter your full name"
+                        className={inputClasses}
                     />
                     {form.formState.errors.fullName && (
-                        <p className="text-sm text-red-600 mt-1">
+                        <p className="text-sm text-red-400 mt-1">
                             {form.formState.errors.fullName.message}
                         </p>
                     )}
                 </div>
 
-                <div className="md:col-span-2">
-                    <Label htmlFor="email">Email Address *</Label>
+                <div>
+                    <Label htmlFor="email" className={labelClasses}>Email Address *</Label>
                     <Input
                         id="email"
                         type="email"
                         {...form.register("email")}
                         placeholder="Enter your email address"
+                        className={inputClasses}
                     />
                     {form.formState.errors.email && (
-                        <p className="text-sm text-red-600 mt-1">
+                        <p className="text-sm text-red-400 mt-1">
                             {form.formState.errors.email.message}
                         </p>
                     )}
                 </div>
 
                 <div>
-                    <Label htmlFor="phoneNumber">Phone Number</Label>
+                    <Label htmlFor="phoneNumber" className={labelClasses}>Phone Number</Label>
                     <Input
                         id="phoneNumber"
                         {...form.register("phoneNumber")}
                         placeholder="Enter your phone number"
+                        className={inputClasses}
                     />
                 </div>
 
                 <div>
-                    <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                    <Label htmlFor="dateOfBirth" className={labelClasses}>Date of Birth</Label>
                     <Input
                         id="dateOfBirth"
                         type="date"
                         {...form.register("dateOfBirth")}
-                    />
-                </div>
-
-                <div className="md:col-span-2">
-                    <Label htmlFor="schoolName">School/College Name</Label>
-                    <Input
-                        id="schoolName"
-                        {...form.register("schoolName")}
-                        placeholder="Enter your school or college name"
+                        className={inputClasses}
                     />
                 </div>
 
                 <div>
-                    <Label htmlFor="targetExamYear">Target Exam Year</Label>
+                    <Label htmlFor="schoolName" className={labelClasses}>School/College Name</Label>
+                    <Input
+                        id="schoolName"
+                        {...form.register("schoolName")}
+                        placeholder="Enter your school or college name"
+                        className={inputClasses}
+                    />
+                </div>
+
+                <div>
+                    <Label htmlFor="targetExamYear" className={labelClasses}>Target Exam Year</Label>
                     <Input
                         id="targetExamYear"
                         type="number"
@@ -570,17 +553,27 @@ function ProfileForm({ form, onSubmit, isLoading, onCancel }: ProfileFormProps) 
                         placeholder="2025"
                         min="2024"
                         max="2030"
+                        className={inputClasses}
                     />
                 </div>
             </div>
 
-            <div className="pt-4 flex flex-col sm:flex-row sm:justify-end sm:items-center gap-3">
+            <div className="pt-4 flex flex-col-reverse sm:flex-row sm:justify-end sm:items-center gap-3">
                 {onCancel && (
-                    <Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto">
+                    <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={onCancel} 
+                        className={`w-full sm:w-auto ${buttonClasses}`}
+                    >
                         Cancel
                     </Button>
                 )}
-                <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+                <Button
+                    type="submit"
+                    disabled={isLoading}
+                    className={`w-full sm:w-auto ${glassmorphic ? 'bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2' : ''}`}
+                >
                     {isLoading ? "Saving..." : "Save Profile"}
                 </Button>
             </div>

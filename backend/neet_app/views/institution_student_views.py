@@ -157,6 +157,8 @@ def list_institution_tests(request, institution_id):
                 'time_limit': test.time_limit,
                 'instructions': test.instructions,
                 'description': test.description,
+                'scheduled_date_time': test.scheduled_date_time.isoformat() if test.scheduled_date_time else None,
+                'expires_at': test.expires_at.isoformat() if test.expires_at else None,
                 'created_at': test.created_at.isoformat()
             })
         

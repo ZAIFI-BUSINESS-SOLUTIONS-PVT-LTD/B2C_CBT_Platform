@@ -46,12 +46,12 @@ export default function PenguinOverlay({ isPlaying, onComplete }: PenguinOverlay
           {/* Animated glow effect */}
           {isPlaying && (
             <div className="absolute inset-0 animate-pulse">
-              <div className="w-48 h-48 bg-blue-500/30 rounded-full blur-3xl" />
+              <div className="w-96 h-96 bg-blue-500/30 rounded-full blur-3xl" />
             </div>
           )}
           
-          {/* Penguin illustration */}
-          <div className="relative w-48 h-48 flex items-center justify-center">
+          {/* Penguin illustration - placed in a separate container and doubled in size */}
+          <div className="relative w-96 h-96 flex items-center justify-center">
             {/* Simple penguin SVG (replace with your actual penguin asset) */}
             <svg
               viewBox="0 0 200 200"
@@ -133,12 +133,6 @@ export default function PenguinOverlay({ isPlaying, onComplete }: PenguinOverlay
               {isPlaying ? 'Listening to Insights...' : 'Audio Complete'}
             </h3>
           </div>
-          
-          {isPlaying && (
-            <p className="text-gray-300 text-sm">
-              Your performance feedback is being narrated
-            </p>
-          )}
         </div>
 
         {/* Audio indicator */}

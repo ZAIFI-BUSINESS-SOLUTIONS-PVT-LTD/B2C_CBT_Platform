@@ -3,7 +3,16 @@ import PaymentButtons from '@/components/PaymentButtons';
 
 const PaymentPage: React.FC = () => {
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div 
+            className="min-h-screen"
+            style={{
+                backgroundImage: 'url(/payment-bg.png)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+                backgroundAttachment: 'fixed'
+            }}
+        >
             <div className="max-w-7xl mx-auto">
                 <PaymentButtons />
             </div>

@@ -732,3 +732,102 @@ def generate_test_focus_zone(request, test_id):
             'status': 'error',
             'message': f'Internal server error: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_advanced_metrics(request, test_id):
+    """
+    Get advanced metrics (g_phrase, focus_zone, repeated_mistake) for a test.
+    Returns immediately with current state - does not trigger generation.
+    
+    URL: /api/zone-insights/advanced/<test_id>/
+    
+    Returns:
+    {
+        "status": "success",
+        "test_id": 123,
+        "test_type": "platform",
+        "is_ready": true,
+        "g_phrase": "Dr. Khadeejah, 200 marks are recoverable...",
+        "focus_zone": {...},
+        "repeated_mistakes": {...},
+        "message": "Data available" or "Processing..." or "Not applicable for custom tests"
+    }
+    """
+    try:
+        student_id = _resolve_student_id_from_request(request)
+        if not student_id:
+            return Response({
+                'status': 'error',
+                'message': 'User not properly authenticated'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Verify test ownership and completion
+        test = get_object_or_404(
+            TestSession,
+            id=test_id,
+            student_id=student_id,
+            is_completed=True
+        )
+        
+        # For custom tests, return empty data immediately
+        if test.test_type != 'platform':
+            return Response({
+                'status': 'success',
+                'test_id': test_id,
+                'test_type': test.test_type,
+                'is_ready': True,
+                'g_phrase': None,
+                'focus_zone': {},
+                'repeated_mistakes': {},
+                'message': 'Advanced metrics are only available for platform tests'
+            })
+        
+        # Try to fetch existing insight row
+        insight = TestSubjectZoneInsight.objects.filter(
+            test_session_id=test_id,
+            student_id=student_id
+        ).first()
+        
+        if not insight:
+            return Response({
+                'status': 'success',
+                'test_id': test_id,
+                'test_type': test.test_type,
+                'is_ready': False,
+                'g_phrase': None,
+                'focus_zone': {},
+                'repeated_mistakes': {},
+                'message': 'Zone insights not yet generated. Please call /api/zone-insights/test/<test_id>/ first.'
+            })
+        
+        # Check if advanced metrics are ready
+        has_g_phrase = bool(insight.g_phrase)
+        has_focus_zone = bool(insight.focus_zone and len(insight.focus_zone) > 0)
+        has_repeated_mistakes = bool(insight.repeated_mistake and len(insight.repeated_mistake) > 0)
+        
+        is_ready = has_g_phrase or has_focus_zone or has_repeated_mistakes
+        
+        return Response({
+            'status': 'success',
+            'test_id': test_id,
+            'test_type': test.test_type,
+            'is_ready': is_ready,
+            'g_phrase': insight.g_phrase,
+            'focus_zone': insight.focus_zone or {},
+            'repeated_mistakes': insight.repeated_mistake or {},
+            'message': 'Data available' if is_ready else 'Processing...'
+        })
+        
+    except TestSession.DoesNotExist:
+        return Response({
+            'status': 'error',
+            'message': 'Test not found or access denied'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error in get_advanced_metrics: {str(e)}")
+        return Response({
+            'status': 'error',
+            'message': f'Internal server error: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

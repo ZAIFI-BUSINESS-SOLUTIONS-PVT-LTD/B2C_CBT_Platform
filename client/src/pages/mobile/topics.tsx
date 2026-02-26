@@ -14,7 +14,7 @@ import { getAvailablePlatformTests, startPlatformTest } from "@/config/api";
 import { API_CONFIG } from "@/config/api";
 import { authenticatedFetch } from "@/lib/auth";
 import { useAuth } from "@/contexts/AuthContext";
-import { AlertCircle, Star } from "lucide-react";
+import { AlertCircle, Star, Crown, Edit3, BookOpen } from "lucide-react";
 import SubscriptionRequiredModal from "@/components/SubscriptionRequiredModal";
 import { APIError } from "@/lib/queryClient";
 
@@ -53,7 +53,7 @@ export default function Topics() {
 
   const streak = qodData?.streak ?? 0;
 
-  // Find the first active/open test that student hasn't completed
+  // Find active tests prioritized by earliest expires_at (expiring soonest first)
   const activeTest = useMemo(() => {
     if (!platformTests) return null;
     const all = [
@@ -61,7 +61,8 @@ export default function Topics() {
       ...(platformTests.openTests ?? []),
     ];
 
-    // Normalize and find first available test not completed
+    // Normalize all tests and filter available ones not completed
+    const availableTests = [];
     for (const t of all) {
       if ((t as any).hasCompleted) continue;
       const test = {
@@ -69,17 +70,43 @@ export default function Topics() {
         timeLimit: t.timeLimit ?? (t as any).duration ?? (t as any).time_limit ?? 0,
         totalQuestions: t.totalQuestions ?? (t as any).total_questions ?? 0,
         scheduledDateTime: t.scheduledDateTime ?? (t as any).scheduled_date_time ?? null,
+        expiresAt: (t as any).expiresAt ?? (t as any).expires_at ?? null,
       };
       // Check if active or open
       const backendIsAvailable = (test as any).isAvailableNow ?? (test as any).is_available_now;
-      if (backendIsAvailable === true) return test;
-      if (!test.scheduledDateTime) return test; // open test
+      if (backendIsAvailable === true) {
+        availableTests.push(test);
+        continue;
+      }
+      if (!test.scheduledDateTime) {
+        availableTests.push(test); // open test
+        continue;
+      }
+      // Manual availability check
       const now = new Date();
       const scheduled = new Date(test.scheduledDateTime);
-      const endTime = new Date(scheduled.getTime() + (test.timeLimit * 60 * 1000));
-      if (now >= scheduled && now <= endTime) return test;
+      if (test.expiresAt) {
+        const expires = new Date(test.expiresAt);
+        if (now >= scheduled && now <= expires) availableTests.push(test);
+      } else {
+        // Fallback: use timeLimit if expires_at not set
+        const endTime = new Date(scheduled.getTime() + (test.timeLimit * 60 * 1000));
+        if (now >= scheduled && now <= endTime) availableTests.push(test);
+      }
     }
-    return null;
+
+    // If no available tests, return null
+    if (availableTests.length === 0) return null;
+
+    // Sort by expires_at ascending (earliest expiring first)
+    availableTests.sort((a, b) => {
+      const aExpires = a.expiresAt ? new Date(a.expiresAt).getTime() : Infinity;
+      const bExpires = b.expiresAt ? new Date(b.expiresAt).getTime() : Infinity;
+      return aExpires - bExpires;
+    });
+
+    // Return the test that expires soonest
+    return availableTests[0];
   }, [platformTests]);
 
   // Get last completed session for performance fallback
@@ -126,9 +153,21 @@ export default function Topics() {
       {/* Page header */}
       <header className="sticky top-0 z-10 px-5 pt-5 pb-3">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">NEET Bro</h1>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center -mt-4">
+            <img src="/NEET Bro.png" alt="NEET Bro" className="h-[4.4rem] object-contain" />
+          </div>
+          <div className="flex items-center gap-3 -mt-2">
+            {/* Crown shortcut placed to the right of profile avatar */}
+            <button
+              onClick={() => navigate('/payment')}
+              aria-label="Go to Payment"
+              className="h-8 w-8 rounded-full flex items-center justify-center bg-blue-600 border-2 border-blue-900 shadow-sm"
+            >
+              <Crown className="h-4 w-4 text-white" />
+            </button>
             <StudentProfile avatarClassName="h-8 w-8" />
+
+            
           </div>
         </div>
       </header>
@@ -154,16 +193,14 @@ export default function Topics() {
         {/* ──── 3. Bottom: Create Test + Previous Year Papers ──── */}
         <div className="grid grid-cols-2 gap-3 mt-6">
           <BottomCard
-            icon="🎯"
+            icon={<Edit3 className="h-5 w-5 text-blue-600" />}
             title="Create Your Own Test"
-            subtitle="Choose chapters, number of questions and time"
             buttonLabel="Create"
             onClick={() => setShowQuickTest(true)}
           />
           <BottomCard
-            icon="📋"
+            icon={<BookOpen className="h-5 w-5 text-blue-600" />}
             title="Previous Year Papers"
-            subtitle="Practice real NEET question papers"
             buttonLabel="View Papers"
             onClick={() => {/* PYQs route – TODO */}}
           />
@@ -187,51 +224,57 @@ export default function Topics() {
    ────────────────────────────────────────────── */
 function QODCard({ streak, qodData, onClick }: { streak: number; qodData: any; onClick: () => void }) {
   const questionText = qodData?.qod?.questionData?.question;
-  // Truncate for preview
+  // Truncate for preview: show start then '...' with no trailing text
   const preview = questionText
-    ? questionText.length > 60 ? questionText.slice(0, 60) + '…' : questionText
+    ? questionText.length > 30
+      ? questionText.slice(0, 30) + '...'
+      : questionText
     : 'Test your knowledge daily!';
 
   return (
-    <Card
-      onClick={onClick}
-      className="rounded-2xl border-0 cursor-pointer overflow-hidden shadow-md bg-white/40 backdrop-blur-md"
-    >
-      <CardContent className="p-4 flex items-center gap-3">
-        {/* Left content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">⚠️</span>
-            <h3 className="text-base font-bold text-slate-800">Question of the Day</h3>
-          </div>
-          <p className="text-xs text-slate-600 mb-2">Solve:</p>
-          <p className="text-sm text-slate-700 leading-snug truncate">{preview}</p>
-          <Button
-            size="sm"
-            className="mt-3 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-full px-5 py-1 h-7"
-          >
-            Solve Now
-          </Button>
-        </div>
-
-        {/* Right: Penguin + Streak */}
-        <div className="flex-shrink-0 flex flex-col items-center">
-          <img
-            src="/streak-penguin.png"
-            alt="Penguin mascot"
-            className="object-contain"
-            style={{ width: '6.5rem', height: '6.5rem' }}
-          />
-          {streak > 0 && (
-            <div className="flex items-center gap-1 bg-white text-black text-xs font-bold rounded-full px-3 py-1 -mt-1 shadow-md">
-              <span className="text-sm">🔥</span>
-              <span>{streak}</span>
-              <span className="text-[10px] font-medium">Day Streak</span>
+    <div className="relative">
+      <Card
+        onClick={onClick}
+            className="rounded-2xl border cursor-pointer overflow-hidden bg-white/30 mt-6"
+        style={{
+          backgroundImage: "url('/s-penguin.png')",
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center',
+          backgroundSize: 'cover',
+          boxShadow: '0 8px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)',
+          border: '1px solid rgba(255,255,255,0.95)'
+        }}
+      >
+        <CardContent className="p-4 flex items-center gap-3">
+          {/* Left content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">⚠️</span>
+              <h3 className="text-xl font-extrabold text-slate-800">Question of the Day</h3>
             </div>
-          )}
+            <p className="text-xs text-slate-600 mb-2">Solve:</p>
+            <p className="text-sm text-slate-700 leading-snug truncate whitespace-nowrap">{preview}</p>
+            <Button
+              size="sm"
+              className="mt-3 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-full px-5 py-1 h-7"
+            >
+              Solve Now
+            </Button>
+          </div>
+
+          {/* NOTE: Penguin and streak moved out into overlapping container below */}
+        </CardContent>
+      </Card>
+
+      {/* Streak badge at bottom-right of the QOD card (removed penguin container) */}
+      <div className="absolute bottom-3 right-3 z-20 pointer-events-auto">
+        <div className="flex items-center gap-2 bg-white text-black text-xs font-bold rounded-full px-3 py-1 shadow-md">
+          <span className="text-sm">🔥</span>
+          <span className="text-sm">{streak ?? 0}</span>
+          <span className="text-[10px] font-medium">Day Streak</span>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -255,17 +298,44 @@ function CenterTestCard({
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [subscriptionMessage, setSubscriptionMessage] = useState('');
 
-  // Countdown timer for active test
+  // Countdown timer for active test (uses expires_at as end time)
   const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
-    if (!activeTest?.scheduledDateTime) {
+    if (!activeTest) {
       setTimeLeft('');
       return;
     }
-    const endTime = new Date(
-      new Date(activeTest.scheduledDateTime).getTime() + (activeTest.timeLimit ?? 0) * 60 * 1000
-    );
+
+    // Get expires_at from backend (authoritative end time)
+    const expiresAt = (activeTest as any).expiresAt ?? (activeTest as any).expires_at ?? null;
+    
+    if (!expiresAt) {
+      // Fallback: if expires_at not set, calculate from scheduled + timeLimit
+      if (!activeTest.scheduledDateTime) {
+        setTimeLeft('');
+        return;
+      }
+      const endTime = new Date(
+        new Date(activeTest.scheduledDateTime).getTime() + (activeTest.timeLimit ?? 0) * 60 * 1000
+      );
+      const tick = () => {
+        const diff = endTime.getTime() - Date.now();
+        if (diff <= 0) {
+          setTimeLeft('Expired');
+          return;
+        }
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        setTimeLeft(`${h}h ${m.toString().padStart(2, '0')}m`);
+      };
+      tick();
+      const id = setInterval(tick, 30000);
+      return () => clearInterval(id);
+    }
+
+    // Use expires_at as authoritative end time
+    const endTime = new Date(expiresAt);
 
     const tick = () => {
       const diff = endTime.getTime() - Date.now();
@@ -309,13 +379,16 @@ function CenterTestCard({
     const testName = activeTest.testName || 'Platform Test';
     return (
       <>
-        <Card className="rounded-2xl border-0 shadow-md bg-white/40 backdrop-blur-md overflow-hidden mt-8">
+            <Card
+              className="rounded-2xl border overflow-hidden bg-white/30"
+                style={{ marginTop: '20vh', boxShadow: '0 8px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)', border: '1px solid rgba(255,255,255,0.95)' }}
+              >
           <CardContent className="p-5">
             <div className="flex items-start justify-between mb-1">
               <div>
                 <h2 className="text-xl font-extrabold text-slate-800">{testName}</h2>
                 <p className="text-sm text-slate-600 mt-0.5">
-                  {activeTest.totalQuestions} Questions · {activeTest.timeLimit} Minutes
+                  {activeTest.totalQuestions} Question1056s · {activeTest.timeLimit} 2Minutes
                 </p>
               </div>
               {timeLeft && timeLeft !== 'Expired' && (
@@ -377,7 +450,10 @@ function CenterTestCard({
     })();
 
     return (
-      <Card className="rounded-2xl border-0 shadow-lg bg-white/70 backdrop-blur-md overflow-hidden">
+      <Card
+         className="rounded-2xl border overflow-hidden bg-transparent"
+          style={{ boxShadow: '0 8px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)', border: '1px solid rgba(255,255,255,0.95)' }}
+      >
         <CardContent className="p-5">
           <h2 className="text-xl font-extrabold text-slate-800">{testName}</h2>
           <p className="text-sm text-slate-600 mt-0.5">
@@ -414,7 +490,10 @@ function CenterTestCard({
 
   // ─── No data at all ───
   return (
-    <Card className="rounded-2xl border-0 shadow-md bg-white/40 backdrop-blur-md overflow-hidden">
+    <Card
+      className="rounded-2xl border overflow-hidden bg-white/30"
+      style={{ boxShadow: '0 8px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)', border: '1px solid rgba(255,255,255,0.95)' }}
+    >
       <CardContent className="p-6 text-center">
         <p className="text-slate-600 text-sm">No tests available yet. Check back soon!</p>
       </CardContent>
@@ -429,24 +508,25 @@ function CenterTestCard({
 function BottomCard({
   icon,
   title,
-  subtitle,
   buttonLabel,
   onClick,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
-  subtitle: string;
   buttonLabel: string;
   onClick: () => void;
 }) {
   return (
     <Card
       onClick={onClick}
-      className="rounded-2xl border-0 shadow-md bg-white/40 backdrop-blur-md cursor-pointer overflow-hidden mt-8"
+      className="rounded-2xl border cursor-pointer overflow-hidden bg-white/30 mt-3"
+      style={{ boxShadow: '0 8px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)', border: '1px solid rgba(255,255,255,0.95)' }}
     >
-      <CardContent className="p-4 flex flex-col h-full">
-        <h3 className="text-sm font-bold text-slate-800 leading-tight">{title}</h3>
-        <p className="text-[11px] text-slate-500 mt-1 flex-1">{subtitle}</p>
+      <CardContent className="p-4 flex flex-col h-full items-center -mb-2">
+        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm mt-2 mb-3">
+          {icon}
+        </div>
+        <h3 className="text-xl font-extrabold text-slate-800 leading-tight text-center">{title}</h3>
         <Button
           size="sm"
           variant="outline"
