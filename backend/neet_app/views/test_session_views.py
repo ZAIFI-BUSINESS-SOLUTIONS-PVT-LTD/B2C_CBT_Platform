@@ -652,7 +652,7 @@ class TestSessionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def quit(self, request, pk=None):
         """
-        Quits a test session and marks it as incomplete.
+        Quits a test session and marks it as completed.
         Only allows access to user's own sessions.
         """
         # Ensure only authenticated user's sessions are accessible
@@ -665,17 +665,17 @@ class TestSessionViewSet(viewsets.ModelViewSet):
         if session.is_completed:
             raise AppValidationError(message='Cannot quit a completed test session.')
 
-        # Mark the session as incomplete and set end time
-        session.is_completed = False  # Explicitly mark as incomplete
+        # Mark the session as completed and set end time
+        session.is_completed = True  # Mark as completed when user quits
         session.end_time = timezone.now()
         session.save(update_fields=['is_completed', 'end_time'])
 
-        logger.info(f"Test session {session.id} marked as incomplete (quit by user)")
+        logger.info(f"Test session {session.id} marked as completed (quit by user)")
 
         return Response({
-            "message": "Test session has been marked as incomplete.",
+            "message": "Test session has been marked as completed.",
             "session_id": session.id,
-            "status": "incomplete"
+            "status": "completed"
         }, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])

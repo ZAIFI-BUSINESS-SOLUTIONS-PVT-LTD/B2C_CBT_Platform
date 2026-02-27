@@ -89,3 +89,23 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Disable text selection across the app to prevent copying of test content.
+   Allow selection for form controls, links, code blocks, and elements with
+   the `.allow-select` utility when selection is intentionally required. */
+@layer base {
+  html, body, #root, .app {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  /* Re-enable selection for interactive controls and explicitly allowed elements */
+  input, textarea, select, button, a, code, pre, [contenteditable="true"], .allow-select {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+  }
+}

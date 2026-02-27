@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -113,13 +113,21 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
   const [selectedSubject, setSelectedSubject] = useState<string>("Overall");
   const [loading, setLoading] = useState(true);
   const [advancedMetrics, setAdvancedMetrics] = useState<any>(null);
-  const [advancedLoading, setAdvancedLoading] = useState(false);
+  const [advancedLoading, setAdvancedLoading] = useState(true); // Start as true to show loading immediately
+  const [isCustomTest, setIsCustomTest] = useState(false); // Track if this is a custom test
   const [selectedMistake, setSelectedMistake] = useState<any>(null);
   const [showMistakeDialog, setShowMistakeDialog] = useState(false);
+  const [pollingCount, setPollingCount] = useState(0); // Track polling attempts for user feedback
+  const pollingCountRef = useRef(0); // Use ref to track count across async calls
 
   useEffect(() => {
     if (results.sessionId) {
+      console.log('🔄 ResultsDisplay mounted, fetching insights for session:', results.sessionId);
       fetchZoneInsights(results.sessionId);
+      setAdvancedLoading(true); // Ensure loading is true before fetching
+      setIsCustomTest(false); // Reset custom test flag
+      setPollingCount(0); // Reset polling count
+      pollingCountRef.current = 0; // Reset ref
       fetchAdvancedMetrics(results.sessionId);
     }
   }, [results.sessionId]);
@@ -146,7 +154,7 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
 
   const fetchAdvancedMetrics = async (sessionId: number) => {
     try {
-      setAdvancedLoading(true);
+      console.log('📡 Fetching advanced metrics, advancedLoading state:', advancedLoading);
       const url = `${API_CONFIG.BASE_URL}/api/zone-insights/advanced/${sessionId}/`;
       const response = await authenticatedFetch(url);
 
@@ -155,7 +163,7 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
       }
 
       const data = await response.json();
-      console.log('Advanced Metrics Data:', data);
+      console.log('📊 Advanced Metrics Data:', data);
 
       // Normalize camelCase/snake_case from API
       const testType = data.testType || data.test_type;
@@ -166,11 +174,22 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
 
       // Skip polling for custom tests
       if (testType === 'custom') {
+        console.log('⚠️ Custom test detected, skipping advanced metrics');
+        setIsCustomTest(true);
         setAdvancedLoading(false);
         return;
       }
 
-      if (isReady) {
+      // Check if data is actually ready (not just is_ready flag, but also has content)
+      // We need BOTH focus_zone AND repeated_mistakes to have data before showing results
+      const hasFocusZoneData = focusZone && Object.keys(focusZone).length > 0;
+      const hasRepeatedMistakesData = repeatedMistakes && Object.keys(repeatedMistakes).length > 0;
+      const hasActualData = hasFocusZoneData && hasRepeatedMistakesData;
+      
+      console.log('🔍 Data check:', { isReady, hasFocusZoneData, hasRepeatedMistakesData, hasActualData });
+
+      if (isReady && hasActualData) {
+        console.log('✅ Advanced metrics ready with actual data, displaying results');
         setAdvancedMetrics({
           is_ready: isReady,
           g_phrase: gPhrase,
@@ -178,15 +197,34 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
           repeated_mistakes: repeatedMistakes,
         });
         setAdvancedLoading(false);
+        setPollingCount(0);
+        pollingCountRef.current = 0;
       } else {
-        // Poll every 3 seconds until data is ready
+        // Increment polling count using ref (persists across async calls)
+        pollingCountRef.current += 1;
+        const currentCount = pollingCountRef.current;
+        setPollingCount(currentCount); // Update UI state
+        
+        // Stop polling after 20 attempts (60 seconds) to prevent infinite loops
+        if (currentCount >= 20) {
+          console.log('⚠️ Max polling attempts reached, stopping');
+          setAdvancedLoading(false);
+          setPollingCount(0);
+          pollingCountRef.current = 0;
+          return;
+        }
+        
+        console.log(`⏳ Advanced metrics not ready yet (isReady: ${isReady}, hasData: ${hasActualData}), polling again... (attempt ${currentCount})`);
+        // Keep advancedLoading true and poll every 3 seconds
         setTimeout(() => {
           fetchAdvancedMetrics(sessionId);
         }, 3000);
       }
     } catch (error) {
-      console.error('Error fetching advanced metrics:', error);
+      console.error('❌ Error fetching advanced metrics:', error);
       setAdvancedLoading(false);
+      setPollingCount(0);
+      pollingCountRef.current = 0;
     }
   };
 
@@ -282,11 +320,60 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
 
   const currentMetrics = getSubjectMetrics();
   
+  // Get subject-specific time spent data
+  const getSubjectTimeSpent = (): { total: number; correct: number; incorrect: number; skipped: number } => {
+    // If "Overall" is selected, use testInfo.timeSpent
+    if (selectedSubject === "Overall") {
+      const overallTime = testInfo?.timeSpent || testInfo?.time_spent;
+      return {
+        total: overallTime?.totalTimeSpent ?? overallTime?.total_time_spent ?? 0,
+        correct: overallTime?.correctTimeSpent ?? overallTime?.correct_time_spent ?? 0,
+        incorrect: overallTime?.incorrectTimeSpent ?? overallTime?.incorrect_time_spent ?? 0,
+        skipped: overallTime?.skippedTimeSpent ?? overallTime?.skipped_time_spent ?? 0
+      };
+    }
+
+    // Try to find subject-specific time spent from zoneSubjects array
+    if (Array.isArray(zoneSubjects) && zoneSubjects.length > 0) {
+      const zs = zoneSubjects.find((s: any) => {
+        const name = s.subject || (s.subjectData && (s.subjectData.subjectName || s.subjectData.subject_name));
+        return name === selectedSubject;
+      });
+      if (zs && zs.timeSpent) {
+        const ts = zs.timeSpent || zs.time_spent;
+        console.log('Found timeSpent for subject:', selectedSubject, ts);
+        return {
+          total: ts.totalTimeSpent ?? ts.total_time_spent ?? 0,
+          correct: ts.correctTimeSpent ?? ts.correct_time_spent ?? 0,
+          incorrect: ts.incorrectTimeSpent ?? ts.incorrect_time_spent ?? 0,
+          skipped: ts.skippedTimeSpent ?? ts.skipped_time_spent ?? 0
+        };
+      }
+    }
+
+    // Fallback: try subjectMarks if it has time data
+    const subjectData = subjectMarks[selectedSubject];
+    if (subjectData && (subjectData.timeSpent || subjectData.time_spent)) {
+      const ts = subjectData.timeSpent || subjectData.time_spent;
+      return {
+        total: ts.totalTimeSpent ?? ts.total_time_spent ?? 0,
+        correct: ts.correctTimeSpent ?? ts.correct_time_spent ?? 0,
+        incorrect: ts.incorrectTimeSpent ?? ts.incorrect_time_spent ?? 0,
+        skipped: ts.skippedTimeSpent ?? ts.skipped_time_spent ?? 0
+      };
+    }
+
+    console.log('No time spent data found for subject:', selectedSubject);
+    return { total: 0, correct: 0, incorrect: 0, skipped: 0 };
+  };
+
+  const currentTimeSpent = getSubjectTimeSpent();
+  
   // Get time breakdown - use zone insights data
-  const totalTimeSpent = timeSpent?.totalTimeSpent ?? timeSpent?.total_time_spent ?? 0;
-  const correctTimeSpent = timeSpent?.correctTimeSpent ?? timeSpent?.correct_time_spent ?? 0;
-  const incorrectTimeSpent = timeSpent?.incorrectTimeSpent ?? timeSpent?.incorrect_time_spent ?? 0;
-  const skippedTimeSpent = timeSpent?.skippedTimeSpent ?? timeSpent?.skipped_time_spent ?? 0;
+  const totalTimeSpent = currentTimeSpent.total;
+  const correctTimeSpent = currentTimeSpent.correct;
+  const incorrectTimeSpent = currentTimeSpent.incorrect;
+  const skippedTimeSpent = currentTimeSpent.skipped;
 
   // Calculate percentages for time bars
   const correctTimePercent = totalTimeSpent > 0 ? (correctTimeSpent / totalTimeSpent) * 100 : 0;
@@ -315,48 +402,59 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
   
   const subjects = ["Overall", ...availableSubjects];
 
-  return (
-    <div 
-      className="min-h-screen pb-6 pt-4 px-4 bg-cover bg-center bg-no-repeat"
-      style={{
-        backgroundImage: 'url(/testpage-bg.png)'
-      }}
-    >
-      <div className="max-w-2xl mx-auto space-y-4">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center">
-              <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading detailed insights...</p>
+  if (loading) {
+    return (
+      <>
+        <div className="flex-shrink-0 pt-4 px-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-center justify-center py-20">
+              <div className="text-center">
+                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading detailed insights...</p>
+              </div>
             </div>
           </div>
-        ) : (
-          <>
-            {/* Penguin Card with Marks - use mark-bg.png as full card background */}
+        </div>
+      </>
+    );
+  }
+
+  // Log current state before rendering
+  console.log('🎨 Rendering ResultsDisplay - advancedLoading:', advancedLoading, 'pollingCount:', pollingCount, 'advancedMetrics:', advancedMetrics, 'isCustomTest:', isCustomTest);
+
+  // Determine if we should show loading for advanced metrics
+  const showAdvancedLoading = !isCustomTest && (advancedLoading || !advancedMetrics || !advancedMetrics.is_ready);
+  console.log('🎯 showAdvancedLoading:', showAdvancedLoading);
+
+  return (
+    <>
+      {/* Fixed Top Section - Penguin Card */}
+      <div className="flex-shrink-0 pt-4 px-4 pb-3">
+        <div className="max-w-2xl mx-auto">
             <Card
               className="rounded-2xl border border-[#E2E8F0] bg-transparent"
               style={{
-                backgroundImage: "url('/mark-bg.png')",
+                backgroundImage: "url('/mark-bg.webp')",
                 backgroundRepeat: 'no-repeat',
                 backgroundPosition: 'center',
                 backgroundSize: 'cover'
               }}
             >
-            <CardContent className="p-3">
+            <CardContent className="p-1">
             {/* Top Section: Summary (Attempted, Marks, Accuracy) without icons */}
             <div className="flex items-center justify-between mb-4">
               {/* Left: Attempted */}
               <div
-                className="flex flex-col items-center -ml-1 -mt-19"
+                className="flex flex-col items-center ml-2 -mt-23"
                 style={{
-                  backgroundImage: "url('/clock.png')",
+                  backgroundImage: "url('/clock.webp')",
                   backgroundRepeat: 'no-repeat',
                   backgroundPosition: 'center 6px',
-                  backgroundSize: '65px',
-                  paddingTop: '130px'
+                  backgroundSize: '55px',
+                  paddingTop: '160px'
                 }}
               >
-                <div className="text-2xl font-bold text-gray-800 -mt-14">
+                <div className="text-2xl font-bold text-gray-800 -mt-16">
                   {results.totalQuestions - results.unansweredQuestions}
                   <span className="text-lg text-gray-500">/{results.totalQuestions}</span>
                 </div>
@@ -366,7 +464,7 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
               {/* Center: Marks Obtained */}
                 <div
                   className="flex flex-col items-center flex-1 mx-4 bg-no-repeat bg-center -mt-16"
-                  style={{ backgroundImage: "url('/score.png')", backgroundRepeat: 'no-repeat', backgroundPosition: 'center 6px', backgroundSize: '220px' }}
+                  style={{ backgroundImage: "url('/score.webp')", backgroundRepeat: 'no-repeat', backgroundPosition: 'center 6px', backgroundSize: '220px' }}
                 >
                   <div className="text-3xl font-bold text-white mt-40">
                     {totalMarks}
@@ -376,9 +474,9 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
 
               {/* Right: Accuracy */}
               <div
-                className="flex flex-col items-center -mr-1 -mt-12"
+                className="flex flex-col items-center mr-2 -mt-12"
                 style={{
-                  backgroundImage: "url('/target.png')",
+                  backgroundImage: "url('/target.webp')",
                   backgroundRepeat: 'no-repeat',
                   backgroundPosition: 'center 6px',
                   backgroundSize: '60px',
@@ -393,6 +491,12 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
             </div>
           </CardContent>
         </Card>
+        </div>
+      </div>
+
+      {/* Scrollable Content Section */}
+      <div className="flex-1 overflow-y-auto pb-20 pt-2 px-4">
+        <div className="max-w-2xl mx-auto space-y-4">
 
         {/* Subject-wise Breakdown */}
         <Card className="bg-white rounded-2xl border border-[#E2E8F0] shadow-lg">
@@ -491,16 +595,64 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
         </Card>
 
         {/* Advanced Metrics Sections */}
-        {advancedLoading ? (
-          <Card className="bg-white rounded-2xl border border-[#E2E8F0] shadow-lg">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-center space-x-3">
-                <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
-                <span className="text-sm text-gray-600">Loading advanced insights...</span>
-              </div>
-            </CardContent>
-          </Card>
-        ) : advancedMetrics && advancedMetrics.is_ready ? (
+        {showAdvancedLoading ? (
+          <div className="space-y-4">
+            {/* Loading card for AI-generated insights */}
+            <Card className="bg-white rounded-2xl border border-[#E2E8F0] shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex flex-col items-center justify-center space-y-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-gray-800">Generating AI Insights</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {pollingCount === 0 
+                        ? "Analyzing your performance..."
+                        : `Processing... (${pollingCount * 3}s elapsed)`
+                      }
+                    </p>
+                    {pollingCount > 0 && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        This may take up to 30 seconds
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Skeleton for Performance Report */}
+            <Card className="bg-white rounded-xl border border-[#E2E8F0] shadow-lg animate-pulse">
+              <CardContent className="p-0">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7 bg-blue-200 rounded-lg"></div>
+                    <div className="h-4 w-32 bg-blue-200 rounded"></div>
+                  </div>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div className="h-3 bg-gray-200 rounded w-full"></div>
+                  <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Skeleton for Repeated Mistakes */}
+            <Card className="bg-white rounded-xl border border-[#E2E8F0] shadow-lg animate-pulse">
+              <CardContent className="p-0">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100 bg-gradient-to-r from-blue-50 to-blue-100">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7 bg-blue-200 rounded-lg"></div>
+                    <div className="h-4 w-32 bg-blue-200 rounded"></div>
+                  </div>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div className="h-3 bg-gray-200 rounded w-4/5"></div>
+                  <div className="h-3 bg-gray-200 rounded w-full"></div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : !isCustomTest && advancedMetrics && advancedMetrics.is_ready ? (
           <>
             {/* G-Phrase Section (transparent, no icon/title) */}
             {advancedMetrics.g_phrase && (
@@ -604,10 +756,9 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
           <Eye className="h-5 w-5 mr-2" />
           Review Answers
         </Button>
-          </>
-        )}
+        </div>
       </div>
-
+      
       {/* Repeated Mistakes Dialog */}
       <Dialog open={showMistakeDialog} onOpenChange={setShowMistakeDialog}>
         <DialogContent className="max-w-2xl bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200">
@@ -657,6 +808,6 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

@@ -265,7 +265,7 @@ export default function MobileOtpLogin({
           </Button>
         )}
 
-        <div className="w-full max-w-xs bg-white/6 p-4 rounded-2xl shadow-inner border border-white/10">
+        <div className="w-full max-w-xs bg-white/6 p-4 rounded-2xl border-2 border-white/30 shadow-lg backdrop-blur-sm">
           <p className="text-sm text-gray-600">
             Enter your mobile number
           </p>
@@ -325,7 +325,7 @@ export default function MobileOtpLogin({
         className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
       >
         <ArrowLeft className="h-4 w-4" />
-        Change mobile number
+        Change Number
       </Button>
 
       <div className="text-center">

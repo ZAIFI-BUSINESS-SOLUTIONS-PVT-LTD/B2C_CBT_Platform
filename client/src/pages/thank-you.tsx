@@ -10,11 +10,9 @@ export default function ThankYou() {
   const handleLogout = async () => {
     try {
       await logout();
+      // Navigation handled by AuthContext logout()
     } catch (e) {
       console.error('Logout failed', e);
-    } finally {
-      // Navigate to login page
-      navigate('/login');
     }
   };
 

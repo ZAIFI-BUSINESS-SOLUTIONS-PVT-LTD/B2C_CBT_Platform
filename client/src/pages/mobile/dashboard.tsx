@@ -28,7 +28,9 @@ export default function LandingDashboard() {
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
       e.preventDefault();
-      navigate('/', { replace: true });
+      // When user presses back from the analysis/dashboard page,
+      // navigate to the topics (test) page instead of home.
+      navigate('/topics', { replace: true });
     };
 
     // Push current state and listen for back navigation
@@ -74,7 +76,7 @@ export default function LandingDashboard() {
     <div
       className="h-screen flex flex-col overflow-hidden bg-cover bg-center bg-no-repeat"
       style={{
-        backgroundImage: 'url(/testpage-bg.png)'
+        backgroundImage: 'url(/testpage-bg.webp)'
       }}
     >
       {/* Fixed Header (transparent) */}

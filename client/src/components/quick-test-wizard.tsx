@@ -66,15 +66,17 @@ const SUBJECTS = [
     bgCls: "bg-blue-50",
     selectedBorderCls: "border-blue-500",
     selectedRingCls: "ring-2 ring-blue-300",
+    checkBgCls: "bg-blue-500",
   },
   {
     value: "Chemistry",
     label: "Chemistry",
     Icon: FlaskConical,
-    textCls: "text-green-600",
-    bgCls: "bg-green-50",
-    selectedBorderCls: "border-green-500",
-    selectedRingCls: "ring-2 ring-green-300",
+    textCls: "text-yellow-600",
+    bgCls: "bg-yellow-50",
+    selectedBorderCls: "border-yellow-500",
+    selectedRingCls: "ring-2 ring-yellow-300",
+    checkBgCls: "bg-yellow-500",
   },
   {
     value: "Botany",
@@ -84,6 +86,7 @@ const SUBJECTS = [
     bgCls: "bg-emerald-50",
     selectedBorderCls: "border-emerald-500",
     selectedRingCls: "ring-2 ring-emerald-300",
+    checkBgCls: "bg-emerald-500",
   },
   {
     value: "Zoology",
@@ -93,6 +96,7 @@ const SUBJECTS = [
     bgCls: "bg-purple-50",
     selectedBorderCls: "border-purple-500",
     selectedRingCls: "ring-2 ring-purple-300",
+    checkBgCls: "bg-purple-500",
   },
 ] as const;
 
@@ -311,7 +315,7 @@ export function QuickTestWizard({ onClose, onInsufficientQuestions }: QuickTestW
   return (
     <div
       className="fixed inset-0 z-[99999] flex flex-col bg-cover bg-center bg-no-repeat"
-      style={{ backgroundImage: "url('/testselection-bg.jpg')" }}
+      style={{ backgroundImage: "url('/testselection-bg.webp')" }}
     >
       {/* Background overlay (removed dark scrim for visual vibrancy) */}
       <div className="absolute inset-0 bg-transparent" />
@@ -368,7 +372,7 @@ export function QuickTestWizard({ onClose, onInsufficientQuestions }: QuickTestW
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                {SUBJECTS.map(({ value, label, Icon, textCls, bgCls, selectedBorderCls, selectedRingCls }) => {
+                {SUBJECTS.map(({ value, label, Icon, textCls, bgCls, selectedBorderCls, selectedRingCls, checkBgCls }) => {
                   const active = selectedSubjects.includes(value);
                   return (
                     <button
@@ -388,7 +392,7 @@ export function QuickTestWizard({ onClose, onInsufficientQuestions }: QuickTestW
                       </div>
                       <span className="text-sm font-semibold text-gray-800">{label}</span>
                       {active && (
-                        <span className="absolute top-2 right-2 size-4 flex items-center justify-center rounded-full bg-green-500 text-white text-[10px] font-bold leading-none">
+                        <span className={`absolute top-2 right-2 size-4 flex items-center justify-center rounded-full ${checkBgCls} text-white text-[10px] font-bold leading-none`}>
                           ✓
                         </span>
                       )}

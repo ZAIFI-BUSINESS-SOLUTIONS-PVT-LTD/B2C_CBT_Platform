@@ -88,7 +88,7 @@ interface StudentProfile {
  * Main Student Profile Component
  * 
  * Restructured with glassmorphic menu-based design
- * - Background: testpage-bg.png
+ * - Background: testpage-bg.webp
  * - Glassmorphic containers
  * - Menu items: Profile, Bookmarks, Logout
  * - Profile modal for editing user details
@@ -220,7 +220,7 @@ export function StudentProfile() {
 
     const handleLogout = async () => {
         await logout();
-        navigate('/topics');
+        // Navigation handled by logout() function in AuthContext
     };
 
     // Show loading state
@@ -237,7 +237,7 @@ export function StudentProfile() {
         return (
             <div 
                 className="min-h-screen w-full bg-cover bg-center bg-no-repeat relative"
-                style={{ backgroundImage: "url('/testpage-bg.png')" }}
+                style={{ backgroundImage: "url('/testpage-bg.webp')" }}
             >
                 {/* overlay removed to restore background vibrancy */}
                 
@@ -287,7 +287,7 @@ export function StudentProfile() {
     return (
         <div 
             className="min-h-screen w-full bg-cover bg-center bg-no-repeat relative"
-            style={{ backgroundImage: "url('/testpage-bg.png')" }}
+            style={{ backgroundImage: "url('/testpage-bg.webp')" }}
         >
         {/* overlay removed to restore background vibrancy */}
             

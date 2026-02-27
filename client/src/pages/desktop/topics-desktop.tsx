@@ -29,7 +29,7 @@ export default function Topics() {
     const sidebarMarginClass = 'md:ml-64';
 
     return (
-        <div className="flex min-h-screen bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('/testpage-bg.png')" }}>
+        <div className="flex min-h-screen bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('/testpage-bg.webp')" }}>
             <HeaderDesktop />
             <main className={`flex-1 flex flex-col bg-transparent mt-20 mb-24 transition-all duration-300 ${sidebarMarginClass}`}>
                 <div className="max-w-7xl mx-auto px-4">
@@ -167,7 +167,7 @@ function TestCard({ title, subtitle, icon, href, onClick }: TestCardProps) {
             <CardContent className="p-4">
                 <div className="flex items-center justify-between space-x-4">
                     <div className="flex items-center space-x-4 pr-2">
-                        <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+                        <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center">
                             {icon}
                         </div>
                         <div className="flex-1">

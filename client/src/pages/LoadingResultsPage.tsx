@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
  *
  * Flow
  * ────
- * 1. Show loading page with result-bg background for exactly 5 seconds
+ * 1. Show loading page with result-bg background for exactly 2 seconds
  * 2. Progress bar animates from 0% to 100% over 5 seconds
  * 3. Automatically redirect to /results/:sessionId after 5 seconds
  * 4. Backend processes zone insights asynchronously in background
@@ -29,22 +29,22 @@ export default function LoadingResultsPage() {
     }
   }, [sessionId, navigate]);
 
-  /* ── redirect after 5 seconds ────────────────────────── */
+  /* ── redirect after 2 seconds ────────────────────────── */
   useEffect(() => {
     if (!sessionId) return;
 
     const redirectTimer = setTimeout(() => {
-      console.log('✅ 5 second loading complete – redirecting to results');
+      console.log('✅ 2 second loading complete – redirecting to results');
       navigate(`/results/${sessionId}`, { replace: true });
-    }, 5000); // 5 seconds
+    }, 2000); // 2 seconds
 
     return () => clearTimeout(redirectTimer);
   }, [sessionId, navigate]);
 
   /* ── animate progress bar ────────────────────────────── */
   useEffect(() => {
-    // Smoothly animate progress from 0 to 100% over 5 seconds
-    const duration = 5000; // 5 seconds
+    // Smoothly animate progress from 0 to 100% over 2 seconds
+    const duration = 2000; // 2 seconds
     const interval = 50; // update every 50ms for smooth animation
     const increment = (100 / duration) * interval;
     
@@ -63,7 +63,7 @@ export default function LoadingResultsPage() {
     <div 
       className="min-h-screen flex items-center justify-center px-4"
       style={{
-        backgroundImage: 'url(/loading-bg.png)',
+        backgroundImage: 'url(/loading-bg.webp)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
@@ -74,7 +74,7 @@ export default function LoadingResultsPage() {
         <div className="flex justify-center -mt-12 mb-4 z-20 relative">
           <div className="w-48 h-48 rounded-full flex items-center justify-center bg-transparent">
             <img
-              src="/happy-penguin.png"
+              src="/happy-penguin.webp"
               alt="Loading"
               className="w-full h-full object-contain animate-bounce"
             />

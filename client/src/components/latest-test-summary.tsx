@@ -103,13 +103,17 @@ export default function LatestTestSummary() {
 
   return (
     <Card 
-      className="bg-transparent rounded-2xl w-full overflow-visible -mt-3"
+      onClick={() => navigate(`/results/${latestSession.id}`)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(`/results/${latestSession.id}`); }}
+      className="bg-transparent rounded-2xl w-full overflow-visible -mt-3 cursor-pointer"
     >
       <CardContent className="p-3">
         <div
           className="flex items-center justify-between mb-4"
           style={{
-            backgroundImage: "url('/mark-bg.png')",
+            backgroundImage: "url('/mark-bg.webp')",
             backgroundRepeat: 'no-repeat',
             backgroundPosition: 'center',
             backgroundSize: 'cover',
@@ -119,16 +123,16 @@ export default function LatestTestSummary() {
         >
           {/* Left: Attempted */}
           <div
-            className="flex flex-col items-center -ml-2 mt-2"
+            className="flex flex-col items-center -ml-2 -mt-5"
             style={{
-              backgroundImage: "url('/clock.png')",
+              backgroundImage: "url('/clock.webp')",
               backgroundRepeat: 'no-repeat',
               backgroundPosition: 'center 6px',
-              backgroundSize: '60px',
-              paddingTop: '100px'
+              backgroundSize: '50px',
+              paddingTop: '150px'
             }}
           >
-            <div className="text-2xl font-bold text-gray-800 -mt-10">
+            <div className="text-2xl font-bold text-gray-800 -mt-14">
               {attempted}
               <span className="text-lg text-gray-500">/{totalQuestions}</span>
             </div>
@@ -138,7 +142,7 @@ export default function LatestTestSummary() {
           {/* Center: Penguin with Marks (uses decorative background) */}
           <div
             className="flex flex-col items-center flex-1 mx-4 pt-28 bg-no-repeat bg-center -mt-16"
-            style={{ backgroundImage: "url('/score.png')", backgroundRepeat: 'no-repeat', backgroundPosition: 'center 6px', backgroundSize: '220px' }}
+            style={{ backgroundImage: "url('/score.webp')", backgroundRepeat: 'no-repeat', backgroundPosition: 'center 6px', backgroundSize: '220px' }}
           >
             <div className="text-3xl font-bold text-white mt-12">
               {marksObtained}
@@ -150,7 +154,7 @@ export default function LatestTestSummary() {
           <div
             className="flex flex-col items-center -mr-1 -mt-8"
             style={{
-              backgroundImage: "url('/target.png')",
+              backgroundImage: "url('/target.webp')",
               backgroundRepeat: 'no-repeat',
               backgroundPosition: 'center 6px',
               backgroundSize: '60px',
@@ -161,6 +165,9 @@ export default function LatestTestSummary() {
             <div className="text-xs text-gray-600 -mt-2">Accuracy</div>
           </div>
         </div>
+
+        {/* Bottom label: clickable hint for latest performance */}
+        <div className="mt-2 text-center text-sm text-gray-500 font-medium">Your latest test performance</div>
       </CardContent>
     </Card>
   );

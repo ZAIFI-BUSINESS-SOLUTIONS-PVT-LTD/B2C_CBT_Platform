@@ -26,7 +26,7 @@ export function QuitDialog({ isOpen, answersCount, totalQuestions, onConfirm, on
             {isOpen && typeof document !== "undefined"
                 ? createPortal(
                       <img
-                          src="/quit-penguin.png"
+                          src="/quit-penguin.webp"
                           alt="quit-penguin"
                           className="pointer-events-none"
                           style={{
@@ -50,7 +50,7 @@ export function QuitDialog({ isOpen, answersCount, totalQuestions, onConfirm, on
                         Quit Exam?
                     </AlertDialogTitle>
                     <AlertDialogDescription className="text-slate-600 text-sm text-center leading-relaxed px-2 max-w-xs mx-auto">
-                        Are you sure you want to quit the exam? Your test will be marked as incomplete and you won't be able to resume it later. You have answered {answersCount} out of {totalQuestions} questions.
+                        Are you sure you want to quit the exam? Your test will be submitted and marked as completed. You won't be able to resume it later. You have answered {answersCount} out of {totalQuestions} questions.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter className="flex-col gap-4 mt-6 relative z-10">

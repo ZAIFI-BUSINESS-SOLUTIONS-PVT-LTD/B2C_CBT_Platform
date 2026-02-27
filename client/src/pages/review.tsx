@@ -43,7 +43,7 @@ export default function Review() {
     return (
       <div 
         className="min-h-screen bg-cover bg-center bg-no-repeat bg-fixed relative pb-20"
-        style={{ backgroundImage: "url('/testpage-bg.png')", backgroundAttachment: 'fixed' }}
+        style={{ backgroundImage: "url('/testpage-bg.webp')", backgroundAttachment: 'fixed' }}
       >
         <div className="absolute inset-0 bg-transparent"></div>
         <div className="relative z-10 flex items-center justify-center min-h-screen px-4">
@@ -61,7 +61,7 @@ export default function Review() {
     return (
       <div 
         className="min-h-screen bg-cover bg-center bg-no-repeat bg-fixed relative pb-20"
-        style={{ backgroundImage: "url('/testpage-bg.png')", backgroundAttachment: 'fixed' }}
+        style={{ backgroundImage: "url('/testpage-bg.webp')", backgroundAttachment: 'fixed' }}
       >
         <div className="absolute inset-0 bg-transparent"></div>
         <div className="relative z-10 flex items-center justify-center min-h-screen px-4">
@@ -81,7 +81,7 @@ export default function Review() {
   return (
     <div 
       className="min-h-screen bg-cover bg-center bg-no-repeat bg-fixed relative pb-20"
-      style={{ backgroundImage: "url('/testpage-bg.png')", backgroundAttachment: 'fixed' }}
+      style={{ backgroundImage: "url('/testpage-bg.webp')", backgroundAttachment: 'fixed' }}
     >
       {/* Removed overlay so background image shows through */}
       <div className="absolute inset-0 bg-transparent"></div>

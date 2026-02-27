@@ -21,8 +21,7 @@ export function Header() {
   const handleLogout = async () => {
     try {
       await logout();
-      // Redirect to home page immediately after logout
-      navigate('/');
+      // Navigation handled by AuthContext logout()
     } catch (error) {
       console.error('Logout failed:', error);
     }

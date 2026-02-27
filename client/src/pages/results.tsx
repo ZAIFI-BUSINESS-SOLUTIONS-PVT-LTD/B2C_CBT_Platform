@@ -20,8 +20,8 @@ export default function Results() {
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
       e.preventDefault();
-      console.log('🔄 Back navigation detected from Results page, redirecting to landing...');
-      navigate('/', { replace: true });
+      console.log('🔄 Back navigation detected from Results page, redirecting to topics...');
+      navigate('/topics', { replace: true });
     };
 
     // Push current state and listen for back navigation
@@ -71,12 +71,12 @@ export default function Results() {
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('/testpage-bg.png')" }}>
-      <div className="sticky top-0 bg-white z-10">
+    <div className="h-screen flex flex-col overflow-hidden bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('/testpage-bg.webp')" }}>
+      <div className="bg-white z-10 flex-shrink-0">
         {/* Header Section */}
         <div className="w-full mx-auto py-3 px-4 border-b border-gray-200 flex items-center justify-between">
           <div className="inline-flex items-center gap-3">
-            <Button variant="secondary" size="icon" className="size-8" onClick={() => navigate('/dashboard')}>
+            <Button variant="secondary" size="icon" className="size-8" onClick={() => navigate('/topics')}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <h1 className="text-lg font-bold text-gray-900">Test Result</h1>
@@ -84,7 +84,9 @@ export default function Results() {
         </div>
       </div>
       
-      <ResultsDisplay results={results} onReviewClick={handleReviewClick} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <ResultsDisplay results={results} onReviewClick={handleReviewClick} />
+      </div>
     </div>
   );
 }

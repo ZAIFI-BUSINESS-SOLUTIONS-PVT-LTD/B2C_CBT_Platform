@@ -1,5 +1,5 @@
 import React from "react";
-import { Home, NotepadText, FileChartPie, MessageSquareMore, School, Lock } from "lucide-react";
+import { Home, Edit3, BarChart2, MessageSquareMore, School, Lock } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useLocation } from "wouter";
 import { getPostTestHidden } from '@/lib/postTestHidden';
@@ -35,9 +35,9 @@ export default function MobileDock() {
 
     // Footer items: removed Home and Chatbot as per design
     const allItems = [
-        { key: "test", href: "/topics", label: "Test", icon: <NotepadText className="h-5 w-5" />, lockedForInstitution: true },
+        { key: "test", href: "/topics", label: "Test", icon: <Edit3 className="h-5 w-5" />, lockedForInstitution: true },
         { key: "institution", href: "/institution-tests", label: "Institution", icon: <School className="h-4 w-4" />, hideForNormal: true },
-        { key: "analysis", href: "/dashboard", label: "Analysis", icon: <FileChartPie className="h-5 w-5" /> },
+        { key: "analysis", href: "/dashboard", label: "Analysis", icon: <BarChart2 className="h-5 w-5" strokeWidth={4} /> },
     ];
 
     // Filter items based on user type
@@ -72,9 +72,25 @@ export default function MobileDock() {
                             // subtle glass effect removed for a solid footer look
                             backdropFilter: 'none',
                             borderTop: '1px solid rgba(0,0,0,0.06)',
-                            boxShadow: '0 -6px 18px rgba(2,6,23,0.06)'
+                            boxShadow: '0 -6px 18px rgba(2,6,23,0.06)',
+                            position: 'relative'
                         }}
                     >
+                        {/* Center vertical divider for visual separation */}
+                        <div
+                            aria-hidden
+                            style={{
+                                position: 'absolute',
+                                left: '50%',
+                                top: 10,
+                                transform: 'translateX(-50%)',
+                                height: 32,
+                                width: 3,
+                                borderRadius: 3,
+                                background: 'rgba(0,0,0,0.18)',
+                                pointerEvents: 'none'
+                            }}
+                        />
                     <ul className="flex justify-between items-center h-14 px-0">
                     {items.map((it) => {
                         const active = isActive(it.href);

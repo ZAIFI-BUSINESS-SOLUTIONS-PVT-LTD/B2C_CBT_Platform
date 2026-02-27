@@ -29,17 +29,17 @@ interface AppTourOverlayProps {
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
-const PENGUIN_WELCOME   = "/penguin_welcome.png";
-const PENGUIN_TEST      = "/penguin_pointing_test.png";
-const PENGUIN_STEP3     = "/penguin_test.png";
-const PENGUIN_START     = "/penguin_pointing_start.png";
+const PENGUIN_WELCOME   = "/penguin_welcome.webp";
+const PENGUIN_TEST      = "/penguin_pointing_test.webp";
+const PENGUIN_STEP3     = "/penguin_test.webp";
+const PENGUIN_START     = "/penguin_pointing_start.webp";
 
 // SVG fallbacks if PNG assets are not yet available
 const PENGUIN_WELCOME_SVG  = "/penguin_welcome.svg";
 const PENGUIN_TEST_SVG     = "/penguin_pointing_test.svg";
 const PENGUIN_START_SVG    = "/penguin_pointing_start.svg";
 // filenames in `public/` use a hyphen
-const PENGUIN_PAPER     = "/penguin-paper.png";
+const PENGUIN_PAPER     = "/penguin-paper.webp";
 const PENGUIN_PAPER_SVG    = "/penguin-paper.svg";
 
 // public/ contains these files at the root — attempt autoplay with gesture fallback

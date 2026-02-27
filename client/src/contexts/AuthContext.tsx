@@ -196,6 +196,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.clear();
       
       console.log('User logged out successfully');
+      
+      // Force navigation to login page with full reload to avoid any routing conflicts
+      window.location.href = '/login';
     }
   };
 

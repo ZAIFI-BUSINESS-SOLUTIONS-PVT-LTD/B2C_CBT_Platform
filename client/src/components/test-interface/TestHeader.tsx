@@ -28,8 +28,11 @@ export default function TestHeader({
   showPause = true
 }: TestHeaderProps) {
   return (
-    <header className="w-full bg-white/80 backdrop-blur-md">
-      <div className="px-3 py-2.5">
+    <header
+      className="w-full fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md pt-4"
+      style={{ paddingTop: 'env(safe-area-inset-top, 20px)' }}
+    >
+      <div className="px-3 pt-9 pb-2">
         <div className="flex items-center justify-between">
           {/* Left: NEET Bro branding */}
           <div className="flex items-center gap-2">

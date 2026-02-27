@@ -109,7 +109,7 @@ export function TopicSelection() {
       case "Physics":
         return <Atom className="h-6 w-6 text-blue-600" />;
       case "Chemistry":
-        return <FlaskConical className="h-6 w-6 text-green-600" />;
+        return <FlaskConical className="h-6 w-6 text-yellow-600" />;
       case "Botany":
         return <Leaf className="h-6 w-6 text-emerald-600" />;
       case "Zoology":
@@ -124,7 +124,7 @@ export function TopicSelection() {
       case "Physics":
         return "border-blue-200 bg-blue-50 hover:bg-blue-100";
       case "Chemistry":
-        return "border-green-200 bg-green-50 hover:bg-green-100";
+        return "border-yellow-200 bg-yellow-50 hover:bg-yellow-100";
       case "Botany":
         return "border-emerald-200 bg-emerald-50 hover:bg-emerald-100";
       case "Zoology":

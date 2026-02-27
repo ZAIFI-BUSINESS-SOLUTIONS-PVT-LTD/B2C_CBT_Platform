@@ -205,11 +205,11 @@ export function LoginForm() {
         */}
         {/* Inline Mobile OTP UI (show phone input + Get OTP directly) */}
         <div className="w-full max-w-md -mt-28">
-          <div className="bg-white/6 p-4 rounded-2xl shadow-sm">
+          <div className="bg-white/6 p-4 rounded-2xl">
             <MobileOtpLogin
               onSuccess={() => {
                 setShowOtpLogin(false);
-                navigate('/dashboard');
+                navigate('/topics');
               }}
             />
           </div>

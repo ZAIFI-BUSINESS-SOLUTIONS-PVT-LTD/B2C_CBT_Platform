@@ -328,12 +328,31 @@ export default function ScheduledTestsPage() {
   // Merge and dedupe by id (just in case)
   const mergedOpenCandidates = [...allOpen, ...activeScheduled];
   const seen = new Set<number>();
-  const openAvailableTests = mergedOpenCandidates.filter((t) => {
+  const openAvailableTestsRaw = mergedOpenCandidates.filter((t) => {
     if (seen.has(t.id)) return false;
     seen.add(t.id);
     // Be defensive: treat missing timeLimit as using scheduled active flag
     const status = getTestStatus(t);
     return status === 'open' || status === 'active';
+  });
+
+  // Prioritize demo tests first, then sort by expires_at (earliest expiring first)
+  const openAvailableTests = [...openAvailableTestsRaw].sort((a, b) => {
+    const aTestName = (a.testName || '').toLowerCase();
+    const bTestName = (b.testName || '').toLowerCase();
+    const aIsDemo = /demo/i.test(aTestName);
+    const bIsDemo = /demo/i.test(bTestName);
+    
+    // Demo tests always come first
+    if (aIsDemo && !bIsDemo) return -1;
+    if (!aIsDemo && bIsDemo) return 1;
+    
+    // If both are demo or both are not demo, sort by expires_at
+    const aExpires = (a as any).expiresAt || (a as any).expires_at;
+    const bExpires = (b as any).expiresAt || (b as any).expires_at;
+    const aExpiresTime = aExpires ? new Date(aExpires).getTime() : Infinity;
+    const bExpiresTime = bExpires ? new Date(bExpires).getTime() : Infinity;
+    return aExpiresTime - bExpiresTime;
   });
 
   if (loading) {

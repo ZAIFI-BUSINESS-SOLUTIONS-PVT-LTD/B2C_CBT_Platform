@@ -208,7 +208,7 @@ export default function TestZoneInsights() {
   const getSubjectColor = (subject: string) => {
     const colors: { [key: string]: string } = {
       'Physics': 'bg-blue-100 text-blue-700 border-blue-300',
-      'Chemistry': 'bg-green-100 text-green-700 border-green-300',
+      'Chemistry': 'bg-yellow-100 text-yellow-700 border-yellow-300',
       'Botany': 'bg-emerald-100 text-emerald-700 border-emerald-300',
       'Zoology': 'bg-teal-100 text-teal-700 border-teal-300',
       'Math': 'bg-purple-100 text-purple-700 border-purple-300',

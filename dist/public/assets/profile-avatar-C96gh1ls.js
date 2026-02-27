@@ -1,0 +1,6 @@
+import{n,g as c,u,r as i,j as s,B as d,ae as m,an as h,af as f,al as x}from"./main-DWDFnnYU.js";/**
+ * @license lucide-react v0.544.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const p=[["circle",{cx:"12",cy:"8",r:"5",key:"1hypcn"}],["path",{d:"M20 21a8 8 0 0 0-16 0",key:"rfgkzh"}]],g=n("user-round",p);function b({avatarClassName:r,showCrown:t}={}){const{student:e}=c(),[,l]=u();return i.useMemo(()=>{const a=e&&(e.fullName||e.email)||"";return a?a.split(" ").map(o=>o.charAt(0)).join("").toUpperCase().slice(0,2):"ST"},[e]),s.jsx(d,{variant:"ghost",className:"p-1 rounded-full hover:bg-gray-100 touch-none relative",onClick:()=>l("/profile"),children:s.jsxs(m,{className:r??"h-10 w-10 sm:h-12 sm:w-12",children:[e!=null&&e.googlePicture?s.jsx(h,{src:e.googlePicture,alt:e.fullName||"Profile"}):s.jsx(f,{className:"bg-blue-600 flex items-center justify-center p-1 rounded-full",children:s.jsx("div",{className:"bg-blue-600 rounded-full p-1",children:s.jsx(g,{className:"h-4 w-4 text-white"})})}),t&&s.jsx("span",{className:"absolute -top-1 -right-1 h-6 w-6 rounded-full flex items-center justify-center bg-blue-100 border-2 border-blue-900 text-sky-400 shadow-sm",children:s.jsx(x,{className:"h-3 w-3"})})]})})}export{b as S};

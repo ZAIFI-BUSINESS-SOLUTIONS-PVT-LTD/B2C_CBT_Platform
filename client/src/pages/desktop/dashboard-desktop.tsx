@@ -93,7 +93,7 @@ export default function LandingDashboard() {
     }
 
     return (
-        <div className="flex min-h-screen bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('/testpage-bg.png')" }}>
+        <div className="flex min-h-screen bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('/testpage-bg.webp')" }}>
             <HeaderDesktop />
             <main className="flex-1 flex flex-col mt-24 mb-24 transition-all duration-300 md:ml-64">
                 <div className="w-full max-w-7xl mx-auto px-4">

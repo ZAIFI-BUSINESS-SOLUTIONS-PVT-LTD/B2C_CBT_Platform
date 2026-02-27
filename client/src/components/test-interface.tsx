@@ -359,7 +359,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   });
 
   // === QUIT TEST MUTATION ===
-  // This mutation handles marking the test as incomplete when user quits
+  // This mutation handles marking the test as completed when user quits
   const quitTestMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest(`/api/test-sessions/${sessionId}/quit/`, "POST");
@@ -1277,9 +1277,9 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       case "answered":
         return "bg-green-500 text-white";
       case "answered-marked":
-        return "bg-purple-500 text-white";
+        return "bg-amber-400 text-gray-900";
       case "marked":
-        return "bg-yellow-400 text-gray-900";
+        return "bg-amber-400 text-gray-900";
       default:
         return "bg-gray-200 text-gray-600";
     }
@@ -1293,9 +1293,9 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       case "answered":
         return "bg-green-500 text-white";
       case "answered-marked":
-        return "bg-purple-500 text-white";
+        return "bg-amber-400 text-gray-900";
       case "marked":
-        return "bg-yellow-400 text-gray-900";
+        return "bg-amber-400 text-gray-900";
       default:
         return "bg-gray-200 text-gray-600";
     }
@@ -1303,7 +1303,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundImage: "url('/testscreen-bg.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundImage: "url('/testscreen-bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
         <div className="text-center bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6 max-w-sm mx-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className="text-slate-500 font-medium text-sm">Loading test...</p>
@@ -1347,7 +1347,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       );
     }
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundImage: "url('/testscreen-bg.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundImage: "url('/testscreen-bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
         <div className="text-center bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6 max-w-sm mx-4">
           <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
           <h2 className="text-lg font-bold text-gray-900 mb-2">Test Not Found</h2>
@@ -1364,7 +1364,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col" style={{ backgroundImage: "url('/testscreen-bg.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+    <div className="fixed inset-0 flex flex-col" style={{ backgroundImage: "url('/testscreen-bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
       {/* === OVERLAYS === */}
       {isSubmitting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 px-4">
@@ -1416,7 +1416,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
         {/* Security Banner removed */}
 
-        {/* Subject tabs */}
+        {/* Subject tabs, question numbers and legend (moved down to avoid fixed header) */}
+        <div className="mt-20">
         {allSubjects.length > 0 && (
           <div className="flex items-center justify-center gap-2 px-3 py-2 bg-white/70 backdrop-blur-sm">
             {allSubjects.map(sub => (
@@ -1454,7 +1455,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                     : status === 'answered'
                       ? 'bg-green-500 text-white'
                       : status === 'answered-marked'
-                        ? 'bg-purple-500 text-white'
+                        ? 'bg-amber-400 text-gray-900'
                         : status === 'marked'
                           ? 'bg-amber-400 text-gray-900'
                           : 'bg-slate-200/80 text-slate-600'
@@ -1474,6 +1475,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"></span> Marked</span>
           </div>
         </div>
+        </div>
       </div>
 
       {/* === SCROLLABLE QUESTION AREA === */}
@@ -1490,14 +1492,30 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                 onClick={handleToggleBookmark}
                 disabled={showTimeOverDialog}
                 aria-pressed={bookmarkedQuestions.has(currentQuestion?.id ?? -1)}
+                aria-label="Bookmark"
                 className={`size-8 flex items-center justify-center rounded-full transition-colors border ${
                   bookmarkedQuestions.has(currentQuestion?.id ?? -1)
                     ? 'bg-amber-50 border-amber-100 text-amber-600'
                     : 'bg-white/90 border-white/30 text-slate-600 hover:bg-white'
                 }`}
-                title={bookmarkedQuestions.has(currentQuestion?.id ?? -1) ? 'Bookmarked' : 'Bookmark'}
+                title="Bookmark"
               >
                 <Bookmark className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleMarkForReview}
+                disabled={showTimeOverDialog}
+                aria-pressed={markedForReview.has(currentQuestion?.id ?? -1)}
+                aria-label="Mark for Review"
+                title={markedForReview.has(currentQuestion?.id ?? -1) ? 'Marked' : 'Mark for Review'}
+                className={`flex items-center gap-2 px-3 py-1 rounded-xl text-sm font-medium transition-colors border disabled:opacity-40 ${
+                  markedForReview.has(currentQuestion?.id ?? -1)
+                    ? 'bg-amber-50 border-amber-100 text-amber-600'
+                    : 'bg-white/90 border-white/30 text-slate-600 hover:bg-white'
+                }`}
+              >
+                <AlertTriangle className={`w-4 h-4 ${markedForReview.has(currentQuestion?.id ?? -1) ? 'text-amber-600' : 'text-slate-500'}`} />
+                <span className="whitespace-nowrap">{markedForReview.has(currentQuestion?.id ?? -1) ? 'Marked' : 'Mark for Review'}</span>
               </button>
             </div>
           </div>
@@ -1600,32 +1618,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
       {/* === FIXED BOTTOM BAR === */}
       <div className="flex-shrink-0 bg-white/90 backdrop-blur-md border-t border-slate-200 z-40">
-        {/* Row 1: Clear & Mark for Review */}
-        <div className="flex items-center gap-2 px-3 pt-2 pb-1">
-          <button
-            onClick={() => { if (answers[currentQuestion.id]) handleAnswerChange(currentQuestion.id, answers[currentQuestion.id]); }}
-            disabled={showTimeOverDialog || !answers[currentQuestion.id]}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-slate-700 bg-white border border-black/40 hover:bg-slate-50 transition-colors disabled:opacity-40"
-          >
-            <X className="w-3.5 h-3.5 text-slate-500" />
-            Clear
-          </button>
-          
-
-          {/* Mark for review (separate) */}
-          <button
-            onClick={handleMarkForReview}
-            disabled={showTimeOverDialog}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors disabled:opacity-40 ${
-              markedForReview.has(currentQuestion?.id ?? -1)
-                ? 'text-blue-700 bg-blue-50 border-blue-100'
-                : 'text-slate-700 bg-white border border-black/40 hover:bg-slate-50'
-            }`}
-          >
-            <AlertTriangle className={`w-3.5 h-3.5 ${markedForReview.has(currentQuestion?.id ?? -1) ? 'text-blue-600' : 'text-slate-500'}`} />
-            {markedForReview.has(currentQuestion?.id ?? -1) ? 'Marked' : 'Mark for Review'}
-          </button>
-        </div>
+        {/* Row 1: (removed Clear button — kept spacing for layout) */}
+        <div className="px-3 pt-2 pb-1" />
         {/* Row 2: Previous & Next */}
         <div className="flex items-center gap-2 px-3 pb-3 pt-1">
           <button

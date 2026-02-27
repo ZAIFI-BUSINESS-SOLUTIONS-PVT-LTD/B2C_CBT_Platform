@@ -206,7 +206,7 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
               {/* Question text */}
               <div className="mb-6 p-4 bg-blue-50 rounded-xl">
                 <h3 className="text-lg font-semibold text-gray-800 leading-relaxed">
-                  {question.question}
+                  Q. {question.question}
                 </h3>
                 {question.questionImage && (
                   <div className="mt-4">
@@ -241,7 +241,7 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
                             : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                         }`}
                       >
-                        <RadioGroupItem value={option} id={optionId} className="mr-3" />
+                        <RadioGroupItem value={option} id={optionId} className="sr-only" />
                         <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold mr-3 flex-shrink-0 ${
                           isSelected ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
                         }`}>
@@ -289,7 +289,7 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
               <div className="filter blur-md opacity-30 pointer-events-none">
                 <div className="p-4 bg-blue-50 rounded-xl mb-4">
                   <h3 className="text-lg font-semibold text-gray-800">
-                    {question.question}
+                    Q. {question.question}
                   </h3>
                 </div>
                 <div className="space-y-3">
@@ -305,12 +305,12 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
               <div className="absolute top-24 inset-x-0 bottom-0 flex flex-col items-center justify-start pt-4 px-2 gap-2 -mt-7">
                   {/* Question attempted - placed on top of penguin */}
                   <div className="mb-2 text-center px-2 -mt-20 -mb-9">
-                    <p className="text-sm text-gray-700 font-medium leading-relaxed">{question.question}</p>
+                    <p className="text-sm text-gray-700 font-medium leading-relaxed">Q. {question.question}</p>
                   </div>
 
                   {/* Penguin image (increased by additional 20%) */}
                   <img
-                    src={isCorrect ? '/happy-penguin.png' : '/sad-penguin.png'}
+                    src={isCorrect ? '/happy-penguin.webp' : '/sad-penguin.webp'}
                     alt={isCorrect ? 'Success' : 'Try again'}
                     className="object-contain -mb-11"
                     style={{ width: '12.5rem', height: '14.5rem' }}

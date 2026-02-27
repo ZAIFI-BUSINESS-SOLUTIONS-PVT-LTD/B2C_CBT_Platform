@@ -36,7 +36,7 @@ export function SubmitDialog({
       {isOpen && typeof document !== "undefined"
         ? createPortal(
             <img
-              src="/submit-penguin.png"
+              src="/submit-penguin.webp"
               alt="submit-penguin"
               className="pointer-events-none"
               style={{

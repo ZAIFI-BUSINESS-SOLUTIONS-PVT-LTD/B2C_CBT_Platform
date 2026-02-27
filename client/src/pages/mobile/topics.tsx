@@ -14,7 +14,7 @@ import { getAvailablePlatformTests, startPlatformTest } from "@/config/api";
 import { API_CONFIG } from "@/config/api";
 import { authenticatedFetch } from "@/lib/auth";
 import { useAuth } from "@/contexts/AuthContext";
-import { AlertCircle, Star, Crown, Edit3, BookOpen } from "lucide-react";
+import { AlertCircle, Star, Edit3, BookOpen } from "lucide-react";
 import SubscriptionRequiredModal from "@/components/SubscriptionRequiredModal";
 import { APIError } from "@/lib/queryClient";
 
@@ -53,7 +53,7 @@ export default function Topics() {
 
   const streak = qodData?.streak ?? 0;
 
-  // Find active tests prioritized by earliest expires_at (expiring soonest first)
+  // Find active tests - prioritize demo test first, then by earliest expires_at
   const activeTest = useMemo(() => {
     if (!platformTests) return null;
     const all = [
@@ -98,7 +98,16 @@ export default function Topics() {
     // If no available tests, return null
     if (availableTests.length === 0) return null;
 
-    // Sort by expires_at ascending (earliest expiring first)
+    // PRIORITY 1: Check if any test is a demo test (name contains "demo")
+    const demoTest = availableTests.find(test => {
+      const testName = test.testName?.toLowerCase() || '';
+      return /demo/i.test(testName);
+    });
+    
+    // If demo test exists and is available, return it immediately
+    if (demoTest) return demoTest;
+
+    // PRIORITY 2: Sort remaining tests by expires_at (earliest expiring first)
     availableTests.sort((a, b) => {
       const aExpires = a.expiresAt ? new Date(a.expiresAt).getTime() : Infinity;
       const bExpires = b.expiresAt ? new Date(b.expiresAt).getTime() : Infinity;
@@ -148,13 +157,13 @@ export default function Topics() {
   return (
     <div
       className="min-h-screen bg-cover bg-center bg-no-repeat bg-fixed pb-20"
-      style={{ backgroundImage: "url('/testpage-bg.png')" }}
+      style={{ backgroundImage: "url('/testpage-bg.webp')" }}
     >
       {/* Page header */}
       <header className="sticky top-0 z-10 px-5 pt-5 pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center -mt-4">
-            <img src="/NEET Bro.png" alt="NEET Bro" className="h-[4.4rem] object-contain" />
+            <img src="/NEET Bro.webp" alt="NEET Bro" className="h-[4.4rem] object-contain" />
           </div>
           <div className="flex items-center gap-3 -mt-2">
             {/* Crown shortcut placed to the right of profile avatar */}
@@ -163,7 +172,11 @@ export default function Topics() {
               aria-label="Go to Payment"
               className="h-8 w-8 rounded-full flex items-center justify-center bg-blue-600 border-2 border-blue-900 shadow-sm"
             >
-              <Crown className="h-4 w-4 text-white" />
+              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                <path d="M12 2 L21 8 L12 22 L3 8 Z" fill="#2f6bff" stroke="#ffffff" strokeWidth="1.1" />
+                <path d="M12 2 L21 8 L12 12 L3 8 Z" fill="#2F6BFF" opacity="0.22" />
+                <path d="M12 22 L12 12" stroke="#ffffff" strokeWidth="1.2" opacity="0.8" />
+              </svg>
             </button>
             <StudentProfile avatarClassName="h-8 w-8" />
 
@@ -237,7 +250,7 @@ function QODCard({ streak, qodData, onClick }: { streak: number; qodData: any; o
         onClick={onClick}
             className="rounded-2xl border cursor-pointer overflow-hidden bg-white/30 mt-6"
         style={{
-          backgroundImage: "url('/s-penguin.png')",
+          backgroundImage: "url('/s-penguin.webp')",
           backgroundRepeat: 'no-repeat',
           backgroundPosition: 'center',
           backgroundSize: 'cover',
@@ -252,7 +265,6 @@ function QODCard({ streak, qodData, onClick }: { streak: number; qodData: any; o
               <span className="text-lg">⚠️</span>
               <h3 className="text-xl font-extrabold text-slate-800">Question of the Day</h3>
             </div>
-            <p className="text-xs text-slate-600 mb-2">Solve:</p>
             <p className="text-sm text-slate-700 leading-snug truncate whitespace-nowrap">{preview}</p>
             <Button
               size="sm"
@@ -377,21 +389,30 @@ function CenterTestCard({
   // ─── Active test card ───
   if (activeTest) {
     const testName = activeTest.testName || 'Platform Test';
+    const isDemoTest = (() => {
+      const t: any = activeTest as any;
+      if (t?.isDemo || t?.is_demo) return true;
+      const name = (activeTest.testName || '') as string;
+      return /demo/i.test(name);
+    })();
     return (
       <>
-            <Card
-              className="rounded-2xl border overflow-hidden bg-white/30"
-                style={{ marginTop: '20vh', boxShadow: '0 8px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)', border: '1px solid rgba(255,255,255,0.95)' }}
+        <Card
+              onClick={handleStart}
+              role="button"
+              tabIndex={0}
+              className="rounded-2xl border overflow-hidden bg-white/30 cursor-pointer"
+                style={{ boxShadow: '0 8px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)', border: '1px solid rgba(255,255,255,0.95)' }}
               >
           <CardContent className="p-5">
             <div className="flex items-start justify-between mb-1">
               <div>
                 <h2 className="text-xl font-extrabold text-slate-800">{testName}</h2>
                 <p className="text-sm text-slate-600 mt-0.5">
-                  {activeTest.totalQuestions} Question1056s · {activeTest.timeLimit} 2Minutes
+                  {activeTest.totalQuestions} Questions | {activeTest.timeLimit} Minutes
                 </p>
               </div>
-              {timeLeft && timeLeft !== 'Expired' && (
+              {timeLeft && timeLeft !== 'Expired' && !isDemoTest && (
                 <div className="text-right">
                   <p className="text-xs text-red-500 font-semibold">Closes in</p>
                   <p className="text-lg font-bold text-red-600">{timeLeft}</p>
@@ -402,7 +423,10 @@ function CenterTestCard({
             {/* Start test button */}
             <div className="w-full mt-4">
               <Button
-                onClick={handleStart}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStart();
+                }}
                 disabled={startingTest}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold text-base py-3 rounded-xl flex items-center justify-center gap-2"
               >
@@ -450,18 +474,24 @@ function CenterTestCard({
     })();
 
     return (
-      <Card
-         className="rounded-2xl border overflow-hidden bg-transparent"
-          style={{ boxShadow: '0 8px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)', border: '1px solid rgba(255,255,255,0.95)' }}
-      >
-        <CardContent className="p-5">
+        <Card
+           onClick={() => navigate(`/results/${s.id}`)}
+           role="button"
+           tabIndex={0}
+           className="rounded-2xl border overflow-hidden bg-transparent cursor-pointer"
+            style={{ boxShadow: '0 8px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)', border: '1px solid rgba(255,255,255,0.95)' }}
+        >
+          <CardContent className="p-5">
           <h2 className="text-xl font-extrabold text-slate-800">{testName}</h2>
           <p className="text-sm text-slate-600 mt-0.5">
             {total} Questions · {s.timeLimit ?? s.time_limit ?? '—'} Minutes
           </p>
 
           <Button
-            onClick={() => navigate(`/results/${s.id}`)}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/results/${s.id}`);
+            }}
             variant="outline"
             className="w-full mt-4 border-2 border-blue-600 text-blue-700 font-bold text-base py-3 rounded-full"
           >
@@ -471,18 +501,20 @@ function CenterTestCard({
           {/* Performance stats */}
           <div className="grid grid-cols-3 gap-3 mt-4">
             <div className="text-center">
-              <p className="text-xs text-slate-500 font-medium">Score</p>
-              <p className="text-2xl font-extrabold text-slate-800">{score}</p>
-            </div>
-            <div className="text-center">
               <p className="text-xs text-slate-500 font-medium">Accuracy</p>
               <p className="text-2xl font-extrabold text-slate-800">{accuracy}%</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-slate-500 font-medium">Score</p>
+              <p className="text-2xl font-extrabold text-slate-800">{score}</p>
             </div>
             <div className="text-center">
               <p className="text-xs text-slate-500 font-medium">Time</p>
               <p className="text-2xl font-extrabold text-slate-800">{timeMins} min</p>
             </div>
           </div>
+
+  
         </CardContent>
       </Card>
     );
@@ -523,7 +555,7 @@ function BottomCard({
       style={{ boxShadow: '0 8px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)', border: '1px solid rgba(255,255,255,0.95)' }}
     >
       <CardContent className="p-4 flex flex-col h-full items-center -mb-2">
-        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm mt-2 mb-3">
+        <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-sm mt-2 mb-3">
           {icon}
         </div>
         <h3 className="text-xl font-extrabold text-slate-800 leading-tight text-center">{title}</h3>

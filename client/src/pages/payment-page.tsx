@@ -6,7 +6,7 @@ const PaymentPage: React.FC = () => {
         <div 
             className="min-h-screen"
             style={{
-                backgroundImage: 'url(/payment-bg.png)',
+                backgroundImage: 'url(/payment-bg.webp)',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',

@@ -1303,30 +1303,118 @@ def generate_focus_zone(test_session_id: int) -> Dict:
         
         test_session = TestSession.objects.get(id=test_session_id)
         
+        # Get expected subjects from test session
+        expected_subjects = []
+        subject_map = {
+            'Physics': test_session.physics_topics,
+            'Chemistry': test_session.chemistry_topics,
+            'Botany': test_session.botany_topics,
+            'Zoology': test_session.zoology_topics,
+            'Biology': test_session.biology_topics,
+            'Math': test_session.math_topics
+        }
+        
+        for subject, topics in subject_map.items():
+            if topics:
+                expected_subjects.append(subject)
+        
         # Extract wrong and skipped questions
         focus_data = extract_focus_zone_data(test_session_id)
         
-        if not focus_data:
-            logger.warning(f"No focus zone data extracted for test {test_session_id}")
-            return {}
+        # Check which subjects have actual question data
+        subjects_with_data = []
+        subjects_without_data = []
         
-        # Import GeminiClient
-        try:
-            from ..services.ai.gemini_client import GeminiClient
-        except ImportError:
-            from neet_app.services.ai.gemini_client import GeminiClient
+        for subject in expected_subjects:
+            if focus_data.get(subject) and focus_data[subject].get('topics'):
+                # Check if there are actual questions in any topic
+                has_questions = any(
+                    topic.get('questions') and len(topic.get('questions', [])) > 0
+                    for topic in focus_data[subject]['topics']
+                )
+                if has_questions:
+                    subjects_with_data.append(subject)
+                else:
+                    subjects_without_data.append(subject)
+            else:
+                subjects_without_data.append(subject)
         
-        client = GeminiClient()
+        # If no subjects have data, populate all with "no data available" message
+        if not subjects_with_data:
+            logger.info(f"ℹ️ No wrong/skipped questions found for test {test_session_id}. Using 'no data available' message.")
+            result = {}
+            for subject in expected_subjects:
+                result[subject] = [
+                    "No data available for analysis.\nComplete more questions to unlock insights.",
+                    "Perfect performance! No mistakes found.\nKeep up the excellent work."
+                ]
+            
+            # Update the TestSubjectZoneInsight record
+            insight = TestSubjectZoneInsight.objects.filter(
+                test_session_id=test_session_id,
+                student_id=test_session.student_id
+            ).first()
+            
+            if insight:
+                insight.focus_zone = result
+                insight.save(update_fields=['focus_zone'])
+                logger.info(f"💾 Updated focus_zone with 'no data available' message for test {test_session_id}")
+            
+            return result
         
-        if not client.is_available():
-            logger.error(f"❌ Gemini client not available for focus zone generation")
-            return {}
+        # If we have some subjects with data and some without, handle separately
+        result = {}
         
-        # Prepare prompt
-        data_json = json.dumps(focus_data, indent=2)
-        prompt = FOCUS_ZONE_PROMPT.format(data_json=data_json)
+        # For subjects without data, use "no data available" message
+        for subject in subjects_without_data:
+            result[subject] = [
+                "No data available for analysis.\nComplete more questions to unlock insights.",
+                "Perfect performance! No mistakes found.\nKeep up the excellent work."
+            ]
         
-        logger.info(f"🚀 Generating focus zone for test {test_session_id} using {client.model_name}")
+        # For subjects with data, call LLM
+        if subjects_with_data:
+            # Filter focus_data to only include subjects with data
+            filtered_focus_data = {
+                subject: focus_data[subject]
+                for subject in subjects_with_data
+                if subject in focus_data
+            }
+            
+            # Import GeminiClient
+            try:
+                from ..services.ai.gemini_client import GeminiClient
+            except ImportError:
+                from neet_app.services.ai.gemini_client import GeminiClient
+            
+            client = GeminiClient()
+            
+            if not client.is_available():
+                logger.error(f"❌ Gemini client not available for focus zone generation")
+                # Use fallback for subjects with data
+                for subject in subjects_with_data:
+                    result[subject] = [
+                        f"Review {subject} concepts to identify weak areas.\nPractice more questions systematically.",
+                        f"Strengthen {subject} problem-solving approach.\nSolve previous year questions with time limits."
+                    ]
+                
+                # Update DB
+                insight = TestSubjectZoneInsight.objects.filter(
+                    test_session_id=test_session_id,
+                    student_id=test_session.student_id
+                ).first()
+                
+                if insight:
+                    insight.focus_zone = result
+                    insight.save(update_fields=['focus_zone'])
+                
+                return result
+            
+            # Prepare prompt
+            data_json = json.dumps(filtered_focus_data, indent=2)
+            prompt = FOCUS_ZONE_PROMPT.format(data_json=data_json)
+            
+            logger.info(f"🚀 Generating focus zone for test {test_session_id} using {client.model_name} for subjects: {subjects_with_data}")
         
         # Retry logic: 10 attempts with exponential backoff
         max_retries = 10
@@ -1346,13 +1434,30 @@ def generate_focus_zone(test_session_id: int) -> Dict:
                         time.sleep(wait_time)
                         continue
                     else:
-                        return {}
+                        # Use fallback for subjects with data
+                        for subject in subjects_with_data:
+                            result[subject] = [
+                                f"Review {subject} concepts to identify weak areas.\nPractice more questions systematically.",
+                                f"Strengthen {subject} problem-solving approach.\nSolve previous year questions with time limits."
+                            ]
+                        # Update DB
+                        insight = TestSubjectZoneInsight.objects.filter(
+                            test_session_id=test_session_id,
+                            student_id=test_session.student_id
+                        ).first()
+                        if insight:
+                            insight.focus_zone = result
+                            insight.save(update_fields=['focus_zone'])
+                        return result
                 
                 # Parse response
-                focus_zone_data = parse_focus_zone_response(llm_response)
+                llm_focus_zone_data = parse_focus_zone_response(llm_response)
                 
-                if focus_zone_data is not None:
+                if llm_focus_zone_data is not None:
                     print(f"✅ Focus zone generated on attempt {attempt}")
+                    
+                    # Combine LLM data with "no data available" messages
+                    result.update(llm_focus_zone_data)
                     
                     # Update the TestSubjectZoneInsight record
                     insight = TestSubjectZoneInsight.objects.filter(
@@ -1361,13 +1466,13 @@ def generate_focus_zone(test_session_id: int) -> Dict:
                     ).first()
                     
                     if insight:
-                        insight.focus_zone = focus_zone_data
+                        insight.focus_zone = result
                         insight.save(update_fields=['focus_zone'])
                         logger.info(f"💾 Updated focus_zone for test {test_session_id}")
                     else:
                         logger.warning(f"⚠️ No TestSubjectZoneInsight found for test {test_session_id}")
                     
-                    return focus_zone_data
+                    return result
                 
                 # Parsing failed, retry
                 print(f"⚠️ Parse failed on attempt {attempt}, retrying...")
@@ -1387,9 +1492,25 @@ def generate_focus_zone(test_session_id: int) -> Dict:
                     time.sleep(wait_time)
                     continue
         
-        # All retries exhausted
-        print(f"❌ All {max_retries} attempts failed for focus zone generation")
-        return {}
+        # All retries exhausted, use fallback for subjects with data
+        for subject in subjects_with_data:
+            result[subject] = [
+                f"Review {subject} concepts to identify weak areas.\nPractice more questions systematically.",
+                f"Strengthen {subject} problem-solving approach.\nSolve previous year questions with time limits."
+            ]
+        
+        # Update DB with combined result (fallback + no data messages)
+        insight = TestSubjectZoneInsight.objects.filter(
+            test_session_id=test_session_id,
+            student_id=test_session.student_id
+        ).first()
+        
+        if insight:
+            insight.focus_zone = result
+            insight.save(update_fields=['focus_zone'])
+        
+        print(f"❌ LLM generation failed, using fallback messages")
+        return result
         
     except Exception as e:
         logger.error(f"Error generating focus zone for test {test_session_id}: {str(e)}")
@@ -1773,8 +1894,8 @@ def generate_repeated_mistakes(student_id: str, test_session_id: int) -> Dict:
         Dict with structure:
         {
             "Physics": [
-                "Student repeatedly confused velocity with acceleration in 3 tests.\\nPractice 10 motion problems daily focusing on units.",
-                "..."
+                {"topic": "Mechanics", "line1": "...", "line2": "..."},
+                ...
             ],
             "Chemistry": [...],
             ...
@@ -1784,30 +1905,148 @@ def generate_repeated_mistakes(student_id: str, test_session_id: int) -> Dict:
         print(f"🔁 generate_repeated_mistakes START for student {student_id} / session {test_session_id}")
         from ..models import TestSession, TestSubjectZoneInsight
         
+        # Get test session to determine expected subjects
+        test_session = TestSession.objects.get(id=test_session_id)
+        
+        # Get expected subjects from test session
+        expected_subjects = []
+        subject_map = {
+            'Physics': test_session.physics_topics,
+            'Chemistry': test_session.chemistry_topics,
+            'Botany': test_session.botany_topics,
+            'Zoology': test_session.zoology_topics,
+            'Biology': test_session.biology_topics,
+            'Math': test_session.math_topics
+        }
+        
+        for subject, topics in subject_map.items():
+            if topics:
+                expected_subjects.append(subject)
+        
         # Extract wrong answers from all platform tests
         repeated_data = extract_repeated_mistakes_data(student_id)
         
-        if not repeated_data:
-            logger.warning(f"No repeated mistakes data extracted for student {student_id}")
-            return {}
+        # Check which subjects have actual question data
+        subjects_with_data = []
+        subjects_without_data = []
         
-        # Import GeminiClient
-        try:
-            from ..services.ai.gemini_client import GeminiClient
-        except ImportError:
-            from neet_app.services.ai.gemini_client import GeminiClient
+        for subject in expected_subjects:
+            if repeated_data.get(subject) and repeated_data[subject].get('topics'):
+                # Check if there are actual questions in any test
+                has_questions = any(
+                    topic.get('tests') and any(
+                        test.get('questions') and len(test.get('questions', [])) > 0
+                        for test in topic.get('tests', [])
+                    )
+                    for topic in repeated_data[subject]['topics']
+                )
+                if has_questions:
+                    subjects_with_data.append(subject)
+                else:
+                    subjects_without_data.append(subject)
+            else:
+                subjects_without_data.append(subject)
         
-        client = GeminiClient()
+        # If no subjects have data, populate all with "no data available" message
+        if not subjects_with_data:
+            logger.info(f"ℹ️ No wrong answers found in previous platform tests for student {student_id}. Using 'no data available' message.")
+            result = {}
+            for subject in expected_subjects:
+                result[subject] = [
+                    {
+                        "topic": "General",
+                        "line1": "No data available for analysis.",
+                        "line2": "Complete more platform tests to unlock insights."
+                    },
+                    {
+                        "topic": "General",
+                        "line1": "Insufficient test history for pattern detection.",
+                        "line2": "Take more tests to track your progress over time."
+                    }
+                ]
+            
+            # Update the TestSubjectZoneInsight record
+            insight = TestSubjectZoneInsight.objects.filter(
+                test_session_id=test_session_id,
+                student_id=student_id
+            ).first()
+            
+            if insight:
+                insight.repeated_mistake = result
+                insight.save(update_fields=['repeated_mistake'])
+                logger.info(f"💾 Updated repeated_mistake with 'no data available' message for test {test_session_id}")
+            
+            return result
         
-        if not client.is_available():
-            logger.error(f"❌ Gemini client not available for repeated mistakes generation")
-            return {}
+        # If we have some subjects with data and some without, handle separately
+        result = {}
         
-        # Prepare prompt
-        data_json = json.dumps(repeated_data, indent=2)
-        prompt = REPEATED_MISTAKES_PROMPT.format(data_json=data_json)
+        # For subjects without data, use "no data available" message
+        for subject in subjects_without_data:
+            result[subject] = [
+                {
+                    "topic": "General",
+                    "line1": "No data available for analysis.",
+                    "line2": "Complete more platform tests to unlock insights."
+                },
+                {
+                    "topic": "General",
+                    "line1": "Insufficient test history for pattern detection.",
+                    "line2": "Take more tests to track your progress over time."
+                }
+            ]
         
-        logger.info(f"🚀 Generating repeated mistakes for student {student_id} using {client.model_name}")
+        # For subjects with data, call LLM
+        if subjects_with_data:
+            # Filter repeated_data to only include subjects with data
+            filtered_repeated_data = {
+                subject: repeated_data[subject]
+                for subject in subjects_with_data
+                if subject in repeated_data
+            }
+            
+            # Import GeminiClient
+            try:
+                from ..services.ai.gemini_client import GeminiClient
+            except ImportError:
+                from neet_app.services.ai.gemini_client import GeminiClient
+            
+            client = GeminiClient()
+            
+            if not client.is_available():
+                logger.error(f"❌ Gemini client not available for repeated mistakes generation")
+                # Use fallback for subjects with data
+                for subject in subjects_with_data:
+                    result[subject] = [
+                        {
+                            "topic": "General",
+                            "line1": f"Review {subject} concepts to identify weak areas.",
+                            "line2": "Practice more questions systematically."
+                        },
+                        {
+                            "topic": "General",
+                            "line1": f"Strengthen {subject} problem-solving approach.",
+                            "line2": "Solve previous year questions with time limits."
+                        }
+                    ]
+                
+                # Update DB
+                insight = TestSubjectZoneInsight.objects.filter(
+                    test_session_id=test_session_id,
+                    student_id=student_id
+                ).first()
+                
+                if insight:
+                    insight.repeated_mistake = result
+                    insight.save(update_fields=['repeated_mistake'])
+                
+                return result
+            
+            # Prepare prompt
+            data_json = json.dumps(filtered_repeated_data, indent=2)
+            prompt = REPEATED_MISTAKES_PROMPT.format(data_json=data_json)
+            
+            logger.info(f"🚀 Generating repeated mistakes for student {student_id} using {client.model_name} for subjects: {subjects_with_data}")
         
         # Retry logic: 10 attempts with exponential backoff
         max_retries = 10
@@ -1827,13 +2066,38 @@ def generate_repeated_mistakes(student_id: str, test_session_id: int) -> Dict:
                         time.sleep(wait_time)
                         continue
                     else:
-                        return {}
+                        # Use fallback for subjects with data
+                        for subject in subjects_with_data:
+                            result[subject] = [
+                                {
+                                    "topic": "General",
+                                    "line1": f"Review {subject} concepts to identify weak areas.",
+                                    "line2": "Practice more questions systematically."
+                                },
+                                {
+                                    "topic": "General",
+                                    "line1": f"Strengthen {subject} problem-solving approach.",
+                                    "line2": "Solve previous year questions with time limits."
+                                }
+                            ]
+                        # Update DB
+                        insight = TestSubjectZoneInsight.objects.filter(
+                            test_session_id=test_session_id,
+                            student_id=student_id
+                        ).first()
+                        if insight:
+                            insight.repeated_mistake = result
+                            insight.save(update_fields=['repeated_mistake'])
+                        return result
                 
                 # Parse response using repeated mistakes parser (handles topic structure)
-                repeated_mistakes_data = parse_repeated_mistakes_response(llm_response)
+                llm_repeated_mistakes_data = parse_repeated_mistakes_response(llm_response)
                 
-                if repeated_mistakes_data is not None:
+                if llm_repeated_mistakes_data is not None:
                     print(f"✅ Repeated mistakes generated on attempt {attempt}")
+                    
+                    # Combine LLM data with "no data available" messages
+                    result.update(llm_repeated_mistakes_data)
                     
                     # Update the TestSubjectZoneInsight record
                     insight = TestSubjectZoneInsight.objects.filter(
@@ -1842,13 +2106,13 @@ def generate_repeated_mistakes(student_id: str, test_session_id: int) -> Dict:
                     ).first()
                     
                     if insight:
-                        insight.repeated_mistake = repeated_mistakes_data
+                        insight.repeated_mistake = result
                         insight.save(update_fields=['repeated_mistake'])
                         logger.info(f"💾 Updated repeated_mistake for test {test_session_id}")
                     else:
                         logger.warning(f"⚠️ No TestSubjectZoneInsight found for test {test_session_id}")
                     
-                    return repeated_mistakes_data
+                    return result
                 
                 # Parsing failed, retry
                 print(f"⚠️ Parse failed on attempt {attempt}, retrying...")
@@ -1868,9 +2132,33 @@ def generate_repeated_mistakes(student_id: str, test_session_id: int) -> Dict:
                     time.sleep(wait_time)
                     continue
         
-        # All retries exhausted
-        print(f"❌ All {max_retries} attempts failed for repeated mistakes generation")
-        return {}
+        # All retries exhausted, use fallback for subjects with data
+        for subject in subjects_with_data:
+            result[subject] = [
+                {
+                    "topic": "General",
+                    "line1": f"Review {subject} concepts to identify weak areas.",
+                    "line2": "Practice more questions systematically."
+                },
+                {
+                    "topic": "General",
+                    "line1": f"Strengthen {subject} problem-solving approach.",
+                    "line2": "Solve previous year questions with time limits."
+                }
+            ]
+        
+        # Update DB with combined result (fallback + no data messages)
+        insight = TestSubjectZoneInsight.objects.filter(
+            test_session_id=test_session_id,
+            student_id=student_id
+        ).first()
+        
+        if insight:
+            insight.repeated_mistake = result
+            insight.save(update_fields=['repeated_mistake'])
+        
+        print(f"❌ LLM generation failed, using fallback messages")
+        return result
         
     except Exception as e:
         logger.error(f"Error generating repeated mistakes for student {student_id}: {str(e)}")

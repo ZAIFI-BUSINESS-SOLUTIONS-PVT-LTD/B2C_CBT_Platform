@@ -102,7 +102,7 @@ function ErrorPageRoute() {
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />                           {/* Home page with topic selection */}
+      <Route path="/" component={Topics} />                         {/* Root now shows Topics (test tab) */}
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/institution-register" component={InstitutionRegisterPage} />
