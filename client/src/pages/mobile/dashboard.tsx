@@ -126,7 +126,7 @@ export default function LandingDashboard() {
 
       {/* Scrollable Test History Container */}
       <div 
-        className="flex-1 overflow-y-auto pb-20 max-h-[calc(100vh-220px)]"
+        className="flex-1 overflow-y-auto pb-20 max-h-[calc(100dvh-220px)]"
         style={{
           overscrollBehavior: 'auto',
           WebkitOverflowScrolling: 'touch'

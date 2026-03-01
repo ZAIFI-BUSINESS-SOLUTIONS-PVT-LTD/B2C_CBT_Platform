@@ -585,7 +585,7 @@ export default function ChatbotPage() {
       <style dangerouslySetInnerHTML={{ __html: mobileStyles }} />
       <HeaderDesktop />
       {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col mt-20 transition-all duration-300 md:ml-64 relative h-[calc(100vh-5rem)]">
+      <main className="flex-1 flex flex-col mt-20 transition-all duration-300 md:ml-64 relative h-[calc(100dvh-5rem)]">
 
         {/* Messages Area - takes remaining space and scrolls */}
         <div className="flex-1 overflow-hidden pb-24">

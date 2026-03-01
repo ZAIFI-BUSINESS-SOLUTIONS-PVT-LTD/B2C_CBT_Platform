@@ -5,6 +5,15 @@ export default {
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
   	extend: {
+  		height: {
+  			screen: '100dvh'
+  		},
+  		minHeight: {
+  			screen: '100dvh'
+  		},
+  		maxHeight: {
+  			screen: '100dvh'
+  		},
   		fontFamily: {
   			sans: [
   				'Tenorite',

@@ -312,7 +312,7 @@ export default function InstitutionStudentAnalytics() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col" style={{ height: "100vh" }}>
+    <div className="min-h-screen bg-gray-50 flex flex-col" style={{ height: "100dvh" }}>
 
       {/* ── TOP HEADER ──────────────────────────────────────────────────────── */}
       <div className="bg-white border-b px-4 py-2.5 flex items-center justify-between shadow-sm flex-shrink-0">

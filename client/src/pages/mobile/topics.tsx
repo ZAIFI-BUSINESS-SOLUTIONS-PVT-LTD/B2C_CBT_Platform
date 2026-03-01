@@ -281,7 +281,7 @@ function QODCard({ streak, qodData, onClick }: { streak: number; qodData: any; o
     <div className="relative">
       <Card
         onClick={onClick}
-            className="rounded-2xl border cursor-pointer overflow-hidden bg-white/30 mt-6"
+            className="rounded-2xl border cursor-pointer overflow-hidden bg-white/30 mt-1"
         style={{
           backgroundImage: "url('/s-penguin.webp')",
           backgroundRepeat: 'no-repeat',
