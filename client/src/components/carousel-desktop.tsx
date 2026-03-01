@@ -82,7 +82,13 @@ const Carousel: React.FC<CarouselProps> = ({ sections = [], emptyMessage = 'No c
                 </div>
 
                 {/* Content area - flexes to fill remaining space and scrolls when needed */}
-                <div className="px-6 py-2 flex-1 overflow-y-auto flex items-start justify-center">
+                <div 
+                  className="px-6 py-2 flex-1 overflow-y-auto flex items-start justify-center"
+                  style={{
+                    overscrollBehavior: 'auto',
+                    WebkitOverflowScrolling: 'touch'
+                  }}
+                >
                     {Array.isArray(section.items) && section.items.length > 0 ? (
                         <ul className="space-y-3 w-full max-w-3xl">
                             {section.items.map((item, i) => (

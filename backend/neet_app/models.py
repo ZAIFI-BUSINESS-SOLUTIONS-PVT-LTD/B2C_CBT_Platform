@@ -1396,3 +1396,61 @@ class QuestionOfTheDay(models.Model):
 
     def __str__(self):
         return f"QOD {self.date} - {self.student.student_id} - Q{self.question.id}"
+
+
+class QuestionFeedback(models.Model):
+    """
+    Stores student feedback on questions during tests.
+    Allows students to report issues like incorrect questions,
+    out of syllabus content, unclear wording, etc.
+    """
+    FEEDBACK_TYPES = [
+        ('INCORRECT_QUESTION', 'Incorrect Question'),
+        ('OUT_OF_SYLLABUS', 'Out of Syllabus'),
+        ('OPTIONS_INCORRECT', 'Options are Incorrect'),
+        ('QUESTION_UNCLEAR', 'Question is Unclear'),
+        ('OTHER', 'Other'),
+    ]
+    
+    id = models.AutoField(primary_key=True)
+    student = models.ForeignKey(
+        StudentProfile,
+        on_delete=models.CASCADE,
+        null=False,
+        db_column='student_id'
+    )
+    test_session = models.ForeignKey(
+        TestSession,
+        on_delete=models.CASCADE,
+        null=False,
+        db_column='test_id'
+    )
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.CASCADE,
+        null=False,
+        db_column='question_id'
+    )
+    feedback_type = models.CharField(
+        max_length=50,
+        choices=FEEDBACK_TYPES,
+        null=False
+    )
+    remarks = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'question_feedback'
+        verbose_name = 'Question Feedback'
+        verbose_name_plural = 'Question Feedback'
+        # Prevent duplicate feedback from same student for same question in same test
+        unique_together = [['student', 'test_session', 'question']]
+        indexes = [
+            models.Index(fields=['student', 'created_at']),
+            models.Index(fields=['test_session', 'created_at']),
+            models.Index(fields=['question', 'feedback_type']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"Feedback {self.id} - {self.student.student_id} - Q{self.question.id} - {self.feedback_type}"

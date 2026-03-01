@@ -2,12 +2,12 @@
   "name": "NEET BRO - NEET Test Platform",
   "short_name": "NEET BRO",
   "description": "Comprehensive NEET test preparation platform with AI-powered insights",
-  "start_url": "/",
+  "start_url": "/login",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4f46e5",
   "orientation": "portrait-primary",
-  "scope": "/",
+  "scope": "/login/",
   "icons": [
     {
       "src": "/icons/icon-72.png",
@@ -65,7 +65,7 @@
       "name": "Start Test",
       "short_name": "Test",
       "description": "Start a new practice test",
-      "url": "/",
+      "url": "/login",
       "icons": [
         {
           "src": "/icons/icon-192.png",
@@ -77,7 +77,7 @@
       "name": "Dashboard",
       "short_name": "Dashboard",
       "description": "View your performance dashboard",
-      "url": "/dashboard",
+      "url": "/login/dashboard",
       "icons": [
         {
           "src": "/icons/icon-192.png",

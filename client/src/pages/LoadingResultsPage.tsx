@@ -7,9 +7,9 @@ import { Progress } from "@/components/ui/progress";
  *
  * Flow
  * ────
- * 1. Show loading page with result-bg background for exactly 2 seconds
- * 2. Progress bar animates from 0% to 100% over 5 seconds
- * 3. Automatically redirect to /results/:sessionId after 5 seconds
+ * 1. Show loading page with result-bg background for exactly 3 seconds
+ * 2. Progress bar animates from 0% to 100% over 3 seconds
+ * 3. Automatically redirect to /results/:sessionId after 3 seconds
  * 4. Backend processes zone insights asynchronously in background
  * 5. Results page will display test results and zone insights data
  */
@@ -29,22 +29,22 @@ export default function LoadingResultsPage() {
     }
   }, [sessionId, navigate]);
 
-  /* ── redirect after 2 seconds ────────────────────────── */
+  /* ── redirect after 3 seconds ────────────────────────── */
   useEffect(() => {
     if (!sessionId) return;
 
     const redirectTimer = setTimeout(() => {
-      console.log('✅ 2 second loading complete – redirecting to results');
+      console.log('✅ 3 second loading complete – redirecting to results');
       navigate(`/results/${sessionId}`, { replace: true });
-    }, 2000); // 2 seconds
+    }, 3000); // 3 seconds
 
     return () => clearTimeout(redirectTimer);
   }, [sessionId, navigate]);
 
   /* ── animate progress bar ────────────────────────────── */
   useEffect(() => {
-    // Smoothly animate progress from 0 to 100% over 2 seconds
-    const duration = 2000; // 2 seconds
+    // Smoothly animate progress from 0 to 100% over 3 seconds
+    const duration = 3000; // 3 seconds
     const interval = 50; // update every 50ms for smooth animation
     const increment = (100 / duration) * interval;
     

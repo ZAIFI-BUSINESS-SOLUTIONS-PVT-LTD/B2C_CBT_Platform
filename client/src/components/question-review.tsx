@@ -125,7 +125,13 @@ export function QuestionReview({
                         </div>
 
                         {/* Horizontal Scroll Container for Filter Options */}
-                        <div className="flex-1 overflow-x-auto hide-scrollbar">
+                        <div 
+                            className="flex-1 overflow-x-auto hide-scrollbar"
+                            style={{
+                              overscrollBehaviorX: 'auto',
+                              WebkitOverflowScrolling: 'touch'
+                            }}
+                        >
                             <div className="flex items-center gap-2 min-w-max">
                                 <div className="flex items-center gap-1">
                                     <Button

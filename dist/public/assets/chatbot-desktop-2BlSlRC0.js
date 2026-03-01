@@ -1,4 +1,4 @@
-import{g as q,u as Q,r as o,j as e,b as U,I as X,B as G,ai as Y,y as f,ag as Z}from"./main-DWDFnnYU.js";import{S as ee}from"./scroll-area-DJBJKyVB.js";import{S as A,M as se,a as te}from"./speech-Bm6kgKER.js";import{H as ne}from"./header-desktop-Cj_XYrIi.js";import"./profile-avatar-C96gh1ls.js";import"./message-square-more-Desa69eE.js";const oe=`
+import{g as q,u as Q,r as o,j as e,b as U,I as X,B as G,ai as Y,y as f,ag as Z}from"./main-b_Mva75c.js";import{S as ee}from"./scroll-area-BpyraVIW.js";import{S as A,M as se,a as te}from"./speech-BbKA2i35.js";import{H as ne}from"./header-desktop-DKzAHHaN.js";import"./profile-avatar-C4k_ux8s.js";import"./message-square-more-CzG85sTE.js";const oe=`
   .safe-area-top {
     padding-top: env(safe-area-inset-top);
   }

@@ -102,7 +102,7 @@ export default function TestHistory() {
   return (
     <div className="px-4">
       <h2
-        className="text-lg font-bold text-slate-900 sticky top-0 z-20 -mx-4 px-4 py-3 mb-2"
+        className="text-lg font-bold text-slate-900 sticky top-0 z-30 -mx-4 px-4 py-3 pb-3 mb-3"
         style={{
           background: 'linear-gradient(180deg, rgba(234,249,255,1), rgba(221,244,255,0.95))',
           boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.6), 0 4px 12px rgba(0,0,0,0.06)',

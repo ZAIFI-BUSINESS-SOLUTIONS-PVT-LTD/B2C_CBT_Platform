@@ -75,6 +75,10 @@ export const API_CONFIG = {
     AUTH_SEND_OTP: '/api/auth/send-otp/',
     AUTH_VERIFY_OTP: '/api/auth/verify-otp/',
 
+    // Question Feedback endpoints
+    QUESTION_FEEDBACK: '/api/question-feedback/',
+    QUESTION_FEEDBACK_LIST: '/api/question-feedback/list/',
+
     // Payment endpoints
     PAYMENTS_CREATE_ORDER: '/api/payments/create-order/',
     PAYMENTS_VERIFY_PAYMENT: '/api/payments/verify-payment/',

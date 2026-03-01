@@ -111,42 +111,37 @@ export default function MobileOtpLogin({
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    await doVerifyOtp();
+  };
+
+  // Programmatic verification (used for auto-submit when all digits entered)
+  const doVerifyOtp = async (digits?: string[]) => {
+    if (loading || disabled) return;
     setError(null);
+    const digitsArr = digits ?? otpDigits;
+    const enteredOtp = digitsArr.join('');
+
+    // Do not perform client-side validation beyond presence of 6 digits.
+    // If not complete, return silently; backend will validate the OTP.
+    if (enteredOtp.length !== 6) return;
+
     setLoading(true);
-    const enteredOtp = otpDigits.join('');
-    if (!enteredOtp) {
-      setError("OTP is required");
-      setLoading(false);
-      return;
-    }
-
-    if (enteredOtp.length !== 6) {
-      setError("Please enter a valid 6-digit OTP");
-      setLoading(false);
-      return;
-    }
-
     try {
       const normalizedMobile = normalizeMobileNumber(mobileNumber);
       const response = await verifyOtp(normalizedMobile, enteredOtp);
       console.log("OTP verified successfully:", response);
 
-      // Set authentication using the same method as other login flows
       setAuthFromTokens({ access: response.access, refresh: response.refresh }, response.student);
 
       if (onSuccess) {
         onSuccess();
       }
-      
     } catch (err: any) {
       console.error("Verify OTP error:", err);
-      
-      if (err.message?.includes('invalid') || err.message?.includes('expired')) {
-        setError("Invalid or expired OTP. Please try again.");
-      } else {
-        setError(err.message || "Failed to verify OTP. Please try again.");
-      }
-      
+
+      // Surface backend error messages but don't add extra client-side validations
+      setError(err.message || "Failed to verify OTP. Please try again.");
+
       if (onError) {
         onError(err.message || "Failed to verify OTP");
       }
@@ -199,20 +194,21 @@ export default function MobileOtpLogin({
   const handleOtpInputChange = (index: number, value: string) => {
     // accept only digits
     const digits = value.replace(/\D/g, '');
-    setOtpDigits(prev => {
-      const next = [...prev];
-      if (digits.length === 1) {
-        next[index] = digits;
-      } else if (digits.length > 1) {
-        // pasted multiple digits - fill from index
-        for (let i = 0; i < digits.length && index + i < next.length; i++) {
-          next[index + i] = digits.charAt(i);
-        }
-      } else {
-        next[index] = '';
+
+    // build next state from current
+    const next = [...otpDigits];
+    if (digits.length === 1) {
+      next[index] = digits;
+    } else if (digits.length > 1) {
+      // pasted multiple digits - fill from index
+      for (let i = 0; i < digits.length && index + i < next.length; i++) {
+        next[index + i] = digits.charAt(i);
       }
-      return next;
-    });
+    } else {
+      next[index] = '';
+    }
+
+    setOtpDigits(next);
 
     // move focus
     if (digits.length === 1) {
@@ -222,6 +218,12 @@ export default function MobileOtpLogin({
       const pos = Math.min(6, index + digits.length);
       const nextInput = inputsRef.current[pos];
       if (nextInput) nextInput.focus();
+    }
+
+    // If all digits filled, auto-submit
+    if (next.every(d => d !== '')) {
+      // small debounce to allow UI focus to settle
+      setTimeout(() => doVerifyOtp(next), 100);
     }
   };
 
@@ -267,7 +269,7 @@ export default function MobileOtpLogin({
 
         <div className="w-full max-w-xs bg-white/6 p-4 rounded-2xl border-2 border-white/30 shadow-lg backdrop-blur-sm">
           <p className="text-sm text-gray-600">
-            Enter your mobile number
+          
           </p>
 
           <form onSubmit={handleSendOtp} className="space-y-3">
@@ -275,7 +277,7 @@ export default function MobileOtpLogin({
               <span className="px-3 text-sm text-gray-700 bg-transparent">+91</span>
               <Input
                 type="tel"
-                placeholder="98765 43210"
+                placeholder="Phone Number"
                 value={mobileNumber}
                 onChange={(e) => setMobileNumber(e.target.value.replace(/[^0-9\s]/g, ''))}
                 required

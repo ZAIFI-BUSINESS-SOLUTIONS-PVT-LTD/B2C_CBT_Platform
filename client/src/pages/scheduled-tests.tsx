@@ -178,7 +178,7 @@ export default function ScheduledTestsPage() {
   };
 
   const TestCard = ({ test, isFirst }: { test: PlatformTest; isFirst?: boolean }) => (
-    <Card className="h-full shadow-md" {...(isFirst ? { 'data-tour-demo-test': 'true' } : {})}>
+    <Card className="h-full shadow-md">
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start">
           <div className="flex-1 min-w-0">

@@ -126,7 +126,7 @@ export function RandomTest({ testType, topics, onCancel, onInsufficientQuestions
                   size="sm"
                   onClick={() => {
                     setQuestionCount(count);
-                    setTimeLimit(count);
+                    setTimeLimit(Math.ceil(count * MAX_TIME_MULTIPLIER));
                     setLastChanged('questions');
                   }}
                   className="text-sm"

@@ -366,7 +366,13 @@ export default function InstitutionStudentAnalytics() {
           </div>
 
           {/* Student List */}
-          <div className="flex-1 overflow-y-auto">
+          <div 
+            className="flex-1 overflow-y-auto"
+            style={{
+              overscrollBehavior: 'auto',
+              WebkitOverflowScrolling: 'touch'
+            }}
+          >
             {studentsLoading ? (
               <div className="p-4 text-xs text-gray-400 text-center">Loading students…</div>
             ) : students.length === 0 ? (
@@ -403,7 +409,13 @@ export default function InstitutionStudentAnalytics() {
         </div>
 
         {/* ── RIGHT MAIN CONTENT ────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div 
+          className="flex-1 overflow-y-auto p-4 space-y-4"
+          style={{
+            overscrollBehavior: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
 
           {/* Empty state */}
           {!selectedStudent ? (
@@ -526,7 +538,13 @@ export default function InstitutionStudentAnalytics() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <div className="max-h-64 overflow-y-auto">
+                  <div 
+                    className="max-h-64 overflow-y-auto"
+                    style={{
+                      overscrollBehavior: 'auto',
+                      WebkitOverflowScrolling: 'touch'
+                    }}
+                  >
                     {perfLoading ? (
                       <div className="p-4 text-sm text-gray-400 text-center">Loading…</div>
                     ) : filteredList.length === 0 ? (
@@ -624,7 +642,13 @@ export default function InstitutionStudentAnalytics() {
                         ({selectedSessions.length} selected)
                       </span>
                     </p>
-                    <div className="max-h-36 overflow-y-auto border rounded p-2 space-y-1 bg-gray-50">
+                    <div 
+                      className="max-h-36 overflow-y-auto border rounded p-2 space-y-1 bg-gray-50"
+                      style={{
+                        overscrollBehavior: 'auto',
+                        WebkitOverflowScrolling: 'touch'
+                      }}
+                    >
                       {downloadPool.length === 0 ? (
                         <p className="text-xs text-gray-400">No tests available.</p>
                       ) : (

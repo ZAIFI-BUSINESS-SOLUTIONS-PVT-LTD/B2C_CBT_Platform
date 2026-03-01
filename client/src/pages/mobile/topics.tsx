@@ -24,6 +24,36 @@ export default function Topics() {
   const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
 
+  // Swipe gesture detection for navigation
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  // Minimum swipe distance (in px) to trigger navigation
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    // Swipe left = go to Analysis (dashboard)
+    if (isLeftSwipe) {
+      navigate('/dashboard');
+    }
+    // Swipe right would go to previous tab, but Test is the first tab
+    // so we don't navigate anywhere
+  };
+
   // Fetch QOD data for streak display
   const { data: qodData } = useQuery<any>({
     queryKey: ['question-of-the-day'],
@@ -158,6 +188,9 @@ export default function Topics() {
     <div
       className="min-h-screen bg-cover bg-center bg-no-repeat bg-fixed pb-20"
       style={{ backgroundImage: "url('/testpage-bg.webp')" }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
     >
       {/* Page header */}
       <header className="sticky top-0 z-10 px-5 pt-5 pb-3">

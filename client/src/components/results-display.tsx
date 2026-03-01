@@ -495,7 +495,13 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
       </div>
 
       {/* Scrollable Content Section */}
-      <div className="flex-1 overflow-y-auto pb-20 pt-2 px-4">
+      <div 
+        className="flex-1 overflow-y-auto pb-20 pt-2 px-4"
+        style={{
+          overscrollBehavior: 'auto',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
         <div className="max-w-2xl mx-auto space-y-4">
 
         {/* Subject-wise Breakdown */}

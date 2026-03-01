@@ -10,7 +10,7 @@
  * On submit → POST /api/test-sessions/ with all topic IDs
  * belonging to the chosen subjects+chapters.
  *
- * Background: /testselection-bg.jpg
+ * Background: /testpage-bg.jpg
  */
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -315,7 +315,10 @@ export function QuickTestWizard({ onClose, onInsufficientQuestions }: QuickTestW
   return (
     <div
       className="fixed inset-0 z-[99999] flex flex-col bg-cover bg-center bg-no-repeat"
-      style={{ backgroundImage: "url('/testselection-bg.webp')" }}
+      style={{ backgroundImage: "url('/testpage-bg.webp')" }}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
     >
       {/* Background overlay (removed dark scrim for visual vibrancy) */}
       <div className="absolute inset-0 bg-transparent" />
@@ -359,7 +362,13 @@ export function QuickTestWizard({ onClose, onInsufficientQuestions }: QuickTestW
       </div>
 
       {/* ---- Scrollable card content ---- */}
-      <div className="relative z-10 flex-1 overflow-y-auto px-4 pb-4">
+      <div 
+        className="relative z-10 flex-1 overflow-y-auto px-4 pb-4"
+        style={{
+          overscrollBehavior: 'auto',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl p-4 pb-3">
           {/* ================= STEP 1: Subjects ================= */}
           {step === 1 && (
@@ -441,7 +450,13 @@ export function QuickTestWizard({ onClose, onInsufficientQuestions }: QuickTestW
                   <p className="text-sm">No chapters found for selected subjects.</p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                <div 
+                  className="space-y-2 max-h-[50vh] overflow-y-auto pr-1"
+                  style={{
+                    overscrollBehavior: 'auto',
+                    WebkitOverflowScrolling: 'touch'
+                  }}
+                >
                   {availableChapters.map((chapter) => {
                     const active = selectedChapters.includes(chapter);
                     return (
@@ -505,7 +520,7 @@ export function QuickTestWizard({ onClose, onInsufficientQuestions }: QuickTestW
                     type="button"
                     onClick={() => {
                       setQuestionCount(insufficientData.available);
-                      setTimeLimit(insufficientData.available);
+                      setTimeLimit(Math.ceil(insufficientData.available * MAX_TIME_MULTIPLIER));
                       setLastChanged("questions");
                       setInsufficientData(null);
                     }}
@@ -531,7 +546,7 @@ export function QuickTestWizard({ onClose, onInsufficientQuestions }: QuickTestW
                       size="sm"
                       onClick={() => {
                         setQuestionCount(count);
-                        setTimeLimit(count);
+                        setTimeLimit(Math.ceil(count * MAX_TIME_MULTIPLIER));
                         setLastChanged("questions");
                         setInsufficientData(null);
                       }}

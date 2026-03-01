@@ -32,3 +32,4 @@ export { default as InstitutionStudentAnalytics } from "./institution-student-an
 export { default as GetNumberPage } from "./get-number";
 export { default as Policy } from "./responsive/policy-responsive";
 export { default as DeleteAccount } from "./responsive/delete-account-responsive";
+export { default as SmartRedirect } from "./smart-redirect";

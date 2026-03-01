@@ -376,7 +376,13 @@ export function StudentProfile() {
             {/* Profile Edit Dialog */}
             <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
                 <DialogContent className="w-[calc(100%-3rem)] max-w-md rounded-2xl bg-white/90 backdrop-blur-sm border border-gray-200 shadow-xl overflow-hidden p-0">
-                    <div className="max-h-[85vh] overflow-y-auto">
+                    <div 
+                        className="max-h-[85vh] overflow-y-auto"
+                        style={{
+                          overscrollBehavior: 'auto',
+                          WebkitOverflowScrolling: 'touch'
+                        }}
+                    >
                         <div className="p-6">
                             <DialogHeader className="mb-4">
                                 <DialogTitle className="text-xl font-bold text-gray-900">Edit Profile</DialogTitle>
@@ -412,7 +418,13 @@ export function StudentProfile() {
             {/* Delete Account Confirmation Dialog */}
             <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
                 <AlertDialogContent className="w-[calc(100%-3rem)] max-w-md rounded-2xl bg-white/95 backdrop-blur-sm border border-gray-200 shadow-xl overflow-hidden p-0">
-                    <div className="max-h-[70vh] overflow-y-auto p-6">
+                    <div 
+                        className="max-h-[70vh] overflow-y-auto p-6"
+                        style={{
+                          overscrollBehavior: 'auto',
+                          WebkitOverflowScrolling: 'touch'
+                        }}
+                    >
                         <AlertDialogHeader>
                             <AlertDialogTitle className="text-gray-900">Delete Account</AlertDialogTitle>
                             <AlertDialogDescription className="space-y-4 text-gray-600">

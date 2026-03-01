@@ -88,6 +88,17 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Enable native overscroll effects on mobile devices */
+  html, body {
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Ensure scrollable containers can overscroll */
+  #root {
+    overscroll-behavior-y: auto;
+  }
 }
 
 /* Disable text selection across the app to prevent copying of test content.

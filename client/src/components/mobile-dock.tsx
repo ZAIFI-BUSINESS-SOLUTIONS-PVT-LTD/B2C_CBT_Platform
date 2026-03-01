@@ -1,5 +1,5 @@
 import React from "react";
-import { Home, Edit3, BarChart2, MessageSquareMore, School, Lock } from "lucide-react";
+import { Home, FileText, BarChart2, MessageSquareMore, School, Lock } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { useLocation } from "wouter";
 import { getPostTestHidden } from '@/lib/postTestHidden';
@@ -35,7 +35,7 @@ export default function MobileDock() {
 
     // Footer items: removed Home and Chatbot as per design
     const allItems = [
-        { key: "test", href: "/topics", label: "Test", icon: <Edit3 className="h-5 w-5" />, lockedForInstitution: true },
+        { key: "test", href: "/topics", label: "Test", icon: <FileText className="h-5 w-5" />, lockedForInstitution: true },
         { key: "institution", href: "/institution-tests", label: "Institution", icon: <School className="h-4 w-4" />, hideForNormal: true },
         { key: "analysis", href: "/dashboard", label: "Analysis", icon: <BarChart2 className="h-5 w-5" strokeWidth={4} /> },
     ];

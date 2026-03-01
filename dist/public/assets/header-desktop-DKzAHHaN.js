@@ -1,4 +1,4 @@
-import{n as p,u as m,g as k,r as c,aj as S,j as e,ah as I,ak as C,B as f,al as M,k as P,L as j,am as T,l as $,y as b,ag as F}from"./main-DWDFnnYU.js";import{S as A}from"./profile-avatar-C96gh1ls.js";import{S as E}from"./scroll-area-DJBJKyVB.js";import{M as z}from"./message-square-more-Desa69eE.js";/**
+import{n as p,u as m,g as k,r as c,aj as S,j as e,ah as I,ak as C,B as f,al as M,k as P,L as j,am as T,l as $,y as b,ag as F}from"./main-b_Mva75c.js";import{S as A}from"./profile-avatar-C4k_ux8s.js";import{S as E}from"./scroll-area-BpyraVIW.js";import{M as z}from"./message-square-more-CzG85sTE.js";/**
  * @license lucide-react v0.544.0 - ISC
  *
  * This source code is licensed under the ISC license.

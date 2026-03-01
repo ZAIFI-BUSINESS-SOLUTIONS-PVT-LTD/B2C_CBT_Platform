@@ -210,7 +210,13 @@ export default function HeaderDesktop() {
                     </div>
                 </div>
 
-                <nav className="flex-1 flex flex-col justify-between overflow-y-auto py-4">
+                <nav 
+                  className="flex-1 flex flex-col justify-between overflow-y-auto py-4"
+                  style={{
+                    overscrollBehavior: 'auto',
+                    WebkitOverflowScrolling: 'touch'
+                  }}
+                >
                     <div className="px-3">
                         <div className="px-3 mb-4">
                             <span className="text-sm font-medium text-gray-500 uppercase tracking-wider">Main Menu</span>

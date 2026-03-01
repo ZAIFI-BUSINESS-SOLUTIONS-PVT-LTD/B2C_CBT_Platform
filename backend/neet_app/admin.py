@@ -4,7 +4,7 @@ from django.contrib.admin.widgets import FilteredSelectMultiple
 from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, PasswordReset, PlatformTest
 from .models import UserActivity, PlatformTestAudit
 from .models import PlatformAdmin, PaymentOrder, RazorpayOrder
-from .models import Institution, InstitutionAdmin, QuestionOfTheDay
+from .models import Institution, InstitutionAdmin, QuestionOfTheDay, QuestionFeedback
 
 @admin.register(PlatformTest)
 class PlatformTestAdmin(admin.ModelAdmin):
@@ -309,3 +309,36 @@ class QuestionOfTheDayAdmin(admin.ModelAdmin):
     
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('student', 'question')
+
+
+@admin.register(QuestionFeedback)
+class QuestionFeedbackAdmin(admin.ModelAdmin):
+    """Admin interface for Question Feedback - allows reviewing student-reported issues"""
+    list_display = ['id', 'student', 'test_session', 'question_preview', 'feedback_type', 'created_at']
+    list_filter = ['feedback_type', 'created_at', 'test_session__test_type']
+    search_fields = ['student__student_id', 'student__full_name', 'question__question', 'remarks']
+    readonly_fields = ['student', 'test_session', 'question', 'feedback_type', 'remarks', 'created_at']
+    ordering = ['-created_at']
+    date_hierarchy = 'created_at'
+    
+    def question_preview(self, obj):
+        """Show first 60 characters of the question"""
+        question_text = obj.question.question
+        return question_text[:60] + '...' if len(question_text) > 60 else question_text
+    question_preview.short_description = 'Question'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('student', 'test_session', 'question')
+    
+    # Make all fields read-only in the detail view (feedback should not be edited)
+    def has_add_permission(self, request):
+        """Disable adding feedback through admin - should only come from students"""
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """Allow viewing but not editing feedback"""
+        return True
+    
+    def has_delete_permission(self, request, obj=None):
+        """Allow deleting spam/invalid feedback"""
+        return True

@@ -33,11 +33,12 @@ import { setPostTestHidden } from "@/lib/postTestHidden";
 import { authenticatedFetch } from "@/lib/auth";
 import normalizeImageSrc from "@/lib/media";
 import { unlockAudio } from "@/utils/tts";
-import { ChevronLeft, ChevronRight, Bookmark, AlertTriangle, Info, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Bookmark, AlertTriangle, Info, X, Flag } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, } from "@/components/ui/alert-dialog";
 import SubmitDialog from "./test-interface/dialogs/SubmitDialog";
 import TimeOverDialog from "./test-interface/dialogs/TimeOverDialog";
 import QuitDialog from "./test-interface/dialogs/QuitDialog";
+import QuestionFeedbackDialog from "./test-interface/dialogs/QuestionFeedbackDialog";
 
 /**
  * Props for the TestInterface component
@@ -86,7 +87,7 @@ interface TestSessionData {
  */
 export function TestInterface({ sessionId }: TestInterfaceProps) {
   // === NAVIGATION AND UI STATE ===
-  const [, navigate] = useLocation();                  // Navigation function
+  const [location, navigate] = useLocation();          // Navigation function and current location
   const { toast } = useToast();                        // Toast notifications
   const queryClient = useQueryClient();                // React Query client for cache management
 
@@ -99,7 +100,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const [answerIds, setAnswerIds] = useState<Record<number, number>>({});     // Map questionId -> answerId for PATCH requests
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);            // Submit confirmation dialog visibility
   const [showTimeOverDialog, setShowTimeOverDialog] = useState(false);        // Time over dialog visibility
-  const [timeOverAutoSubmit, setTimeOverAutoSubmit] = useState<ReturnType<typeof setTimeout> | null>(null); // Auto-submit timeout
+  const timeOverAutoSubmitRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Auto-submit timeout (ref for synchronous access)
   const [timeOverHandled, setTimeOverHandled] = useState(false); // Track if time over has been handled
   const [showQuitDialog, setShowQuitDialog] = useState(false);                // Quit exam confirmation dialog visibility
   const [isNavigationBlocked, setIsNavigationBlocked] = useState(true);       // Block navigation during test
@@ -111,10 +112,17 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   const [pauseStartTime, setPauseStartTime] = useState<number | null>(null); // When the current pause started
   const [accumulatedPauseMs, setAccumulatedPauseMs] = useState<number>(0); // Total paused ms to subtract from timers
 
+  // === QUESTION FEEDBACK STATE ===
+  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [submittedFeedback, setSubmittedFeedback] = useState<Set<number>>(new Set()); // Track which questions have feedback
+
   // Prevent state updates / handlers from running while a submit is in progress
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Client-side test start timestamp (set when user first lands on first question)
   const [clientTestStartTime, setClientTestStartTime] = useState<number | null>(null);
+  // Header measured height (used to offset fixed header)
+  const [headerHeight, setHeaderHeight] = useState<number>(0);
 
   // === TIME TRACKING ===
   const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now()); // When current question started
@@ -304,6 +312,45 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       console.error('Failed to log time:', error);
       // Don't show user error for time logging failures to avoid disruption
     }
+  });
+
+  // === QUESTION FEEDBACK MUTATION ===
+  const submitFeedbackMutation = useMutation({
+    mutationFn: async (data: {
+      questionId: number;
+      feedbackType: string;
+      remarks: string;
+    }) => {
+      // Backend will get student_id from authenticated user (JWT token)
+      // No need to send studentId in request body
+      const response = await apiRequest(API_CONFIG.ENDPOINTS.QUESTION_FEEDBACK, "POST", {
+        testId: sessionId,
+        questionId: data.questionId,
+        feedbackType: data.feedbackType,
+        remarks: data.remarks,
+      });
+      return response;
+    },
+    onSuccess: (data, variables) => {
+      toast({
+        title: "Feedback Submitted",
+        description: "Thank you for your feedback! We'll review this question.",
+        variant: "default",
+      });
+      // Mark question as having feedback submitted
+      setSubmittedFeedback(prev => new Set([...prev, variables.questionId]));
+      setShowFeedbackDialog(false);
+      setFeedbackSubmitting(false);
+    },
+    onError: (error: any) => {
+      setFeedbackSubmitting(false);
+      const errorMessage = error?.message || "Failed to submit feedback";
+      toast({
+        title: "Feedback Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
   });
 
   const submitTestMutation = useMutation({
@@ -799,6 +846,9 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       logCurrentQuestionTime(currentQuestion.id);
     }
 
+    // Cancel any pending auto-submit timers (fullscreen hook)
+    cancelAutoSubmit();
+
     // Suppress fullscreen-exit dialog while performing intentional submit
     suppressFullscreenExitDialogRef.current = true;
     setSuppressFullscreenExitDialog(true);
@@ -848,6 +898,15 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     // mark submitting to prevent other handlers from running
     setIsSubmitting(true);
     const autoSubmitTimeout = setTimeout(() => {
+      // Guard: Don't execute if component unmounted or already handled
+      if (!mountedRef.current || timeOverHandled) {
+        console.log('⏱️ Auto-submit cancelled: component unmounted or already handled');
+        return;
+      }
+
+      // Cancel the fullscreen hook's auto-submit timer to avoid double submission
+      cancelAutoSubmit();
+      
       // Exit fullscreen and disable navigation blocking
       try { 
         if (document.fullscreenElement) {
@@ -869,15 +928,19 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       }
     }, 10000); // 10 seconds delay
 
-    setTimeOverAutoSubmit(autoSubmitTimeout);
+    // Store in ref for synchronous access (state updates are async)
+    timeOverAutoSubmitRef.current = autoSubmitTimeout;
   };
 
   const handleTimeOverSubmit = () => {
     // Clear auto-submit timeout since user is manually submitting
-    if (timeOverAutoSubmit) {
-      clearTimeout(timeOverAutoSubmit);
-      setTimeOverAutoSubmit(null);
+    if (timeOverAutoSubmitRef.current) {
+      clearTimeout(timeOverAutoSubmitRef.current);
+      timeOverAutoSubmitRef.current = null;
     }
+
+    // IMPORTANT: Cancel the fullscreen hook's auto-submit timer too
+    cancelAutoSubmit();
 
     // Submit the test (intentional) - suppress exit dialog
     // Set suppression flags synchronously to prevent race conditions
@@ -909,14 +972,17 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
     // Submit the test in background
     submitTestMutation.mutate();
-  };  // Clean up timeout on component unmount
+  };
+  
+  // Clean up timeout on component unmount
   useEffect(() => {
     return () => {
-      if (timeOverAutoSubmit) {
-        clearTimeout(timeOverAutoSubmit);
+      if (timeOverAutoSubmitRef.current) {
+        clearTimeout(timeOverAutoSubmitRef.current);
+        timeOverAutoSubmitRef.current = null;
       }
     };
-  }, [timeOverAutoSubmit]);
+  }, []); // Empty deps - cleanup runs on unmount only
 
   // === NAVIGATION GUARD IMPLEMENTATION ===
   // Enhanced but functional browser navigation prevention
@@ -1088,8 +1154,19 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   };
 
   const onFullscreenAutoSubmit = () => {
+    // Guard: Don't execute if component unmounted, already handled, or already submitting
+    if (!mountedRef.current || timeOverHandled || isSubmittingRef.current) {
+      console.log('⏱️ Fullscreen auto-submit cancelled: component unmounted, already handled, or already submitting');
+      return;
+    }
+
+    // Guard: Don't execute if we're not on the test page anymore (already navigated)
+    if (location !== `/test/${sessionId}`) {
+      console.log('⏱️ Fullscreen auto-submit cancelled: already navigated away from test page');
+      return;
+    }
+
     // Auto-submit when grace period expires
-    if (isSubmittingRef.current) return; // already submitting
     if (!showTimeOverDialog) {
       // Log current question time first
       if (currentQuestion) {
@@ -1303,7 +1380,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundImage: "url('/testscreen-bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundImage: "url('/testpage-bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
         <div className="text-center bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6 max-w-sm mx-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className="text-slate-500 font-medium text-sm">Loading test...</p>
@@ -1347,7 +1424,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       );
     }
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundImage: "url('/testscreen-bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundImage: "url('/testpage-bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
         <div className="text-center bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-6 max-w-sm mx-4">
           <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
           <h2 className="text-lg font-bold text-gray-900 mb-2">Test Not Found</h2>
@@ -1364,7 +1441,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col" style={{ backgroundImage: "url('/testscreen-bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+    <div className="fixed inset-0 flex flex-col" style={{ backgroundImage: "url('/testpage-bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center', paddingTop: headerHeight }}>
       {/* === OVERLAYS === */}
       {isSubmitting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 px-4">
@@ -1412,12 +1489,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
           isSubmitting={isSubmitting}
           onQuit={() => setShowQuitDialog(true)}
           showPause={false}
+          onHeightChange={setHeaderHeight}
         />
 
         {/* Security Banner removed */}
 
         {/* Subject tabs, question numbers and legend (moved down to avoid fixed header) */}
-        <div className="mt-20">
+        <div>
         {allSubjects.length > 0 && (
           <div className="flex items-center justify-center gap-2 px-3 py-2 bg-white/70 backdrop-blur-sm">
             {allSubjects.map(sub => (
@@ -1440,7 +1518,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         )}
 
         {/* Question numbers - horizontal scroll */}
-        <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto bg-white/70 backdrop-blur-sm hide-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto bg-white/70 backdrop-blur-sm hide-scrollbar" style={{ overscrollBehaviorX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {testData.questions.map((question, index) => {
             const status = getQuestionStatus(index, question.id);
             const isCurrentQ = index === currentQuestionIndex;
@@ -1479,7 +1557,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       </div>
 
       {/* === SCROLLABLE QUESTION AREA === */}
-      <div className="flex-1 overflow-y-auto px-3 py-3">
+      <div 
+        className="flex-1 overflow-y-auto px-3 py-3"
+        style={{
+          overscrollBehavior: 'auto',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 p-4">
           {/* Question number + bookmark + badge */}
           <div className="flex items-center justify-between mb-4">
@@ -1488,20 +1572,6 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
               <span className="text-sm text-slate-400 font-medium">/ {totalQuestions}</span>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleToggleBookmark}
-                disabled={showTimeOverDialog}
-                aria-pressed={bookmarkedQuestions.has(currentQuestion?.id ?? -1)}
-                aria-label="Bookmark"
-                className={`size-8 flex items-center justify-center rounded-full transition-colors border ${
-                  bookmarkedQuestions.has(currentQuestion?.id ?? -1)
-                    ? 'bg-amber-50 border-amber-100 text-amber-600'
-                    : 'bg-white/90 border-white/30 text-slate-600 hover:bg-white'
-                }`}
-                title="Bookmark"
-              >
-                <Bookmark className="w-4 h-4" />
-              </button>
               <button
                 onClick={handleMarkForReview}
                 disabled={showTimeOverDialog}
@@ -1516,6 +1586,38 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
               >
                 <AlertTriangle className={`w-4 h-4 ${markedForReview.has(currentQuestion?.id ?? -1) ? 'text-amber-600' : 'text-slate-500'}`} />
                 <span className="whitespace-nowrap">{markedForReview.has(currentQuestion?.id ?? -1) ? 'Marked' : 'Mark for Review'}</span>
+              </button>
+              <button
+                onClick={handleToggleBookmark}
+                disabled={showTimeOverDialog}
+                aria-pressed={bookmarkedQuestions.has(currentQuestion?.id ?? -1)}
+                aria-label="Bookmark"
+                className={`size-8 flex items-center justify-center rounded-full transition-colors border ${
+                  bookmarkedQuestions.has(currentQuestion?.id ?? -1)
+                    ? 'bg-amber-50 border-amber-100 text-amber-600'
+                    : 'bg-white/90 border-white/30 text-slate-600 hover:bg-white'
+                }`}
+                title="Bookmark"
+              >
+                <Bookmark className="w-4 h-4" />
+              </button>
+              {/* Question Feedback Button */}
+              <button
+                onClick={() => {
+                  if (!showTimeOverDialog && !submittedFeedback.has(currentQuestion?.id ?? -1)) {
+                    setShowFeedbackDialog(true);
+                  }
+                }}
+                disabled={showTimeOverDialog || submittedFeedback.has(currentQuestion?.id ?? -1)}
+                aria-label="Report Question Issue"
+                className={`size-8 flex items-center justify-center rounded-full transition-colors border ${
+                  submittedFeedback.has(currentQuestion?.id ?? -1)
+                    ? 'bg-orange-50 border-orange-100 text-orange-400 cursor-not-allowed'
+                    : 'bg-white/90 border-white/30 text-slate-600 hover:bg-white hover:text-orange-500'
+                }`}
+                title={submittedFeedback.has(currentQuestion?.id ?? -1) ? 'Feedback submitted' : 'Report issue with this question'}
+              >
+                <Flag className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -1672,6 +1774,24 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         isPending={quitTestMutation.isPending}
         onConfirm={handleQuitConfirm}
         onCancel={handleQuitCancel}
+      />
+      <QuestionFeedbackDialog
+        isOpen={showFeedbackDialog}
+        questionId={currentQuestion?.id ?? 0}
+        onClose={() => {
+          setShowFeedbackDialog(false);
+          setFeedbackSubmitting(false);
+        }}
+        onSubmit={async (feedbackType, remarks) => {
+          if (!currentQuestion) return;
+          setFeedbackSubmitting(true);
+          await submitFeedbackMutation.mutateAsync({
+            questionId: currentQuestion.id,
+            feedbackType,
+            remarks,
+          });
+        }}
+        isSubmitting={feedbackSubmitting}
       />
     </div>
   );

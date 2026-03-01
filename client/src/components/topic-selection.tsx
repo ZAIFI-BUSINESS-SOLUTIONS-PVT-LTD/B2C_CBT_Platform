@@ -232,7 +232,13 @@ export function TopicSelection() {
                         </div>
                       </CardHeader>
                       <CardContent className="pt-0">
-                        <div className="space-y-3 max-h-64 overflow-y-auto">
+                        <div 
+                          className="space-y-3 max-h-64 overflow-y-auto"
+                          style={{
+                            overscrollBehavior: 'auto',
+                            WebkitOverflowScrolling: 'touch'
+                          }}
+                        >
                           {subjectTopics.map((topic:Topic) => (
                             <div key={topic.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-white/50 transition-colors">
                               <Checkbox
@@ -310,7 +316,13 @@ export function TopicSelection() {
                         </div>
                       </CardHeader>
                       <CardContent className="pt-0">
-                        <div className="space-y-3 max-h-64 overflow-y-auto">
+                        <div 
+                          className="space-y-3 max-h-64 overflow-y-auto"
+                          style={{
+                            overscrollBehavior: 'auto',
+                            WebkitOverflowScrolling: 'touch'
+                          }}
+                        >
                           {subjectTopics.map((topic: Topic) => (
                             <div key={topic.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-white/50 transition-colors">
                               <Checkbox

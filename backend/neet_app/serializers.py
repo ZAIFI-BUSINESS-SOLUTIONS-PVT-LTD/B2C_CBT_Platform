@@ -1,6 +1,6 @@
 # your_app_name/serializers.py
 from rest_framework import serializers
-from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, ChatMemory, PlatformTest, RazorpayOrder, QuestionOfTheDay
+from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, ChatMemory, PlatformTest, RazorpayOrder, QuestionOfTheDay, QuestionFeedback
 from django.db.models import F
 from django.utils import timezone
 
@@ -228,31 +228,34 @@ class TestSessionCreateSerializer(serializers.Serializer):
         """Enhanced validation to handle both question count and time-based selection"""
         selection_mode = data.get('selection_mode', 'question_count')
         test_type = data.get('test_type', 'search')
+        question_count = data.get('question_count')
+        time_limit = data.get('time_limit')
         
         # For random tests, we don't need to validate topics as they will be generated
         if test_type == 'random':
-            question_count = data.get('question_count')
-            time_limit = data.get('time_limit')
             if not question_count or not time_limit:
                 raise serializers.ValidationError("Both question count and time limit are required for random tests")
             # For random tests, we'll generate topics on the backend
             return data
         
         # For custom and search modes, validate normally
+        # If both values are provided, respect both (user explicitly set them)
+        if question_count and time_limit:
+            # Both values provided - use them as-is without overwriting
+            return data
+        
+        # If only one value is provided, calculate the other based on selection_mode
         if selection_mode == 'time_limit':
-            time_limit = data.get('time_limit')
             if not time_limit:
                 raise serializers.ValidationError("Time limit is required when using time-based selection")
-            # Calculate question count: 1 question per minute
-            data['question_count'] = time_limit
+            # Calculate question count only if not provided: 1 question per minute
+            if not question_count:
+                data['question_count'] = time_limit
         elif selection_mode == 'question_count':
-            # Existing behavior - ensure question_count is provided
-            question_count = data.get('question_count')
             if not question_count:
                 raise serializers.ValidationError("Question count is required when using count-based selection")
-            # Don't override time_limit if it's provided by the frontend
-            # Only calculate time limit if it's not provided
-            if not data.get('time_limit'):
+            # Calculate time limit only if not provided
+            if not time_limit:
                 data['time_limit'] = question_count
         
         return data
@@ -813,3 +816,87 @@ class QuestionOfTheDaySubmitSerializer(serializers.Serializer):
     # record, the frontend must send this so the backend can create the record
     # at submit time and associate it with the correct question.
     question_id = serializers.IntegerField(required=False)
+
+
+class QuestionFeedbackSerializer(serializers.ModelSerializer):
+    """Serializer for viewing question feedback"""
+    student_id = serializers.CharField(source='student.student_id', read_only=True)
+    
+    class Meta:
+        model = QuestionFeedback
+        fields = ['id', 'student_id', 'test_session', 'question', 'feedback_type', 'remarks', 'created_at']
+        read_only_fields = ['id', 'student_id', 'created_at']
+
+
+class QuestionFeedbackCreateSerializer(serializers.Serializer):
+    """Serializer for creating question feedback"""
+    student_id = serializers.CharField(required=True)
+    test_id = serializers.IntegerField(required=True)
+    question_id = serializers.IntegerField(required=True)
+    feedback_type = serializers.ChoiceField(
+        choices=[
+            'INCORRECT_QUESTION',
+            'OUT_OF_SYLLABUS',
+            'OPTIONS_INCORRECT',
+            'QUESTION_UNCLEAR',
+            'OTHER'
+        ],
+        required=True
+    )
+    remarks = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    
+    def validate(self, data):
+        """Validate that test, question, and student exist"""
+        from .models import TestSession, Question, StudentProfile
+        
+        # Validate student
+        try:
+            student = StudentProfile.objects.get(student_id=data['student_id'])
+            data['student'] = student
+        except StudentProfile.DoesNotExist:
+            raise serializers.ValidationError({'student_id': 'Student not found'})
+        
+        # Validate test session
+        try:
+            test_session = TestSession.objects.get(id=data['test_id'])
+            data['test_session'] = test_session
+        except TestSession.DoesNotExist:
+            raise serializers.ValidationError({'test_id': 'Test session not found'})
+        
+        # Validate question
+        try:
+            question = Question.objects.get(id=data['question_id'])
+            data['question'] = question
+        except Question.DoesNotExist:
+            raise serializers.ValidationError({'question_id': 'Question not found'})
+        
+        # Verify that the student owns the test session
+        if test_session.student_id != data['student_id']:
+            raise serializers.ValidationError({'test_id': 'Test session does not belong to this student'})
+        
+        return data
+    
+    def create(self, validated_data):
+        """Create feedback record"""
+        # Remove the raw IDs and use the validated objects
+        student = validated_data.pop('student')
+        test_session = validated_data.pop('test_session')
+        question = validated_data.pop('question')
+        
+        # Remove the raw ID fields
+        validated_data.pop('student_id', None)
+        validated_data.pop('test_id', None)
+        validated_data.pop('question_id', None)
+        
+        # Create or update feedback (upsert behavior)
+        feedback, created = QuestionFeedback.objects.update_or_create(
+            student=student,
+            test_session=test_session,
+            question=question,
+            defaults={
+                'feedback_type': validated_data.get('feedback_type'),
+                'remarks': validated_data.get('remarks', ''),
+            }
+        )
+        
+        return feedback

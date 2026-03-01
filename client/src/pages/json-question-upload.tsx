@@ -411,7 +411,13 @@ export default function JSONQuestionUpload() {
                   <p className="text-sm font-semibold text-red-700 mb-2">
                     Errors/Warnings ({uploadResult.error_details.length}):
                   </p>
-                  <div className="bg-white rounded-lg p-3 border border-red-200 max-h-40 overflow-y-auto">
+                  <div 
+                    className="bg-white rounded-lg p-3 border border-red-200 max-h-40 overflow-y-auto"
+                    style={{
+                      overscrollBehavior: 'auto',
+                      WebkitOverflowScrolling: 'touch'
+                    }}
+                  >
                     <ul className="text-sm text-red-600 space-y-1">
                       {uploadResult.error_details.slice(0, 10).map((error, idx) => (
                         <li key={idx} className="border-b last:border-0 py-1">

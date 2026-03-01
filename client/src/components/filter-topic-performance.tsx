@@ -69,7 +69,13 @@ const FilterTopicPerformance: React.FC<FilterTopicPerformanceProps> = ({
                     <label className="block text-md font-medium text-gray-800 mb-3">
                         Filter by Subject
                     </label>
-                    <div className="overflow-y-auto p-3">
+                    <div 
+                      className="overflow-y-auto p-3"
+                      style={{
+                        overscrollBehavior: 'auto',
+                        WebkitOverflowScrolling: 'touch'
+                      }}
+                    >
                         <div className="grid grid-cols-2 gap-3">
                             {subjects.map((subject) => (
                                 <label key={subject} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded-md transition-colors">

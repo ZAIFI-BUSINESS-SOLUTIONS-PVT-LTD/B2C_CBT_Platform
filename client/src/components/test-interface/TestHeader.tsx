@@ -1,3 +1,4 @@
+import React from "react";
 import { Clock, Pause, Play, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Timer } from "@/components/timer";
@@ -13,6 +14,7 @@ interface TestHeaderProps {
   isSubmitting: boolean;
   onQuit: () => void;
   showPause?: boolean;
+  onHeightChange?: (height: number) => void;
 }
 
 export default function TestHeader({
@@ -25,14 +27,28 @@ export default function TestHeader({
   showTimeOverDialog,
   isSubmitting,
   onQuit,
-  showPause = true
+  showPause = true,
+  onHeightChange,
 }: TestHeaderProps) {
+  const headerRef = React.useRef<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    if (!headerRef.current) return;
+    const el = headerRef.current;
+    const report = () => onHeightChange?.(el.getBoundingClientRect().height || 0);
+
+    report();
+    const ro = new ResizeObserver(() => report());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [onHeightChange]);
   return (
     <header
+      ref={headerRef}
       className="w-full fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md pt-4"
       style={{ paddingTop: 'env(safe-area-inset-top, 20px)' }}
     >
-      <div className="px-3 pt-9 pb-2">
+      <div className="px-3 pt-2 pb-2">
         <div className="flex items-center justify-between">
           {/* Left: NEET Bro branding */}
           <div className="flex items-center gap-2">

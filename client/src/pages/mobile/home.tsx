@@ -369,7 +369,7 @@ export default function Home() {
           {/* STATS SECTION - Mini Dashboard at the top */}
           {/* ============================================================================= */}
           <div className="w-full px-3 py-2 bg-gradient-to-br from-slate-100 to-white">
-            <div className="w-full overflow-x-auto hide-scrollbar">
+            <div className="w-full overflow-x-auto hide-scrollbar" style={{ overscrollBehaviorX: 'auto', WebkitOverflowScrolling: 'touch' }}>
               <div className="flex gap-3 snap-x snap-mandatory items-center">
                 {/* Accuracy Card */}
                 <div className="flex-shrink-0 snap-center p-1">

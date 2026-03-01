@@ -387,7 +387,13 @@ export default function AnswerKeyUpload() {
                   <p className="text-sm font-semibold text-gray-700 mb-2">
                     Changes Summary (First 5):
                   </p>
-                  <div className="bg-white rounded-lg p-3 border border-green-200 max-h-40 overflow-y-auto">
+                  <div 
+                    className="bg-white rounded-lg p-3 border border-green-200 max-h-40 overflow-y-auto"
+                    style={{
+                      overscrollBehavior: 'auto',
+                      WebkitOverflowScrolling: 'touch'
+                    }}
+                  >
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b">

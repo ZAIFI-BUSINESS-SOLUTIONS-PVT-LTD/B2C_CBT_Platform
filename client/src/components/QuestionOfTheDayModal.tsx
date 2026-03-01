@@ -179,6 +179,10 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
 
         <CardContent
           className="p-6 sm:p-8 bg-gradient-to-b from-blue-50 to-blue-100 rounded-2xl max-h-[90vh] overflow-y-auto"
+          style={{
+            overscrollBehavior: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          }}
         >{/* Header */}
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Question of the Day</h2>

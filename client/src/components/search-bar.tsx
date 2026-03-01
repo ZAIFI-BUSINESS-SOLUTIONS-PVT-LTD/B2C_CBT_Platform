@@ -57,7 +57,13 @@ export function SearchBar({
               </h3>
             </CardHeader>
             <CardContent>
-              <div className="max-h-64 overflow-y-auto">
+              <div 
+                className="max-h-64 overflow-y-auto"
+                style={{
+                  overscrollBehavior: 'auto',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
                 {filteredTopics.length > 0 ? (
                   <div className="space-y-2">
                     {filteredTopics.map((topic) => (

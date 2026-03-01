@@ -5,14 +5,12 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { NotFound, Home, Test, Results, Review, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, InstitutionTesterPage, InstitutionRegisterPage, InstitutionAdminDashboard, OfflineResultsUpload, AnswerKeyUpload, JSONQuestionUpload, ThankYou, GetNumberPage, Policy, DeleteAccount, InstitutionStudentAnalytics } from "@/pages";
+import { NotFound, Home, Test, Results, Review, TestHistory, Topics, LandingDashboard, ScheduledTests, Chatbot, ForgotPassword, ResetPassword, LoginPage, RegisterPage, GoogleAuthCallback, GoogleCallback, ErrorPage, StudentProfile, PaymentPage, InstitutionTesterPage, InstitutionRegisterPage, InstitutionAdminDashboard, OfflineResultsUpload, AnswerKeyUpload, JSONQuestionUpload, ThankYou, GetNumberPage, Policy, DeleteAccount, InstitutionStudentAnalytics, SmartRedirect } from "@/pages";
 import LoadingResultsPage from "@/pages/LoadingResultsPage";
 import BookmarkedQuestions from "@/pages/BookmarkedQuestions";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { getPostTestHidden } from '@/lib/postTestHidden';
-import AppTourOverlay from "@/components/AppTourOverlay";
-import { API_BASE_URL } from "@/config/google-auth";
-import { getAccessToken } from "@/lib/auth";
+import { Router as WouterRouter } from "wouter";
 
 // Simple wrapper to prevent access to routes when post-test hidden flag is set
 function protect(Component: any) {
@@ -102,8 +100,9 @@ function ErrorPageRoute() {
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Topics} />                         {/* Root now shows Topics (test tab) */}
-      <Route path="/login" component={LoginPage} />
+                           {/* Root: Smart redirect based on auth state */}
+      <Route path="/" component={SmartRedirect} />
+      <Route path="/login" component={LoginPage} />        {/* Login page */}
       <Route path="/register" component={RegisterPage} />
       <Route path="/institution-register" component={InstitutionRegisterPage} />
       <Route path="/institution-admin/dashboard" component={InstitutionAdminDashboard} />
@@ -144,40 +143,15 @@ function Router() {
 function AppInner() {
   const { student, setStudent } = useAuth();
 
-  const handleTourComplete = async () => {
-    console.log("Tour completed, marking first login as complete");
-    
-    try {
-      // Call backend to mark tour as completed
-      const response = await fetch(`${API_BASE_URL}/student-profile/complete-tour/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${getAccessToken()}`
-        }
-      });
-
-      if (response.ok) {
-        console.log("Tour completion saved to backend");
-      }
-    } catch (error) {
-      console.error("Failed to mark tour as complete:", error);
-    }
-
-    // Update local student state to hide tour immediately
-    if (student) {
-      setStudent({ ...student, isFirstLogin: false });
-    }
-  };
-
-  // Show tour when: user is authenticated, has phone number, and is first login
-  const shouldShowTour = student?.phoneNumber && student?.isFirstLogin === true;
+  // (App tour removed) no tour-related state or handlers remain here.
 
   return (
     <>
       <Toaster />
-      {shouldShowTour && <AppTourOverlay onTourComplete={handleTourComplete} />}
-      <Router />
+      <WouterRouter>
+        <Router />
+      </WouterRouter>
+      {/* App tour removed */}
     </>
   );
 }

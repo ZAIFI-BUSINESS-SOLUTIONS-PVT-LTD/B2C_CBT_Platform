@@ -23,6 +23,36 @@ export default function LandingDashboard() {
 
   const [, navigate] = useLocation();
 
+  // Swipe gesture detection for navigation
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  // Minimum swipe distance (in px) to trigger navigation
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    // Swipe right = go to Test tab (topics)
+    if (isRightSwipe) {
+      navigate('/topics');
+    }
+    // Swipe left would go to next tab, but Analysis is the last tab
+    // so we don't navigate anywhere
+  };
+
   // === NAVIGATION GUARD ===
   // Redirect to home page when user tries to navigate back from landing dashboard
   useEffect(() => {
@@ -78,6 +108,9 @@ export default function LandingDashboard() {
       style={{
         backgroundImage: 'url(/testpage-bg.webp)'
       }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
     >
       {/* Fixed Header (transparent) */}
       <div className="bg-transparent z-10 border-b border-transparent">
@@ -92,7 +125,13 @@ export default function LandingDashboard() {
       </div>
 
       {/* Scrollable Test History Container */}
-      <div className="flex-1 overflow-y-auto pb-20">
+      <div 
+        className="flex-1 overflow-y-auto pb-20 max-h-[calc(100vh-220px)]"
+        style={{
+          overscrollBehavior: 'auto',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
         <TestHistory />
       </div>
 

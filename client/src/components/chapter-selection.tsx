@@ -319,7 +319,7 @@ export function ChapterSelection() {
   // When user selects question count, update time limit to match (like random-test)
   const handleQuestionCountSelect = (count: number) => {
     setQuestionCount(count);
-    setTimeLimit(count); // default time limit = question count
+    setTimeLimit(Math.ceil(count * MAX_TIME_MULTIPLIER_LOCAL)); // default time computed from multiplier
     setLastChanged('questions');
   };
 
