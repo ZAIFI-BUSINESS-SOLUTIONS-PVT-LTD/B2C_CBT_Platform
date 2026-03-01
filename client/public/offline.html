@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline - NEET BRO</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .offline-container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      text-align: center;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .offline-icon {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 20px;
+      background: #f3f4f6;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .offline-icon svg {
+      width: 50px;
+      height: 50px;
+      color: #6366f1;
+    }
+
+    h1 {
+      font-size: 28px;
+      color: #1f2937;
+      margin-bottom: 12px;
+      font-weight: 700;
+    }
+
+    p {
+      color: #6b7280;
+      font-size: 16px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .feature-list {
+      text-align: left;
+      background: #f9fafb;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 24px 0;
+    }
+
+    .feature-list h2 {
+      font-size: 16px;
+      color: #374151;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .feature-list ul {
+      list-style: none;
+    }
+
+    .feature-list li {
+      color: #4b5563;
+      font-size: 14px;
+      padding: 8px 0;
+      padding-left: 24px;
+      position: relative;
+    }
+
+    .feature-list li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #10b981;
+      font-weight: bold;
+    }
+
+    .retry-button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-top: 8px;
+    }
+
+    .retry-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .retry-button:active {
+      transform: translateY(0);
+    }
+
+    .connection-status {
+      font-size: 14px;
+      color: #9ca3af;
+      margin-top: 16px;
+    }
+
+    .connection-status.online {
+      color: #10b981;
+    }
+
+    @media (max-width: 480px) {
+      .offline-container {
+        padding: 30px 20px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      p {
+        font-size: 14px;
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    .checking {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="offline-container">
+    <div class="offline-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414" />
+      </svg>
+    </div>
+
+    <h1>You're Offline</h1>
+    <p>It looks like you've lost your internet connection. Don't worry, you can still access some features!</p>
+
+    <div class="feature-list">
+      <h2>Available Offline:</h2>
+      <ul>
+        <li>Previously viewed pages</li>
+        <li>Cached test content</li>
+        <li>Your bookmarked questions</li>
+        <li>Recent study materials</li>
+      </ul>
+    </div>
+
+    <button class="retry-button" onclick="retryConnection()">
+      Retry Connection
+    </button>
+
+    <div class="connection-status" id="status">
+      Checking connection...
+    </div>
+  </div>
+
+  <script>
+    function updateConnectionStatus() {
+      const status = document.getElementById('status');
+      if (navigator.onLine) {
+        status.textContent = '✓ You are back online!';
+        status.classList.add('online');
+        status.classList.remove('checking');
+        
+        // Auto-reload after 1 second when back online
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1000);
+      } else {
+        status.textContent = '✗ Still offline';
+        status.classList.remove('online');
+      }
+    }
+
+    function retryConnection() {
+      const button = document.querySelector('.retry-button');
+      const status = document.getElementById('status');
+      
+      button.textContent = 'Checking...';
+      button.disabled = true;
+      status.classList.add('checking');
+      
+      // Try to fetch a small resource to check connection
+      fetch('/manifest.json', { method: 'HEAD', cache: 'no-store' })
+        .then(() => {
+          status.textContent = '✓ Connection restored!';
+          status.classList.add('online');
+          status.classList.remove('checking');
+          button.textContent = 'Redirecting...';
+          
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 500);
+        })
+        .catch(() => {
+          status.textContent = '✗ Still offline. Please check your connection.';
+          status.classList.remove('checking', 'online');
+          button.textContent = 'Retry Connection';
+          button.disabled = false;
+        });
+    }
+
+    // Check connection status on load
+    updateConnectionStatus();
+
+    // Listen for online/offline events
+    window.addEventListener('online', updateConnectionStatus);
+    window.addEventListener('offline', updateConnectionStatus);
+
+    // Periodically check connection (every 5 seconds)
+    setInterval(() => {
+      if (!navigator.onLine) {
+        fetch('/manifest.json', { method: 'HEAD', cache: 'no-store' })
+          .then(() => {
+            // If fetch succeeds but navigator.onLine is false, manually trigger online event
+            window.dispatchEvent(new Event('online'));
+          })
+          .catch(() => {
+            // Still offline
+          });
+      }
+    }, 5000);
+  </script>
+</body>
+</html>
