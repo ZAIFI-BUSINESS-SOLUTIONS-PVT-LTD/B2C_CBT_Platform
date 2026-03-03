@@ -51,6 +51,9 @@ from .views.institution_student_views import (
     verify_institution_code, list_institution_tests, link_student_to_institution
 )
 from .views.institution_registration import register_institution
+from .views.pyq_views import (
+    upload_pyq, list_institution_pyqs, list_student_pyqs, start_pyq_test, delete_pyq
+)
 from .authentication import StudentTokenObtainPairView
 from .views.password_reset_views import forgot_password, verify_reset_token, reset_password
 from .views.payment_views import create_order_view, verify_payment_view, subscription_status_view, verify_play_subscription_view
@@ -189,6 +192,15 @@ urlpatterns = [
     path('institutions/verify-code/', verify_institution_code, name='verify-institution-code'),
     path('institutions/<int:institution_id>/tests/', list_institution_tests, name='list-institution-tests'),
     path('student/link-institution/', link_student_to_institution, name='link-student-to-institution'),
+    
+    # Previous Year Question Papers (PYQ) endpoints
+    # Institution admin endpoints
+    path('institution/pyqs/', upload_pyq, name='upload-pyq'),
+    path('institution/pyqs/list/', list_institution_pyqs, name='list-institution-pyqs'),
+    path('institution/pyqs/<int:pyq_id>/', delete_pyq, name='delete-pyq'),
+    # Student endpoints
+    path('pyqs/', list_student_pyqs, name='list-student-pyqs'),
+    path('pyqs/<int:pyq_id>/start/', start_pyq_test, name='start-pyq-test'),
     
     # Payment endpoints
     path('payments/create-order/', create_order_view, name='create-order'),

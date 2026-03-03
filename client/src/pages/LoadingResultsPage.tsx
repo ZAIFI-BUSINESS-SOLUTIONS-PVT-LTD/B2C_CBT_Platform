@@ -36,7 +36,7 @@ export default function LoadingResultsPage() {
     const redirectTimer = setTimeout(() => {
       console.log('✅ 3 second loading complete – redirecting to results');
       navigate(`/results/${sessionId}`, { replace: true });
-    }, 3000); // 3 seconds
+    }, 5000); // 5 seconds
 
     return () => clearTimeout(redirectTimer);
   }, [sessionId, navigate]);
@@ -44,7 +44,7 @@ export default function LoadingResultsPage() {
   /* ── animate progress bar ────────────────────────────── */
   useEffect(() => {
     // Smoothly animate progress from 0 to 100% over 3 seconds
-    const duration = 3000; // 3 seconds
+    const duration = 5000; // 3 seconds
     const interval = 50; // update every 50ms for smooth animation
     const increment = (100 / duration) * interval;
     

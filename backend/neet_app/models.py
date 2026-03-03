@@ -251,6 +251,56 @@ class PlatformTest(models.Model):
                 return "Test Window Closed"
         return "Unknown Status"
 
+
+class PreviousYearQuestionPaper(models.Model):
+    """
+    Model for storing metadata about uploaded previous year question papers.
+    Actual questions are stored in Question table with institution_test_name linking.
+    Students can take PYQ tests unlimited times without expiry or restrictions.
+    """
+    id = models.AutoField(primary_key=True)
+    # Institution that uploaded this PYQ (nullable for platform-wide PYQs)
+    institution = models.ForeignKey('Institution', on_delete=models.CASCADE, null=True, blank=True, related_name='pyq_papers')
+    # Name of the PYQ (e.g., "NEET 2023 Official Paper", "JEE Main 2022")
+    name = models.TextField(null=False)
+    # Who uploaded this PYQ (FK to InstitutionAdmin or User)
+    uploaded_by = models.ForeignKey('InstitutionAdmin', on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_pyqs')
+    # Upload timestamp
+    uploaded_at = models.DateTimeField(auto_now_add=True, null=False)
+    # Original filename for audit trail
+    source_filename = models.TextField(null=False)
+    # Count of questions in this PYQ
+    question_count = models.IntegerField(default=0, null=False)
+    # Exam type (e.g., 'neet', 'jee')
+    exam_type = models.CharField(max_length=20, null=True, blank=True, db_index=True)
+    # Active/inactive status (for soft deletion)
+    is_active = models.BooleanField(default=True, null=False)
+    # Optional notes/description
+    notes = models.TextField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'previous_year_question_papers'
+        verbose_name = 'Previous Year Question Paper'
+        verbose_name_plural = 'Previous Year Question Papers'
+        indexes = [
+            models.Index(fields=['institution', 'is_active']),
+            models.Index(fields=['exam_type', 'is_active']),
+            models.Index(fields=['-uploaded_at']),
+        ]
+        # Ensure unique name per institution
+        unique_together = [['institution', 'name']]
+    
+    def __str__(self):
+        return f"{self.name} ({self.question_count} questions)"
+    
+    def get_questions(self):
+        """Get all questions for this PYQ"""
+        return Question.objects.filter(
+            institution=self.institution,
+            institution_test_name=self.name
+        ).order_by('id')  # Preserve upload order
+
+
 class TestSession(models.Model):
     """
     Enhanced TestSession model with student tracking and subject-wise classification.
@@ -264,10 +314,14 @@ class TestSession(models.Model):
     # Test type and linking
     test_type = models.CharField(
         max_length=20, 
-        choices=[('custom', 'Custom Test'), ('platform', 'Platform Test')], 
+        choices=[
+            ('custom', 'Custom Test'), 
+            ('platform', 'Platform Test'),
+            ('pyq', 'Previous Year Question Paper')
+        ], 
         default='custom',
         null=False
-    )  # Determines if this is a custom or platform test
+    )  # Determines if this is a custom, platform, or PYQ test
     platform_test = models.ForeignKey(
         PlatformTest, 
         on_delete=models.CASCADE, 
@@ -581,7 +635,13 @@ class TestAnswer(models.Model):
     # Foreign key to TestSession, db_column matches Drizzle's 'session_id'
     session = models.ForeignKey(TestSession, on_delete=models.CASCADE, null=False, db_column='session_id') # integer("session_id").notNull()
     # Foreign key to Question, db_column matches Drizzle's 'question_id'
-    question = models.ForeignKey(Question, on_delete=models.CASCADE, null=False, db_column='question_id') # integer("question_id").notNull()
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        null=False,
+        db_column='question_id'
+    )
     # Student's choice: "A", "B", "C", "D", or null if unanswered (for MCQ questions)
     selected_answer = models.CharField(max_length=1, null=True, blank=True) # text("selected_answer")
     # Student's descriptive text answer (for NVT/descriptive questions) - stored for future reference
@@ -608,7 +668,8 @@ class TestAnswer(models.Model):
 
     def __str__(self):
         answer_display = self.selected_answer if self.selected_answer else (f"Text: {self.text_answer[:20]}..." if self.text_answer else 'Unanswered')
-        return f"Session {self.session.id} - Q{self.question.id}: {answer_display}"
+        qid = getattr(self, 'question_id', 'NULL')
+        return f"Session {self.session.id} - Q{qid}: {answer_display}"
 
 class ReviewComment(models.Model):
     """
@@ -619,7 +680,13 @@ class ReviewComment(models.Model):
     # Foreign key to TestSession, db_column matches Drizzle's 'session_id'
     session = models.ForeignKey(TestSession, on_delete=models.CASCADE, null=False, db_column='session_id') # integer("session_id").notNull()
     # Foreign key to Question, db_column matches Drizzle's 'question_id'
-    question = models.ForeignKey(Question, on_delete=models.CASCADE, null=False, db_column='question_id') # integer("question_id").notNull()
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        null=False,
+        db_column='question_id'
+    )
     student_comment = models.TextField(null=False) # text("student_comment").notNull()
     # When comment was first added
     created_at = models.DateTimeField(auto_now_add=True, null=False) # timestamp("created_at").defaultNow()
@@ -634,7 +701,8 @@ class ReviewComment(models.Model):
         # unique_together = ('session', 'question')
 
     def __str__(self):
-        return f"Comment on Session {self.session.id}, Q{self.question.id}"
+        qid = getattr(self, 'question_id', 'NULL')
+        return f"Comment on Session {self.session.id}, Q{qid}"
 
 class StudentProfile(models.Model):
     """
@@ -1369,9 +1437,10 @@ class QuestionOfTheDay(models.Model):
         db_column='student_id'
     )
     question = models.ForeignKey(
-        Question, 
-        on_delete=models.CASCADE, 
-        null=False,
+        Question,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         db_column='question_id'
     )
     date = models.DateField(null=False, default=timezone.now)
@@ -1395,7 +1464,8 @@ class QuestionOfTheDay(models.Model):
         ]
 
     def __str__(self):
-        return f"QOD {self.date} - {self.student.student_id} - Q{self.question.id}"
+        qid = getattr(self, 'question_id', 'NULL')
+        return f"QOD {self.date} - {self.student.student_id} - Q{qid}"
 
 
 class QuestionFeedback(models.Model):
@@ -1427,8 +1497,9 @@ class QuestionFeedback(models.Model):
     )
     question = models.ForeignKey(
         Question,
-        on_delete=models.CASCADE,
-        null=False,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         db_column='question_id'
     )
     feedback_type = models.CharField(
@@ -1453,4 +1524,5 @@ class QuestionFeedback(models.Model):
         ]
 
     def __str__(self):
-        return f"Feedback {self.id} - {self.student.student_id} - Q{self.question.id} - {self.feedback_type}"
+        qid = getattr(self, 'question_id', 'NULL')
+        return f"Feedback {self.id} - {self.student.student_id} - Q{qid} - {self.feedback_type}"

@@ -24,34 +24,40 @@ export default function Topics() {
   const [, navigate] = useLocation();
   const { isAuthenticated } = useAuth();
 
-  // Swipe gesture detection for navigation
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  // Swipe gesture detection for navigation (track both x and y)
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
 
   // Minimum swipe distance (in px) to trigger navigation
   const minSwipeDistance = 50;
 
   const onTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
+    setTouchStart({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
+    setTouchEnd({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
   };
 
   const onTouchEnd = () => {
     if (!touchStart || !touchEnd) return;
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
-    
-    // Swipe left = go to Analysis (dashboard)
-    if (isLeftSwipe) {
-      navigate('/dashboard');
+
+    const dx = touchStart.x - touchEnd.x;
+    const dy = touchStart.y - touchEnd.y;
+
+    // Only consider this a horizontal swipe if horizontal movement is dominant
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > minSwipeDistance) {
+      const isLeftSwipe = dx > 0;
+      const isRightSwipe = dx < 0;
+
+      // Swipe left = go to Analysis (dashboard)
+      if (isLeftSwipe) {
+        navigate('/dashboard');
+      }
+      // Swipe right would go to previous tab, but Test is the first tab so ignore
     }
-    // Swipe right would go to previous tab, but Test is the first tab
-    // so we don't navigate anywhere
+    // otherwise it was mostly vertical — ignore so normal scrolling works
   };
 
   // Fetch QOD data for streak display
@@ -248,7 +254,7 @@ export default function Topics() {
             icon={<BookOpen className="h-5 w-5 text-blue-600" />}
             title="Previous Year Papers"
             buttonLabel="View Papers"
-            onClick={() => {/* PYQs route – TODO */}}
+            onClick={() => navigate('/pyqs')}
           />
         </div>
       </div>

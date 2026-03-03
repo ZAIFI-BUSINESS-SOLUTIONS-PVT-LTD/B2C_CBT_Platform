@@ -656,6 +656,17 @@ def process_test_submission_task(self, session_id: int):
             logger.error(f'TestSession {session_id} not found for pipeline')
             return {'status': 'error', 'error': 'Session not found', 'session_id': session_id}
         
+        # Only run insights pipeline for platform tests - skip custom and pyq tests
+        if session.test_type != 'platform':
+            logger.info(f'⏩ Skipping insights pipeline for test_type={session.test_type} (session {session_id})')
+            print(f"⏩ Skipping insights pipeline for test_type={session.test_type} (session {session_id})")
+            return {
+                'status': 'skipped',
+                'session_id': session_id,
+                'test_type': session.test_type,
+                'message': f'Insights pipeline only runs for platform tests, not {session.test_type}'
+            }
+        
         student_id = session.student_id
         
         logger.info(f'🚀 Starting test submission pipeline for session {session_id}')

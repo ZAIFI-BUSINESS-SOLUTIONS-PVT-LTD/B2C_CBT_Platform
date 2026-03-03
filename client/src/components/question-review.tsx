@@ -50,6 +50,10 @@ export function QuestionReview({
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const touchStartX = useRef<number | null>(null);
     const touchEndX = useRef<number | null>(null);
+    // Pointer-based drag support (works for mouse + stylus + touch where Pointer Events are available)
+    const pointerStart = useRef<{ x: number; y: number; id?: number } | null>(null);
+    const pointerEnd = useRef<{ x: number; y: number } | null>(null);
+    const pointerActive = useRef(false);
 
     const getFilteredAnswers = () => {
         switch (reviewFilter) {
@@ -73,6 +77,7 @@ export function QuestionReview({
 
     // Swipe handlers
     const handleTouchStart = (e: React.TouchEvent) => {
+        // keep for compatibility but prefer pointer handlers
         touchStartX.current = e.touches[0].clientX;
     };
 
@@ -81,23 +86,73 @@ export function QuestionReview({
     };
 
     const handleTouchEnd = () => {
-        if (!touchStartX.current || !touchEndX.current) return;
-        
+        // Fallback to legacy touch only if pointer events did not run
+        if (pointerActive.current) {
+            // pointer handlers already handled it
+            touchStartX.current = null;
+            touchEndX.current = null;
+            return;
+        }
+
+        if (touchStartX.current == null || touchEndX.current == null) return;
+
         const diff = touchStartX.current - touchEndX.current;
         const minSwipeDistance = 50;
 
         if (Math.abs(diff) > minSwipeDistance) {
             if (diff > 0 && currentQuestionIndex < filteredAnswers.length - 1) {
-                // Swiped left - go to next question
                 setCurrentQuestionIndex(prev => prev + 1);
             } else if (diff < 0 && currentQuestionIndex > 0) {
-                // Swiped right - go to previous question
                 setCurrentQuestionIndex(prev => prev - 1);
             }
         }
 
         touchStartX.current = null;
         touchEndX.current = null;
+    };
+
+    // Pointer event handlers (mouse + touch unified)
+    const handlePointerDown = (e: React.PointerEvent) => {
+        pointerActive.current = true;
+        pointerStart.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
+        pointerEnd.current = null;
+        try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch (err) { /* ignore */ }
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (!pointerActive.current || !pointerStart.current) return;
+        pointerEnd.current = { x: e.clientX, y: e.clientY };
+    };
+
+    const handlePointerUp = (e?: React.PointerEvent | undefined) => {
+        if (!pointerActive.current || !pointerStart.current || !pointerEnd.current) {
+            pointerActive.current = false;
+            pointerStart.current = null;
+            pointerEnd.current = null;
+            return;
+        }
+
+        const start = pointerStart.current;
+        const end = pointerEnd.current;
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        const minSwipeDistance = 50;
+
+        // Only treat as horizontal swipe if horizontal movement is dominant
+        if (absDx > absDy && absDx > minSwipeDistance) {
+            if (dx < 0 && currentQuestionIndex < filteredAnswers.length - 1) {
+                setCurrentQuestionIndex(prev => prev + 1);
+            } else if (dx > 0 && currentQuestionIndex > 0) {
+                setCurrentQuestionIndex(prev => prev - 1);
+            }
+        }
+
+        // Reset pointer state
+        pointerActive.current = false;
+        pointerStart.current = null;
+        pointerEnd.current = null;
     };
 
     const goToPrevious = () => {
@@ -194,6 +249,12 @@ export function QuestionReview({
                                 onTouchStart={handleTouchStart}
                                 onTouchMove={handleTouchMove}
                                 onTouchEnd={handleTouchEnd}
+                                onPointerDown={handlePointerDown}
+                                onPointerMove={handlePointerMove}
+                                onPointerUp={handlePointerUp}
+                                onPointerCancel={handlePointerUp}
+                                // Allow vertical scrolling by default; capture horizontal drags for swipe
+                                style={{ touchAction: 'pan-y' }}
                             >
                                 {filteredAnswers.map((answer, index) => {
                                     if (index !== currentQuestionIndex) return null;
@@ -315,43 +376,92 @@ export function QuestionReview({
                                 })}
                             </div>
 
-                            {/* Navigation Arrows */}
-                            <div className="flex items-center justify-between mt-4 px-4">
-                                <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={goToPrevious}
-                                    disabled={currentQuestionIndex === 0}
-                                    className="h-10 w-10 rounded-full bg-white/80 hover:bg-white disabled:opacity-30"
-                                >
-                                    <ChevronLeft className="h-5 w-5" />
-                                </Button>
+                            {/* Compact circular-dot indicator (max 4 visible; others hidden behind) */}
+                            <div className="flex items-center justify-center mt-4 px-4">
+                                <div className="relative flex items-center justify-center" style={{ height: 40 }}>
+                                    {
+                                        (() => {
+                                            const maxVisible = 4;
+                                            const total = filteredAnswers.length;
+                                            // Choose a start so current is visible and we show up to `maxVisible` items
+                                            let start = Math.min(currentQuestionIndex, Math.max(0, total - maxVisible));
+                                            // If current is after start + maxVisible - 1, shift start so current is within view
+                                            if (currentQuestionIndex < start) start = currentQuestionIndex;
+                                            const visible = [];
+                                            for (let i = 0; i < Math.min(maxVisible, total); i++) {
+                                                visible.push(start + i);
+                                            }
+                                            const remainingBefore = start;
+                                            const remainingAfter = Math.max(0, total - (start + visible.length));
 
-                                {/* Question Dots Indicator */}
-                                <div className="flex gap-1.5">
-                                    {filteredAnswers.map((_, index) => (
-                                        <button
-                                            key={index}
-                                            onClick={() => setCurrentQuestionIndex(index)}
-                                            className={`h-2 rounded-full transition-all ${
-                                                index === currentQuestionIndex 
-                                                    ? 'w-6 bg-blue-600' 
-                                                    : 'w-2 bg-gray-300 hover:bg-gray-400'
-                                            }`}
-                                            aria-label={`Go to question ${index + 1}`}
-                                        />
-                                    ))}
+                                            return (
+                                                <div className="flex items-center gap-0">
+                                                    {/* Left remaining indicator */}
+                                                    {remainingBefore > 0 && (
+                                                        <div className="flex items-center justify-center mr-3">
+                                                            <button
+                                                                onClick={() => setCurrentQuestionIndex(Math.max(0, start - 1))}
+                                                                className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-white/95 text-[12px] text-slate-700 shadow-sm border border-white/30 hover:scale-105 transition-transform"
+                                                                aria-label="Previous group"
+                                                            >
+                                                                +{remainingBefore}
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Stacked circular dots */}
+                                                    <div className="flex items-center" style={{ position: 'relative', height: 40 }}>
+                                                        {visible.map((idx, pos) => {
+                                                            const isActive = idx === currentQuestionIndex;
+                                                            const size = isActive ? 44 : 32;
+                                                            const z = isActive ? 50 : 40 - pos; // active on top
+                                                            const overlap = 14; // how much each dot overlaps previous
+                                                            const leftOffset = pos * -overlap;
+
+                                                            return (
+                                                                <button
+                                                                    key={idx}
+                                                                    onClick={() => setCurrentQuestionIndex(idx)}
+                                                                    aria-label={`Go to question ${idx + 1}`}
+                                                                    className={`rounded-full flex items-center justify-center shadow-sm transition-all duration-150`} 
+                                                                    style={{
+                                                                        width: size,
+                                                                        height: size,
+                                                                        marginLeft: leftOffset,
+                                                                        zIndex: z,
+                                                                        background: isActive ? 'linear-gradient(180deg,#ffffff,#f8fbff)' : 'rgba(255,255,255,0.9)',
+                                                                        border: isActive ? '3px solid rgba(59,130,246,0.18)' : '1px solid rgba(255,255,255,0.6)',
+                                                                        boxShadow: isActive ? '0 6px 18px rgba(59,130,246,0.08)' : '0 4px 10px rgba(2,6,23,0.04)',
+                                                                        transform: isActive ? 'translateY(-2px) scale(1)' : 'scale(0.95)'
+                                                                    }}
+                                                                >
+                                                                    {isActive ? (
+                                                                        <span className="text-sm font-semibold text-blue-600">{idx + 1}</span>
+                                                                    ) : (
+                                                                        <span style={{ width: 8, height: 8, borderRadius: 9999, background: '#c7d2fe' }} aria-hidden />
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {/* Right remaining indicator */}
+                                                    {remainingAfter > 0 && (
+                                                        <div className="flex items-center justify-center ml-3">
+                                                            <button
+                                                                onClick={() => setCurrentQuestionIndex(Math.min(total - 1, start + visible.length))}
+                                                                className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-white/95 text-[12px] text-slate-700 shadow-sm border border-white/30 hover:scale-105 transition-transform"
+                                                                aria-label="Next group"
+                                                            >
+                                                                +{remainingAfter}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()
+                                    }
                                 </div>
-
-                                <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={goToNext}
-                                    disabled={currentQuestionIndex === filteredAnswers.length - 1}
-                                    className="h-10 w-10 rounded-full bg-white/80 hover:bg-white disabled:opacity-30"
-                                >
-                                    <ChevronRight className="h-5 w-5" />
-                                </Button>
                             </div>
                         </div>
                     )}

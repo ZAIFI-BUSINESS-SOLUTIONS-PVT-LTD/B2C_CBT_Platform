@@ -54,7 +54,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'neet_app',
     'django_neomodel',
-    'djangorestframework_camel_case'
+    'djangorestframework_camel_case',
+    'external_db',
 ]
 
 MIDDLEWARE = [

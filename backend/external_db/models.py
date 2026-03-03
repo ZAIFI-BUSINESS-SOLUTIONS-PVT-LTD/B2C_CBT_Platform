@@ -31,9 +31,9 @@ class DatabaseQuestion(models.Model):
     question_image = models.TextField(null=True, blank=True)
 
     class Meta:
-        db_table = 'database_question'
-        managed = False  # Important: do not manage/migrate this table in default DB
-        app_label = 'external_db'  # Explicit app label since this is not in INSTALLED_APPS
+        db_table = 'questions'
+        managed = False  # Unmanaged: read-only mapping to an external/source DB
+        app_label = 'external_db'
         verbose_name = 'Database Question'
         verbose_name_plural = 'Database Questions'
 

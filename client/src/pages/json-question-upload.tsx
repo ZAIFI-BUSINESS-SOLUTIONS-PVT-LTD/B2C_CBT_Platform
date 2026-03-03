@@ -15,7 +15,9 @@ import {
   Download, 
   ArrowLeft,
   FileText,
-  Check
+  Check,
+  ClipboardList,
+  BarChart2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -212,15 +214,27 @@ export default function JSONQuestionUpload() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleBackToDashboard}
-                className="flex items-center"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Dashboard
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={handleBackToDashboard}>
+                  Dashboard
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/institution-admin/analytics")}>
+                  <BarChart2 className="h-4 w-4 mr-2" />
+                  Analytics
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/institution/pyq-upload")}>
+                  <ClipboardList className="h-4 w-4 mr-2" />
+                  Upload PYQ
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/offline-results-upload")}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Offline Results
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/answer-key-upload")}>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Answer Key
+                </Button>
+              </div>
               <div className="h-6 w-px bg-gray-300"></div>
               <div className="flex items-center space-x-2">
                 <Building2 className="h-5 w-5 text-blue-600" />

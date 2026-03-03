@@ -574,6 +574,7 @@ class TestSessionViewSet(viewsets.ModelViewSet):
         }
 
         # Enqueue test processing pipeline.
+        # Only run insights for platform tests (skip custom and pyq tests).
         # In DEBUG mode, always use fallback thread to ensure immediate execution.
         # In production, ping Celery workers and fall back if unavailable.
         import threading as _threading
@@ -600,36 +601,41 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 except Exception as _e:
                     logger.exception(f"[fallback-thread] focus_zone/repeated_mistake failed for session {sid}: {_e}")
 
-        _pipeline_enqueued = False
-        
-        # In DEBUG mode, skip Celery and always use fallback thread for immediate execution
-        if settings.DEBUG:
-            print(f"🔧 DEBUG mode active — forcing fallback thread for session {session.id}")
-        else:
-            try:
-                from celery import current_app as _celery_app
-                for _attempt in range(1, 3):   # two attempts
-                    _workers = _celery_app.control.ping(timeout=1.0)
-                    if _workers:
-                        from ..tasks import process_test_submission_task
-                        _task = process_test_submission_task.apply_async(args=[session.id])
-                        print(f"✅ Pipeline enqueued via Celery (attempt {_attempt}) ID: {_task.id}")
-                        _pipeline_enqueued = True
-                        break
-                    print(f"⚠️ No Celery workers (attempt {_attempt}/2) — {'retrying...' if _attempt == 1 else 'giving up.'}")
-            except Exception as _ce:
-                logger.warning(f"Celery ping/enqueue error: {_ce} — will run pipeline in background thread")
+        # Only run insights pipeline for platform tests
+        # Skip for custom and pyq test types to improve performance
+        if session.test_type == 'platform':
+            _pipeline_enqueued = False
+            
+            # In DEBUG mode, skip Celery and always use fallback thread for immediate execution
+            if settings.DEBUG:
+                print(f"🔧 DEBUG mode active — forcing fallback thread for session {session.id}")
+            else:
+                try:
+                    from celery import current_app as _celery_app
+                    for _attempt in range(1, 3):   # two attempts
+                        _workers = _celery_app.control.ping(timeout=1.0)
+                        if _workers:
+                            from ..tasks import process_test_submission_task
+                            _task = process_test_submission_task.apply_async(args=[session.id])
+                            print(f"✅ Pipeline enqueued via Celery (attempt {_attempt}) ID: {_task.id}")
+                            _pipeline_enqueued = True
+                            break
+                        print(f"⚠️ No Celery workers (attempt {_attempt}/2) — {'retrying...' if _attempt == 1 else 'giving up.'}")
+                except Exception as _ce:
+                    logger.warning(f"Celery ping/enqueue error: {_ce} — will run pipeline in background thread")
 
-        if not _pipeline_enqueued:
-            print(f"🚀 No Celery worker available — running pipeline in background thread for session {session.id}")
-            print(f"🔎 [fallback] session.test_type={session.test_type}, student_id={session.student_id}")
-            _t = _threading.Thread(
-                target=_run_pipeline_sync,
-                args=(session.id, session.student_id, session.test_type),
-                daemon=False,
-                name=f"zone-insights-pipeline-{session.id}"
-            )
-            _t.start()
+            if not _pipeline_enqueued:
+                print(f"🚀 No Celery worker available — running pipeline in background thread for session {session.id}")
+                print(f"🔎 [fallback] session.test_type={session.test_type}, student_id={session.student_id}")
+                _t = _threading.Thread(
+                    target=_run_pipeline_sync,
+                    args=(session.id, session.student_id, session.test_type),
+                    daemon=False,
+                    name=f"zone-insights-pipeline-{session.id}"
+                )
+                _t.start()
+        else:
+            print(f"⏩ Skipping insights pipeline for test_type={session.test_type} (session {session.id})")
 
         # Send test result email asynchronously (best-effort)
         try:

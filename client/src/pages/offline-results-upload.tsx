@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Upload, FileSpreadsheet, LogOut, Building2, CheckCircle, Download, ArrowLeft, FileText } from "lucide-react";
+import { AlertCircle, Upload, FileSpreadsheet, LogOut, Building2, CheckCircle, Download, ArrowLeft, FileText, ClipboardList, BarChart2, FileCode } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface InstitutionAdminData {
@@ -211,10 +211,25 @@ export default function OfflineResultsUpload() {
               <p className="text-sm text-gray-600">Code: {adminData.institution.code}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate("/institution-admin/dashboard")}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/institution-admin/dashboard")}>
+              Dashboard
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/institution-admin/analytics")}>
+              <BarChart2 className="h-4 w-4 mr-2" />
+              Analytics
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/institution/pyq-upload")}>
+              <ClipboardList className="h-4 w-4 mr-2" />
+              Upload PYQ
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/answer-key-upload")}>
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Answer Key
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/json-question-upload")}>
+              <FileCode className="h-4 w-4 mr-2" />
+              JSON Updates
             </Button>
             <Button variant="outline" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />

@@ -172,9 +172,9 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
       const focusZone = data.focusZone || data.focus_zone;
       const repeatedMistakes = data.repeatedMistakes || data.repeated_mistakes;
 
-      // Skip polling for custom tests
-      if (testType === 'custom') {
-        console.log('⚠️ Custom test detected, skipping advanced metrics');
+      // Skip polling for custom and PYQ tests (only platform tests get insights)
+      if (testType === 'custom' || testType === 'pyq') {
+        console.log(`⚠️ ${testType} test detected, skipping advanced metrics`);
         setIsCustomTest(true);
         setAdvancedLoading(false);
         return;

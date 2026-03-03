@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import {
   Building2, LogOut, Search, User, Download,
-  BarChart2, List, CheckCircle, FileCode, FileText, ChevronRight,
+  BarChart2, List, CheckCircle, FileCode, FileText, ChevronRight, ClipboardList,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -327,6 +327,10 @@ export default function InstitutionStudentAnalytics() {
           <Button variant="outline" size="sm" className="text-xs h-8"
             onClick={() => navigate("/institution-admin/dashboard")}>
             Dashboard
+          </Button>
+          <Button variant="outline" size="sm" className="text-xs h-8"
+            onClick={() => navigate("/institution/pyq-upload")}>
+            <ClipboardList className="h-3.5 w-3.5 mr-1" />Upload PYQ
           </Button>
           <Button variant="outline" size="sm" className="text-xs h-8"
             onClick={() => navigate("/offline-results-upload")}>

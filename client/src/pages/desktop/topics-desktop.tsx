@@ -71,6 +71,7 @@ export default function Topics() {
                                                     title="Previous Year Questions"
                                                     subtitle="Free practice with past year papers get your confidence up"
                                                     icon={<ClipboardList className="w-4 h-4 text-blue-800" />}
+                                                    href="/pyqs"
                                                 />
                                             </div>
                                         </CardContent>

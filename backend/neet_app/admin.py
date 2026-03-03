@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django import forms
 from django.contrib.admin.widgets import FilteredSelectMultiple
-from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, PasswordReset, PlatformTest
+from .models import Topic, Question, TestSession, TestAnswer, StudentProfile, ReviewComment, ChatSession, ChatMessage, PasswordReset, PlatformTest, PreviousYearQuestionPaper
 from .models import UserActivity, PlatformTestAudit
 from .models import PlatformAdmin, PaymentOrder, RazorpayOrder
 from .models import Institution, InstitutionAdmin, QuestionOfTheDay, QuestionFeedback
@@ -342,3 +342,30 @@ class QuestionFeedbackAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Allow deleting spam/invalid feedback"""
         return True
+
+
+@admin.register(PreviousYearQuestionPaper)
+class PreviousYearQuestionPaperAdmin(admin.ModelAdmin):
+    """Admin interface for Previous Year Question Papers"""
+    list_display = ['name', 'institution', 'exam_type', 'question_count', 'uploaded_by', 'uploaded_at', 'is_active']
+    list_filter = ['exam_type', 'is_active', 'institution', 'uploaded_at']
+    search_fields = ['name', 'notes', 'source_filename']
+    ordering = ['-uploaded_at']
+    readonly_fields = ['uploaded_at', 'question_count', 'source_filename']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'institution', 'exam_type', 'is_active')
+        }),
+        ('Upload Details', {
+            'fields': ('uploaded_by', 'uploaded_at', 'source_filename', 'question_count')
+        }),
+        ('Additional Information', {
+            'fields': ('notes',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_queryset(self, request):
+        """Optimize queryset with select_related"""
+        return super().get_queryset(request).select_related('institution', 'uploaded_by')

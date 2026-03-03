@@ -77,6 +77,7 @@ interface TestSessionData {
     timeLimit: number;
     totalQuestions: number;
     startTime: string;
+    testType?: string;  // 'platform' | 'custom' | 'pyq'
   };
   questions: Question[];
 }
@@ -874,10 +875,18 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     } catch (e) { /* ignore */ }
     setIsNavigationBlocked(false);
 
-    // Navigate to loading page immediately (don't wait for mutation)
-    navigate(`/loading-results/${sessionId}`);
+    // Navigate based on test type:
+    // - Platform tests: show loading page with insights generation
+    // - PYQ/Custom tests: skip loading page, go directly to results
+    const testType = testData?.session?.testType;
+    if (testType === 'platform') {
+      navigate(`/loading-results/${sessionId}`);
+    } else {
+      // Skip loading page for PYQ and custom tests (no insights generation)
+      navigate(`/results/${sessionId}`);
+    }
 
-    // Submit the test in background (mutation will complete while loading page is shown)
+    // Submit the test in background (mutation will complete while loading/results page is shown)
     submitTestMutation.mutate();
   };
 
@@ -915,8 +924,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       } catch (e) { /* ignore */ }
       setIsNavigationBlocked(false);
 
-      // Navigate to loading page immediately
-      navigate(`/loading-results/${sessionId}`);
+      // Navigate based on test type (same logic as manual submit)
+      const testType = testData?.session?.testType;
+      if (testType === 'platform') {
+        navigate(`/loading-results/${sessionId}`);
+      } else {
+        navigate(`/results/${sessionId}`);
+      }
 
       // Submit mutation in background
       submitTestMutation.mutate();
@@ -967,8 +981,13 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     } catch (e) { /* ignore */ }
     setIsNavigationBlocked(false);
 
-    // Navigate to loading page immediately (don't wait for mutation)
-    navigate(`/loading-results/${sessionId}`);
+    // Navigate based on test type (same logic as other submit flows)
+    const testType = testData?.session?.testType;
+    if (testType === 'platform') {
+      navigate(`/loading-results/${sessionId}`);
+    } else {
+      navigate(`/results/${sessionId}`);
+    }
 
     // Submit the test in background
     submitTestMutation.mutate();
