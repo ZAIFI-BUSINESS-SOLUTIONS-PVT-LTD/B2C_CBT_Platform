@@ -119,12 +119,38 @@ def clean_mathematical_text(text):
         text = re.sub(r'\\\[', '', text)
         text = re.sub(r'\\\]', '', text)
         
-        # Handle mathematical expressions
-        # Convert LaTeX fractions: \frac{a}{b} -> (a/b)
-        text = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', r'(\1/\2)', text)
+        # Remove \left and \right delimiters (used with parentheses, brackets, etc.)
+        text = text.replace(r'\left', '')
+        text = text.replace(r'\right', '')
         
-        # Convert LaTeX square roots: \sqrt{x} -> √(x)
+        # Handle mathematical expressions - do multiple passes for nested constructs
+        
+        # Convert ALL fraction variants: \frac, \dfrac, \tfrac, \cfrac -> (a/b)
+        # Pass 1: outer fractions
+        text = re.sub(r'\\[dtc]?frac\{([^}]+)\}\{([^}]+)\}', r'(\1/\2)', text)
+        # Pass 2: any remaining nested fractions
+        text = re.sub(r'\\[dtc]?frac\{([^}]+)\}\{([^}]+)\}', r'(\1/\2)', text)
+        # Pass 3: deeply nested fractions
+        text = re.sub(r'\\[dtc]?frac\{([^}]+)\}\{([^}]+)\}', r'(\1/\2)', text)
+        
+        # Convert square roots with index: \sqrt[n]{x} -> ⁿ√(x)
+        text = re.sub(r'\\sqrt\[([0-9]+)\]\{([^}]+)\}', 
+                     lambda m: f"{''.join(superscript_map.get(d, d) for d in m.group(1))}√({m.group(2)})", 
+                     text)
+        
+        # Convert simple square roots: \sqrt{x} -> √(x)
+        # Multiple passes for nested roots
         text = re.sub(r'\\sqrt\{([^}]+)\}', r'√(\1)', text)
+        text = re.sub(r'\\sqrt\{([^}]+)\}', r'√(\1)', text)
+        
+        # Handle vector notation: \vec{r} -> r⃗
+        text = re.sub(r'\\vec\{([^}]+)\}', r'\1⃗', text)
+        
+        # Handle hat notation: \hat{i} -> î (combining circumflex)
+        text = re.sub(r'\\hat\{([^}]+)\}', r'\1̂', text)
+        
+        # Handle overline: \overline{x} -> x̄
+        text = re.sub(r'\\overline\{([^}]+)\}', r'\1̄', text)
         
         # Clean up common LaTeX commands BEFORE handling subscripts/superscripts
         text = re.sub(r'\\text\{([^}]+)\}', r'\1', text)  # \text{abc} -> abc
@@ -132,6 +158,23 @@ def clean_mathematical_text(text):
         text = re.sub(r'\\mathbf\{([^}]+)\}', r'\1', text)  # \mathbf{abc} -> abc
         text = re.sub(r'\\textbf\{([^}]+)\}', r'\1', text)  # \textbf{abc} -> abc
         text = re.sub(r'\\emph\{([^}]+)\}', r'\1', text)  # \emph{abc} -> abc
+        text = re.sub(r'\\mathit\{([^}]+)\}', r'\1', text)  # \mathit{abc} -> abc
+        text = re.sub(r'\\textit\{([^}]+)\}', r'\1', text)  # \textit{abc} -> abc
+        
+        # Handle summation with limits: \sum_{i=1}^{n} -> ∑(i=1→n)
+        text = re.sub(r'\\sum_\{([^}]+)\}\^\{([^}]+)\}', r'∑(\1→\2)', text)
+        text = re.sub(r'\\sum_\{([^}]+)\}', r'∑(\1)', text)
+        
+        # Handle integral with limits: \int_{a}^{b} -> ∫(a→b)
+        text = re.sub(r'\\int_\{([^}]+)\}\^\{([^}]+)\}', r'∫(\1→\2)', text)
+        text = re.sub(r'\\int_\{([^}]+)\}', r'∫(\1)', text)
+        
+        # Handle product with limits: \prod_{i=1}^{n} -> ∏(i=1→n)
+        text = re.sub(r'\\prod_\{([^}]+)\}\^\{([^}]+)\}', r'∏(\1→\2)', text)
+        text = re.sub(r'\\prod_\{([^}]+)\}', r'∏(\1)', text)
+        
+        # Handle limit: \lim_{x \to a} -> lim(x→a)
+        text = re.sub(r'\\lim_\{([^}]+)\}', r'lim(\1)', text)
         
         # Handle superscripts: ^{2} or ^2 -> ²
         text = re.sub(r'\^\{([0-9]+)\}', lambda m: ''.join(superscript_map.get(d, d) for d in m.group(1)), text)
@@ -141,7 +184,7 @@ def clean_mathematical_text(text):
         text = re.sub(r'_\{([0-9]+)\}', lambda m: ''.join(subscript_map.get(d, d) for d in m.group(1)), text)
         text = re.sub(r'_([0-9])', lambda m: subscript_map.get(m.group(1), m.group(1)), text)
         
-        # Convert common LaTeX symbols to Unicode (enhanced with more symbols)
+        # Convert common LaTeX symbols to Unicode (comprehensive mapping)
         symbol_replacements = {
             # Greek letters (lowercase)
             r'\\alpha': 'α', r'\\beta': 'β', r'\\gamma': 'γ', r'\\delta': 'δ',
@@ -149,7 +192,8 @@ def clean_mathematical_text(text):
             r'\\iota': 'ι', r'\\kappa': 'κ', r'\\lambda': 'λ', r'\\mu': 'μ',
             r'\\nu': 'ν', r'\\xi': 'ξ', r'\\pi': 'π', r'\\rho': 'ρ',
             r'\\sigma': 'σ', r'\\tau': 'τ', r'\\upsilon': 'υ', r'\\phi': 'φ',
-            r'\\chi': 'χ', r'\\psi': 'ψ', r'\\omega': 'ω',
+            r'\\chi': 'χ', r'\\psi': 'ψ', r'\\omega': 'ω', r'\\varepsilon': 'ε',
+            r'\\varphi': 'φ', r'\\vartheta': 'θ',
             # Greek letters (uppercase)
             r'\\Alpha': 'Α', r'\\Beta': 'Β', r'\\Gamma': 'Γ', r'\\Delta': 'Δ',
             r'\\Epsilon': 'Ε', r'\\Zeta': 'Ζ', r'\\Eta': 'Η', r'\\Theta': 'Θ',
@@ -159,40 +203,87 @@ def clean_mathematical_text(text):
             r'\\Chi': 'Χ', r'\\Psi': 'Ψ', r'\\Omega': 'Ω',
             # Mathematical operators
             r'\\times': '×', r'\\div': '÷', r'\\pm': '±', r'\\mp': '∓',
-            r'\\leq': '≤', r'\\geq': '≥', r'\\neq': '≠', r'\\approx': '≈',
+            r'\\leq': '≤', r'\\geq': '≥', r'\\le': '≤', r'\\ge': '≥',  # Both variants
+            r'\\neq': '≠', r'\\ne': '≠', r'\\approx': '≈',
             r'\\equiv': '≡', r'\\propto': '∝', r'\\sim': '∼', r'\\simeq': '≃',
             r'\\ll': '≪', r'\\gg': '≫', r'\\subset': '⊂', r'\\supset': '⊃',
+            r'\\subseteq': '⊆', r'\\supseteq': '⊇',
             r'\\in': '∈', r'\\notin': '∉', r'\\cup': '∪', r'\\cap': '∩',
+            r'\\emptyset': '∅', r'\\varnothing': '∅',
             # Mathematical symbols
             r'\\infty': '∞', r'\\sum': '∑', r'\\prod': '∏', r'\\int': '∫',
             r'\\oint': '∮', r'\\iint': '∬', r'\\iiint': '∭',
             r'\\partial': '∂', r'\\nabla': '∇', r'\\degree': '°',
-            r'\\cdot': '·', r'\\bullet': '•', r'\\circ': '∘',
+            r'\\cdot': '·', r'\\bullet': '•', r'\\circ': '∘', r'\\ast': '*',
+            r'\\star': '⋆', r'\\dagger': '†', r'\\ddagger': '‡',
+            # Arrows
             r'\\rightarrow': '→', r'\\leftarrow': '←', r'\\leftrightarrow': '↔',
             r'\\Rightarrow': '⇒', r'\\Leftarrow': '⇐', r'\\Leftrightarrow': '⇔',
-            # Fractions and roots (additional patterns)
+            r'\\to': '→', r'\\gets': '←',
+            r'\\uparrow': '↑', r'\\downarrow': '↓', r'\\updownarrow': '↕',
+            r'\\Uparrow': '⇑', r'\\Downarrow': '⇓', r'\\Updownarrow': '⇕',
+            r'\\nearrow': '↗', r'\\searrow': '↘', r'\\swarrow': '↙', r'\\nwarrow': '↖',
+            # Trigonometric and logarithmic functions (keep as text)
+            r'\\sin': 'sin', r'\\cos': 'cos', r'\\tan': 'tan',
+            r'\\cot': 'cot', r'\\sec': 'sec', r'\\csc': 'csc',
+            r'\\arcsin': 'arcsin', r'\\arccos': 'arccos', r'\\arctan': 'arctan',
+            r'\\sinh': 'sinh', r'\\cosh': 'cosh', r'\\tanh': 'tanh',
+            r'\\log': 'log', r'\\ln': 'ln', r'\\lg': 'lg',
+            r'\\exp': 'exp', r'\\max': 'max', r'\\min': 'min',
+            r'\\sup': 'sup', r'\\inf': 'inf',
+            r'\\det': 'det', r'\\dim': 'dim', r'\\ker': 'ker',
+            r'\\gcd': 'gcd', r'\\lcm': 'lcm',
+            # Fractions and special numbers
             r'\\half': '½', r'\\third': '⅓', r'\\quarter': '¼',
+            # Spacing commands (remove)
+            r'\\,': ' ', r'\\:': ' ', r'\\;': ' ', r'\\quad': ' ', r'\\qquad': '  ',
+            r'\\!': '', r'\\enspace': ' ', r'\\thinspace': ' ',
         }
         
         for latex_symbol, unicode_symbol in symbol_replacements.items():
-            text = re.sub(latex_symbol, unicode_symbol, text)
+            text = text.replace(latex_symbol, unicode_symbol)
         
-        # Handle mathematical environments
-        # Remove \begin{equation} and \end{equation}
+        # Handle mathematical environments and remove them
         text = re.sub(r'\\begin\{equation\*?\}', '', text)
         text = re.sub(r'\\end\{equation\*?\}', '', text)
         text = re.sub(r'\\begin\{align\*?\}', '', text)
         text = re.sub(r'\\end\{align\*?\}', '', text)
+        text = re.sub(r'\\begin\{gather\*?\}', '', text)
+        text = re.sub(r'\\end\{gather\*?\}', '', text)
+        text = re.sub(r'\\begin\{matrix\}', '', text)
+        text = re.sub(r'\\end\{matrix\}', '', text)
+        text = re.sub(r'\\begin\{pmatrix\}', '', text)
+        text = re.sub(r'\\end\{pmatrix\}', '', text)
+        text = re.sub(r'\\begin\{bmatrix\}', '', text)
+        text = re.sub(r'\\end\{bmatrix\}', '', text)
+        text = re.sub(r'\\begin\{vmatrix\}', '', text)
+        text = re.sub(r'\\end\{vmatrix\}', '', text)
+        text = re.sub(r'\\begin\{array\}.*?\\end\{array\}', '', text, flags=re.DOTALL)
         
-        # Remove remaining LaTeX commands (backslash followed by word)
-        text = re.sub(r'\\[a-zA-Z]+\*?', '', text)
+        # Remove alignment characters used in matrices
+        text = text.replace('&', ' ')
+        text = text.replace(r'\\', ' ')
         
-        # Clean up braces and brackets - do this in multiple passes for nested braces
-        # First pass: simple braces
-        text = re.sub(r'\{([^{}]*)\}', r'\1', text)
-        # Second pass: any remaining braces
-        text = re.sub(r'\{([^{}]*)\}', r'\1', text)
-        # Third pass: clean up any remaining empty braces
+        # Remove remaining safe LaTeX commands that we know are formatting-only
+        # Be selective - only remove known safe commands, not all commands
+        safe_commands = [
+            r'\\displaystyle', r'\\textstyle', r'\\scriptstyle', r'\\scriptscriptstyle',
+            r'\\normalsize', r'\\small', r'\\large', r'\\Large', r'\\LARGE',
+            r'\\huge', r'\\Huge',
+            r'\\rm', r'\\bf', r'\\it', r'\\sl', r'\\sf', r'\\tt',
+            r'\\cal', r'\\mit', r'\\bm',
+            r'\\hspace\{[^}]*\}', r'\\vspace\{[^}]*\}',
+            r'\\hfill', r'\\vfill', r'\\newline', r'\\linebreak',
+            r'\\noindent', r'\\indent',
+        ]
+        for cmd in safe_commands:
+            text = re.sub(cmd, '', text)
+        
+        # Clean up braces and brackets - do multiple passes for deeply nested braces
+        for _ in range(5):  # Multiple passes to handle nested braces
+            text = re.sub(r'\{([^{}]*)\}', r'\1', text)
+        
+        # Clean up any remaining empty braces
         text = re.sub(r'\{\}', '', text)
         
         # Handle special patterns like T^{2}=Kr^{3} (if any remain after previous cleaning)
@@ -218,9 +309,13 @@ def clean_mathematical_text(text):
         # Remove any remaining backslashes that aren't part of valid escape sequences
         text = re.sub(r'\\(?![nrtbf\'\"\\])', '', text)
         
-        # Final cleanup: remove any stray braces that might be left
+        # Final cleanup: remove any stray braces/brackets that might be left
         text = re.sub(r'\{+', '', text)
         text = re.sub(r'\}+', '', text)
+        
+        # Remove orphaned underscores and carets (subscript/superscript markers with no operand)
+        text = re.sub(r'_(?![₀-₉])', '', text)
+        text = re.sub(r'\^(?![⁰-⁹])', '', text)
         
         return text
         

@@ -134,7 +134,7 @@ export default function LatestTestSummary() {
           >
             <div className="text-2xl font-bold text-gray-800 -mt-14">
               {attempted}
-              <span className="text-lg text-gray-500">/{totalQuestions}</span>
+              <span className="text-lg text-gray-800">/{totalQuestions}</span>
             </div>
             <div className="text-xs text-gray-600 -mt-2">Attempted</div>
           </div>

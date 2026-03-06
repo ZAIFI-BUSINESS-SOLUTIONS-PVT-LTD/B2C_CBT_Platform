@@ -161,12 +161,15 @@ export default function Topics() {
       ? sessionsData
       : sessionsData?.results ?? sessionsData?.sessions ?? [];
 
-    const completed = sessions.filter((s: any) =>
-      s?.is_completed === true || s?.isCompleted === true || s?.status === 'completed'
-    );
-    if (completed.length === 0) return null;
+    // Only consider completed sessions that are platform tests for the fallback
+    const completedPlatform = sessions.filter((s: any) => {
+      const isCompleted = s?.is_completed === true || s?.isCompleted === true || s?.status === 'completed';
+      const isPlatform = s?.testType === 'platform' || s?.test_type === 'platform' || !!s?.platform_test || !!s?.platformTest;
+      return isCompleted && isPlatform;
+    });
+    if (completedPlatform.length === 0) return null;
     // Sort by start time descending and take the first
-    return completed.sort((a: any, b: any) => {
+    return completedPlatform.sort((a: any, b: any) => {
       const ta = new Date(a.startTime || a.start_time || 0).getTime();
       const tb = new Date(b.startTime || b.start_time || 0).getTime();
       return tb - ta;
@@ -192,17 +195,24 @@ export default function Topics() {
 
   return (
     <div
-      className="min-h-screen bg-cover bg-center bg-no-repeat bg-fixed pb-20"
+      className="h-screen flex flex-col bg-cover bg-center bg-no-repeat bg-fixed"
       style={{ backgroundImage: "url('/testpage-bg.webp')" }}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
       {/* Page header */}
-      <header className="sticky top-0 z-10 px-5 pt-5 pb-3">
+      <header
+        className="sticky top-0 z-30 px-4 pt-4 pb-1 bg-white/40 backdrop-blur-sm border-b border-white/40"
+        style={{
+          backgroundImage: "url('/result-bg.webp')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center -mt-4">
-            <img src="/NEET Bro.webp" alt="NEET Bro" className="h-[4.4rem] object-contain" />
+            <img src="/NEET Bro.webp" alt="NEET Bro" className="h-[4.6rem] object-contain" />
           </div>
           <div className="flex items-center gap-3 -mt-2">
             {/* 
@@ -221,7 +231,7 @@ export default function Topics() {
         </div>
       </header>
 
-      <div className="px-4 space-y-4">
+      <div className="flex-1 overflow-auto px-4 space-y-4 pb-20 pt-3">
         {/* ──── 1. Question of the Day Card ──── */}
         <QODCard
           streak={streak}

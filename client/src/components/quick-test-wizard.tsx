@@ -100,7 +100,7 @@ const SUBJECTS = [
   },
 ] as const;
 
-const QUESTION_PRESETS = [5, 10, 15, 20, 25, 30];
+const QUESTION_PRESETS = [15, 20, 25, 30, 35, 40];
 const MAX_TIME_MULTIPLIER = 1.5;
 
 /* ------------------------------------------------------------------ */
