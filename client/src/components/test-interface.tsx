@@ -467,6 +467,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
   // Ref to track which topic IDs have been fetched (prevents re-fetching)
   const requestedTopicIdsRef = useRef(new Set<number>());
+  // Ref for the horizontal question navigation container
+  const questionNavRef = useRef<HTMLDivElement | null>(null);
 
   // Preload topic details for ALL questions (needed for subject tabs)
   useEffect(() => {
@@ -878,13 +880,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     // Navigate based on test type:
     // - Platform tests: show loading page with insights generation
     // - PYQ/Custom tests: skip loading page, go directly to results
-    const testType = testData?.session?.testType;
-    if (testType === 'platform') {
-      navigate(`/loading-results/${sessionId}`);
-    } else {
-      // Skip loading page for PYQ and custom tests (no insights generation)
-      navigate(`/results/${sessionId}`);
-    }
+    // Always show loading page first so user sees analysis screen
+    navigate(`/loading-results/${sessionId}`);
 
     // Submit the test in background (mutation will complete while loading/results page is shown)
     submitTestMutation.mutate();
@@ -924,13 +921,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
       } catch (e) { /* ignore */ }
       setIsNavigationBlocked(false);
 
-      // Navigate based on test type (same logic as manual submit)
-      const testType = testData?.session?.testType;
-      if (testType === 'platform') {
-        navigate(`/loading-results/${sessionId}`);
-      } else {
-        navigate(`/results/${sessionId}`);
-      }
+      // Always show loading page first so user sees analysis screen
+      navigate(`/loading-results/${sessionId}`);
 
       // Submit mutation in background
       submitTestMutation.mutate();
@@ -981,13 +973,8 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     } catch (e) { /* ignore */ }
     setIsNavigationBlocked(false);
 
-    // Navigate based on test type (same logic as other submit flows)
-    const testType = testData?.session?.testType;
-    if (testType === 'platform') {
-      navigate(`/loading-results/${sessionId}`);
-    } else {
-      navigate(`/results/${sessionId}`);
-    }
+    // Always show loading page first so user sees analysis screen
+    navigate(`/loading-results/${sessionId}`);
 
     // Submit the test in background
     submitTestMutation.mutate();
@@ -1281,6 +1268,21 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
     };
   }, [currentQuestionIndex, isSubmitting]);
 
+  // Ensure the horizontal question number bar scrolls to show the active question
+  useEffect(() => {
+    try {
+      const container = questionNavRef.current;
+      if (!container) return;
+      const selector = `[data-index="${currentQuestionIndex}"]`;
+      const btn = container.querySelector(selector) as HTMLElement | null;
+      if (btn) {
+        btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
+    } catch (e) {
+      // Fail silently - scrolling is a nicety and should not break the test
+    }
+  }, [currentQuestionIndex]);
+
   // === DOCUMENT TITLE MANAGEMENT ===
   // Update document title to encourage return when user switches tabs
   useEffect(() => {
@@ -1460,61 +1462,60 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col" style={{ backgroundImage: "url('/testpage-bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center', paddingTop: headerHeight }}>
-      {/* === OVERLAYS === */}
-      {isSubmitting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 px-4">
-          <div className="text-center px-4 py-6 max-w-sm rounded-2xl">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
-            <h2 className="text-lg font-semibold text-gray-900">Submitting test...</h2>
-            <p className="text-xs text-gray-600 mt-2">Redirecting to dashboard...</p>
-          </div>
-        </div>
-      )}
-      {!started && testData?.questions && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm text-center mx-4">
-            <h2 className="text-xl font-bold mb-4">Start NEET Practice Test</h2>
-            <p className="text-xs text-gray-500 mb-6">This test requires fullscreen mode. Click below to start and enter secure test mode.</p>
-            <div className="flex justify-center">
-              <Button onClick={startTest} className="bg-blue-500 text-white px-4 py-2 text-sm">Start Test (Enter Fullscreen)</Button>
+    <>
+      {/* === FIXED HEADER (separate from layout) === */}
+      <TestHeader
+        started={started}
+        paused={paused}
+        timeLimit={testData.session.timeLimit}
+        onTimeUp={handleTimeUp}
+        onTogglePause={() => {
+          if (!paused) {
+            setPaused(true);
+            setPauseStartTime(Date.now());
+            cancelAutoSubmit();
+          } else {
+            const now = Date.now();
+            if (pauseStartTime) setAccumulatedPauseMs(prev => prev + (now - pauseStartTime));
+            setPauseStartTime(null);
+            setPaused(false);
+          }
+        }}
+        onSubmitTest={showTimeOverDialog ? handleTimeOverSubmit : handleSubmitTest}
+        showTimeOverDialog={showTimeOverDialog}
+        isSubmitting={isSubmitting}
+        onQuit={() => setShowQuitDialog(true)}
+        showPause={false}
+        onHeightChange={setHeaderHeight}
+      />
+
+      <div className="fixed inset-0 flex flex-col" style={{ backgroundImage: "url('/testpage-bg.webp')", backgroundSize: 'cover', backgroundPosition: 'center', paddingTop: headerHeight }}>
+        {/* === OVERLAYS === */}
+        {isSubmitting && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 px-4">
+            <div className="text-center px-4 py-6 max-w-sm rounded-2xl">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
+              <h2 className="text-lg font-semibold text-gray-900">Submitting test...</h2>
+              <p className="text-xs text-gray-600 mt-2">Redirecting to dashboard...</p>
             </div>
           </div>
-        </div>
-      )}
+        )}
+        {!started && testData?.questions && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+            <div className="bg-white rounded-2xl p-6 max-w-sm text-center mx-4">
+              <h2 className="text-xl font-bold mb-4">Start NEET Practice Test</h2>
+              <p className="text-xs text-gray-500 mb-6">This test requires fullscreen mode. Click below to start and enter secure test mode.</p>
+              <div className="flex justify-center">
+                <Button onClick={startTest} className="bg-blue-500 text-white px-4 py-2 text-sm">Start Test (Enter Fullscreen)</Button>
+              </div>
+            </div>
+          </div>
+        )}
 
-      {/* === FIXED TOP SECTION === */}
-      <div className="flex-shrink-0 z-40">
-        {/* Top bar: Quit | NEET Bro | Timer | Submit */}
-        <TestHeader
-          started={started}
-          paused={paused}
-          timeLimit={testData.session.timeLimit}
-          onTimeUp={handleTimeUp}
-          onTogglePause={() => {
-            if (!paused) {
-              setPaused(true);
-              setPauseStartTime(Date.now());
-              cancelAutoSubmit();
-            } else {
-              const now = Date.now();
-              if (pauseStartTime) setAccumulatedPauseMs(prev => prev + (now - pauseStartTime));
-              setPauseStartTime(null);
-              setPaused(false);
-            }
-          }}
-          onSubmitTest={showTimeOverDialog ? handleTimeOverSubmit : handleSubmitTest}
-          showTimeOverDialog={showTimeOverDialog}
-          isSubmitting={isSubmitting}
-          onQuit={() => setShowQuitDialog(true)}
-          showPause={false}
-          onHeightChange={setHeaderHeight}
-        />
-
-        {/* Security Banner removed */}
-
-        {/* Subject tabs, question numbers and legend (moved down to avoid fixed header) */}
-        <div>
+        {/* === TOP NAVIGATION SECTION === */}
+        <div className="flex-shrink-0 z-40">
+          {/* Subject tabs, question numbers and legend */}
+          <div>
         {allSubjects.length > 0 && (
           <div className="flex items-center justify-center gap-2 px-3 py-2 bg-white/70 backdrop-blur-sm">
             {allSubjects.map(sub => (
@@ -1537,13 +1538,14 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         )}
 
         {/* Question numbers - horizontal scroll */}
-        <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto bg-white/70 backdrop-blur-sm hide-scrollbar" style={{ overscrollBehaviorX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div ref={questionNavRef} className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto bg-white/70 backdrop-blur-sm hide-scrollbar" style={{ overscrollBehaviorX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {testData.questions.map((question, index) => {
             const status = getQuestionStatus(index, question.id);
             const isCurrentQ = index === currentQuestionIndex;
             return (
               <button
                 key={question.id}
+                data-index={index}
                 onClick={() => navigateToQuestion(index)}
                 disabled={showTimeOverDialog}
                 className={`w-8 h-8 flex-shrink-0 rounded-lg text-xs font-bold transition-all ${
@@ -1646,7 +1648,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
 
           {/* Question text */}
           <div className="mb-5">
-            <h3 className="text-base font-semibold text-slate-800 leading-relaxed">
+            <h3 className="text-base font-semibold text-slate-800 leading-relaxed whitespace-pre-line">
               {currentQuestion.question}
             </h3>
             {currentQuestion.questionImage && (
@@ -1712,7 +1714,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
                       }`}>
                         {option}
                       </span>
-                      <span className="text-sm text-slate-800 font-medium leading-relaxed flex-1">
+                      <span className="text-sm text-slate-800 font-medium leading-relaxed flex-1 whitespace-pre-line">
                         {currentQuestion[`option${option}` as keyof Question]}
                       </span>
                       {(currentQuestion as any)[`option${option}Image`] && (
@@ -1777,6 +1779,7 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         isOpen={showSubmitDialog}
         answersCount={getTotalAnsweredCount()}
         totalQuestions={totalQuestions}
+        markedCount={markedForReview.size}
         onConfirm={confirmSubmit}
         onCancel={() => setShowSubmitDialog(false)}
       />
@@ -1813,5 +1816,6 @@ export function TestInterface({ sessionId }: TestInterfaceProps) {
         isSubmitting={feedbackSubmitting}
       />
     </div>
+    </>
   );
 }

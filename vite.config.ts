@@ -93,6 +93,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
         runtimeCaching: [
+          // Google Fonts caching
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
@@ -121,6 +122,84 @@ export default defineConfig({
               }
             }
           },
+          // PWA: API caching for safe GET endpoints (read-only data)
+          // NetworkFirst: Try network first, fall back to cache if offline
+          {
+            urlPattern: /\/api\/students\/me\/?$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-student-profile',
+              expiration: {
+                maxEntries: 5,
+                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+              },
+              cacheableResponse: {
+                statuses: [200]
+              },
+              networkTimeoutSeconds: 10, // Fall back to cache if network takes > 10s
+            }
+          },
+          {
+            urlPattern: /\/api\/topics\/?.*$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-topics',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
+              },
+              cacheableResponse: {
+                statuses: [200]
+              },
+              networkTimeoutSeconds: 10,
+            }
+          },
+          {
+            urlPattern: /\/api\/subjects\/?.*$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-subjects',
+              expiration: {
+                maxEntries: 30,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
+              },
+              cacheableResponse: {
+                statuses: [200]
+              },
+              networkTimeoutSeconds: 10,
+            }
+          },
+          {
+            urlPattern: /\/api\/test-sessions\/[^/]+\/?$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-test-sessions',
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+              },
+              cacheableResponse: {
+                statuses: [200]
+              },
+              networkTimeoutSeconds: 10,
+            }
+          },
+          {
+            urlPattern: /\/api\/dashboard\/?.*$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-dashboard',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+              },
+              cacheableResponse: {
+                statuses: [200]
+              },
+              networkTimeoutSeconds: 10,
+            }
+          },
+          // Image caching
           {
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
             handler: 'CacheFirst',
@@ -132,6 +211,7 @@ export default defineConfig({
               }
             }
           },
+          // Static resources caching
           {
             urlPattern: /\.(?:js|css)$/,
             handler: 'StaleWhileRevalidate',

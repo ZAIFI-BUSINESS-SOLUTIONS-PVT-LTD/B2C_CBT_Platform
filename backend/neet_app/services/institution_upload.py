@@ -371,14 +371,17 @@ def parse_excel_rows(sheet, headers: Dict[str, int], institution: Institution, e
             )
             
             # Build question dict
+            # Do NOT strip internal whitespace/newlines here — delegate trimming
+            # and normalization to `clean_mathematical_text` to keep newline handling
+            # centralized in one place.
             question_data = {
-                'question': str(question_text).strip(),
-                'option_a': str(option_a).strip(),
-                'option_b': str(option_b).strip(),
-                'option_c': str(option_c).strip(),
-                'option_d': str(option_d).strip(),
+                'question': str(question_text),
+                'option_a': str(option_a),
+                'option_b': str(option_b),
+                'option_c': str(option_c),
+                'option_d': str(option_d),
                 'correct_answer': correct_answer,
-                'explanation': str(explanation).strip(),
+                'explanation': str(explanation),
                 'topic': topic,
                 'difficulty': difficulty,
                 'question_type': question_type,

@@ -209,7 +209,7 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
             <div className={submitMutation.isPending ? 'opacity-50 pointer-events-none' : ''}>
               {/* Question text */}
               <div className="mb-6 p-4 bg-blue-50 rounded-xl">
-                <h3 className="text-lg font-semibold text-gray-800 leading-relaxed">
+                <h3 className="text-lg font-semibold text-gray-800 leading-relaxed whitespace-pre-line">
                   Q. {question.question}
                 </h3>
                 {question.questionImage && (
@@ -251,7 +251,7 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
                         }`}>
                           {option}
                         </span>
-                        <span className="text-base text-gray-800 font-medium leading-relaxed flex-1">
+                        <span className="text-base text-gray-800 font-medium leading-relaxed flex-1 whitespace-pre-line">
                           {question[`option${option}` as keyof typeof question] as string}
                         </span>
                         {(question as any)[`option${option}Image`] && (
@@ -292,7 +292,7 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
               {/* Blurred question background */}
               <div className="filter blur-md opacity-30 pointer-events-none">
                 <div className="p-4 bg-blue-50 rounded-xl mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">
+                  <h3 className="text-lg font-semibold text-gray-800 whitespace-pre-line">
                     Q. {question.question}
                   </h3>
                 </div>
@@ -309,7 +309,7 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
               <div className="absolute top-24 inset-x-0 bottom-0 flex flex-col items-center justify-start pt-4 px-2 gap-2 -mt-7">
                   {/* Question attempted - placed on top of penguin */}
                   <div className="mb-2 text-center px-2 -mt-20 -mb-9">
-                    <p className="text-sm text-gray-700 font-medium leading-relaxed">Q. {question.question}</p>
+                    <p className="text-sm text-gray-700 font-medium leading-relaxed whitespace-pre-line">Q. {question.question}</p>
                   </div>
 
                   {/* Penguin image (increased by additional 20%) */}
@@ -329,7 +329,7 @@ export default function QuestionOfTheDayModal({ isOpen, onClose }: QuestionOfThe
                       <p className="text-sm text-gray-700 font-medium mb-2">Not quite right. Keep learning! 💪</p>
                       <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl">
                         <p className="text-sm text-gray-700 font-medium mb-1">Correct Answer:</p>
-                        <p className="text-sm font-bold text-green-700 font-medium
+                        <p className="text-sm font-bold text-green-700 font-medium whitespace-pre-line
                         ">
                           {resultData.correctAnswer}. {question[`option${resultData.correctAnswer}` as keyof typeof question] as string}
                         </p>

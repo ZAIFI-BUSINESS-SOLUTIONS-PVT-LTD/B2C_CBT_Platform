@@ -5,6 +5,8 @@ import {
   loginWithJWT, 
   getCurrentStudent, 
   getAccessToken, 
+  getRefreshToken,
+  refreshAccessToken,
   setTokens, 
   clearTokens,
   type JWTLoginResponse
@@ -37,19 +39,99 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check for existing authentication on mount
   useEffect(() => {
     const checkAuthStatus = async () => {
-      const token = getAccessToken();
+      let token = getAccessToken();
+      const refresh = getRefreshToken();
+      
+      // FIX #2: Proactive refresh if access missing but refresh exists
+      if (!token && refresh) {
+        console.log("🔄 No access token but refresh token exists, attempting proactive refresh...");
+        try {
+          token = await refreshAccessToken();
+          if (token) {
+            console.log("✅ Proactive refresh successful, session restored");
+          }
+        } catch (error) {
+          console.warn("⚠️ Proactive refresh failed:", error);
+        }
+      }
+      
       if (token) {
+        // OFFLINE-AWARE: If user is offline, trust the token and load cached profile
+        if (!navigator.onLine) {
+          console.log("📴 User is offline, loading cached profile without API validation");
+          
+          // Try to load cached profile from localStorage
+          const cachedProfile = localStorage.getItem('cachedStudentProfile');
+          if (cachedProfile) {
+            try {
+              const studentData = JSON.parse(cachedProfile);
+              setStudent(studentData);
+              setIsAuthenticated(true);
+              console.log("✅ Cached profile loaded successfully (offline mode)");
+            } catch (error) {
+              console.error("Failed to parse cached profile:", error);
+            }
+          } else {
+            // No cached profile but token exists - still trust it offline
+            setIsAuthenticated(true);
+            console.log("⚠️ No cached profile, but trusting token (offline mode)");
+          }
+          setLoading(false);
+          return;
+        }
+        
+        // ONLINE: Validate token with API
         try {
           const studentData = await getCurrentStudent();
           setStudent(studentData);
           setIsAuthenticated(true);
           
+          // Cache the profile for offline use
+          localStorage.setItem('cachedStudentProfile', JSON.stringify(studentData));
+          
           // Do NOT navigate here - let the page components handle navigation
           // based on their own logic (e.g., LoginPage redirects auth users, Home requires auth)
           console.log("AuthContext: Authentication state loaded from token");
-        } catch (error) {
+        } catch (error: any) {
           console.error("Failed to verify existing authentication:", error);
-          clearTokens();
+          
+          // OFFLINE-AWARE: Only clear tokens on 401, not on network errors
+          if (error?.status === 401 || error?.message?.includes('401')) {
+            console.log("❌ 401 Unauthorized - clearing tokens");
+            clearTokens();
+            localStorage.removeItem('cachedStudentProfile');
+          } else if (!navigator.onLine) {
+            // Network error while offline - keep session
+            console.log("📴 Network error but offline - keeping session");
+            const cachedProfile = localStorage.getItem('cachedStudentProfile');
+            if (cachedProfile) {
+              try {
+                const studentData = JSON.parse(cachedProfile);
+                setStudent(studentData);
+                setIsAuthenticated(true);
+                console.log("✅ Using cached profile due to offline network error");
+              } catch (parseError) {
+                console.error("Failed to parse cached profile:", parseError);
+              }
+            } else {
+              setIsAuthenticated(true);
+              console.log("⚠️ Network error offline, trusting token without profile");
+            }
+          } else {
+            // Online but non-401 error (500, network issue) - keep session, retry later
+            console.log("⚠️ API error but not 401 - keeping session for retry");
+            const cachedProfile = localStorage.getItem('cachedStudentProfile');
+            if (cachedProfile) {
+              try {
+                const studentData = JSON.parse(cachedProfile);
+                setStudent(studentData);
+                setIsAuthenticated(true);
+                console.log("✅ Using cached profile due to API error");
+              } catch (parseError) {
+                console.error("Failed to parse cached profile:", parseError);
+              }
+            }
+          }
         }
       }
       setLoading(false);
@@ -77,6 +159,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStudent(response.student);
       setIsAuthenticated(true);
       setLoading(false);
+      
+      // Cache the profile for offline use
+      localStorage.setItem('cachedStudentProfile', JSON.stringify(response.student));
+      
       console.log("AuthContext: Authentication state updated with JWT");
       
       // Check if phone number is missing and redirect to get-number page
@@ -133,6 +219,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStudent(data.student);
       setIsAuthenticated(true);
       setError(null);
+      
+      // Cache the profile for offline use
+      localStorage.setItem('cachedStudentProfile', JSON.stringify(data.student));
+      
       console.log("AuthContext: Google authentication state updated");
       
       // Check if phone number is missing and redirect to get-number page
@@ -160,6 +250,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStudent(studentData);
     setIsAuthenticated(true);
     setError(null);
+    
+    // Cache the profile for offline use
+    localStorage.setItem('cachedStudentProfile', JSON.stringify(studentData));
+    
     console.log("AuthContext: Authentication state updated with provided tokens");
   };
 
@@ -188,6 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       // Always clear local state regardless of server response
       clearTokens();
+      localStorage.removeItem('cachedStudentProfile');
       setStudent(null);
       setIsAuthenticated(false);
       setError(null);

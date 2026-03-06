@@ -2,6 +2,33 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { API_CONFIG } from "@/config/api"; // <--- Crucial: Import your API_CONFIG
 import { getAccessToken, authenticatedFetch } from "@/lib/auth"; // Import JWT utilities
 
+// PWA: Import persistence utilities for offline data caching
+// These will be available after installing the required packages:
+// npm install @tanstack/react-query-persist-client @tanstack/query-async-storage-persister localforage
+let persistQueryClient: any = null;
+let createAsyncStoragePersister: any = null;
+let localforage: any = null;
+
+// Try to load persistence modules (graceful degradation if not installed yet)
+(async () => {
+  try {
+    const persistModule = await import('@tanstack/react-query-persist-client');
+    const persisterModule = await import('@tanstack/query-async-storage-persister');
+    const localforageModule = await import('localforage');
+    
+    persistQueryClient = persistModule.persistQueryClient;
+    createAsyncStoragePersister = persisterModule.createAsyncStoragePersister;
+    localforage = localforageModule.default;
+    
+    console.log("✅ React Query persistence modules loaded successfully");
+    
+    // Initialize persistence after modules are loaded
+    initializePersistence();
+  } catch (error) {
+    console.warn("⚠️ React Query persistence modules not available (install with: npm install @tanstack/react-query-persist-client @tanstack/query-async-storage-persister localforage)");
+  }
+})();
+
 // Enhanced error class to handle standardized backend error format
 export class APIError extends Error {
   public code: string;
@@ -259,9 +286,40 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       staleTime: Infinity, // Data is considered fresh indefinitely unless explicitly invalidated
       retry: false, // Do not retry failed queries by default
+      gcTime: 24 * 60 * 60 * 1000, // Keep data in cache for 24 hours (previously cacheTime)
     },
     mutations: {
       retry: false, // Do not retry failed mutations by default
     },
   },
 });
+
+// PWA: Setup React Query persistence with IndexedDB for offline data availability
+// This function is called after persistence modules are loaded
+function initializePersistence() {
+  if (persistQueryClient && createAsyncStoragePersister && localforage) {
+    const persister = createAsyncStoragePersister({
+      storage: localforage,
+      key: 'REACT_QUERY_OFFLINE_CACHE',
+      throttleTime: 1000, // Throttle writes to avoid excessive IndexedDB operations
+    });
+
+    persistQueryClient({
+      queryClient,
+      persister,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours - adjust based on your data freshness requirements
+      dehydrateOptions: {
+        shouldDehydrateQuery: (query: any) => {
+          // Only persist successful queries, not error states
+          return query.state.status === 'success';
+        },
+      },
+    }).then(() => {
+      console.log("✅ React Query cache persistence initialized (IndexedDB)");
+    }).catch((error: any) => {
+      console.error("❌ Failed to initialize React Query persistence:", error);
+    });
+  } else {
+    console.log("ℹ️ React Query persistence not initialized - install required packages for offline data caching");
+  }
+}

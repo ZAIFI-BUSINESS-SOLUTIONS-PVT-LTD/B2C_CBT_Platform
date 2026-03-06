@@ -14,6 +14,12 @@ import {
 } from "lucide-react";
 import normalizeImageSrc from "@/lib/media";
 
+// Helper: accept camelCase key and fall back to snake_case key on the answer object
+function getImageValue(answer: any, camelKey: string) {
+    const snake = camelKey.replace(/([A-Z])/g, '_$1').toLowerCase();
+    return answer?.[camelKey] ?? answer?.[snake];
+}
+
 export interface QuestionReviewProps {
     detailedAnswers: Array<{
         questionId: number;
@@ -292,14 +298,14 @@ export function QuestionReview({
                                                         </div>
                                                     </div>
 
-                                                    <h5 className="font-medium text-gray-900 mb-3 leading-relaxed text-sm">
+                                                    <h5 className="font-medium text-gray-900 mb-3 leading-relaxed text-sm whitespace-pre-line">
                                                         {answer.question}
                                                     </h5>
 
                                                     {/* Question image (if any) */}
-                                                    {normalizeImageSrc((answer as any).questionImage) && (
+                                                    {normalizeImageSrc(getImageValue(answer, 'questionImage')) && (
                                                         <img
-                                                            src={normalizeImageSrc((answer as any).questionImage)}
+                                                            src={normalizeImageSrc(getImageValue(answer, 'questionImage'))}
                                                             alt={`Question ${originalIndex + 1} image`}
                                                             className="w-full max-w-full rounded-md mt-2 object-contain max-h-48"
                                                         />
@@ -329,7 +335,7 @@ export function QuestionReview({
                                                                 const optionKey = `option${option}`;
                                                                 const optionText = (answer as any)[optionKey];
                                                                 const optionImageKey = `${optionKey}Image`;
-                                                                const optionImage = (answer as any)[optionImageKey];
+                                                                const optionImage = getImageValue(answer, optionImageKey);
                                                                 const optionImageSrc = normalizeImageSrc(optionImage);
 
                                                                 return (
@@ -337,7 +343,7 @@ export function QuestionReview({
                                                                         <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3 font-medium ${isCorrect ? "bg-green-600 text-white" : isSelected ? "bg-red-600 text-white" : "bg-white/30 text-gray-900"}`}>
                                                                             {option}
                                                                         </span>
-                                                                        <span className={`${textColor} flex-1`}>{optionText}</span>
+                                                                        <span className={`${textColor} flex-1 whitespace-pre-line`}>{optionText}</span>
                                                                         {/* Option image (if any) */}
                                                                         {optionImageSrc && (
                                                                             <img
@@ -359,14 +365,14 @@ export function QuestionReview({
                                                                 Explanation
                                                             </h6>
                                                                 {/* Explanation image (if any) */}
-                                                                {normalizeImageSrc((answer as any).explanationImage) && (
+                                                                {normalizeImageSrc(getImageValue(answer, 'explanationImage')) && (
                                                                     <img
-                                                                        src={normalizeImageSrc((answer as any).explanationImage)}
+                                                                        src={normalizeImageSrc(getImageValue(answer, 'explanationImage'))}
                                                                         alt={`Explanation for Question ${originalIndex + 1}`}
                                                                         className="w-full rounded-md mb-3 object-contain max-h-48"
                                                                     />
                                                                 )}
-                                                                <p className="text-xs text-gray-800 leading-relaxed">{answer.explanation}</p>
+                                                                <p className="text-xs text-gray-800 leading-relaxed whitespace-pre-line">{answer.explanation}</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -376,91 +382,34 @@ export function QuestionReview({
                                 })}
                             </div>
 
-                            {/* Compact circular-dot indicator (max 4 visible; others hidden behind) */}
+                            {/* Simplified three-dot indicator */}
                             <div className="flex items-center justify-center mt-4 px-4">
-                                <div className="relative flex items-center justify-center" style={{ height: 40 }}>
-                                    {
-                                        (() => {
-                                            const maxVisible = 4;
-                                            const total = filteredAnswers.length;
-                                            // Choose a start so current is visible and we show up to `maxVisible` items
-                                            let start = Math.min(currentQuestionIndex, Math.max(0, total - maxVisible));
-                                            // If current is after start + maxVisible - 1, shift start so current is within view
-                                            if (currentQuestionIndex < start) start = currentQuestionIndex;
-                                            const visible = [];
-                                            for (let i = 0; i < Math.min(maxVisible, total); i++) {
-                                                visible.push(start + i);
-                                            }
-                                            const remainingBefore = start;
-                                            const remainingAfter = Math.max(0, total - (start + visible.length));
+                                <div className="flex items-center gap-4">
+                                    {/* Left dot (previous) */}
+                                    <button
+                                        onClick={() => { if (currentQuestionIndex > 0) setCurrentQuestionIndex(currentQuestionIndex - 1); }}
+                                        aria-label={currentQuestionIndex > 0 ? `Previous question ${currentQuestionIndex}` : 'No previous question'}
+                                        className={`w-3 h-3 rounded-full transition-transform ${currentQuestionIndex > 0 ? 'bg-white/95 hover:scale-110 border border-white/30' : 'bg-white/60 opacity-40 cursor-default'}`}
+                                        disabled={currentQuestionIndex === 0}
+                                    />
 
-                                            return (
-                                                <div className="flex items-center gap-0">
-                                                    {/* Left remaining indicator */}
-                                                    {remainingBefore > 0 && (
-                                                        <div className="flex items-center justify-center mr-3">
-                                                            <button
-                                                                onClick={() => setCurrentQuestionIndex(Math.max(0, start - 1))}
-                                                                className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-white/95 text-[12px] text-slate-700 shadow-sm border border-white/30 hover:scale-105 transition-transform"
-                                                                aria-label="Previous group"
-                                                            >
-                                                                +{remainingBefore}
-                                                            </button>
-                                                        </div>
-                                                    )}
+                                    {/* Center dot (current) - slightly larger and shows current number */}
+                                    <button
+                                        onClick={() => { /* no-op or could open answer index */ }}
+                                        aria-label={`Current question ${currentQuestionIndex + 1}`}
+                                        className="flex items-center justify-center w-10 h-10 rounded-full bg-white border border-slate-100 shadow-sm"
+                                        title={`Question ${currentQuestionIndex + 1}`}
+                                    >
+                                        <span className="text-sm font-semibold text-slate-700">{currentQuestionIndex + 1}</span>
+                                    </button>
 
-                                                    {/* Stacked circular dots */}
-                                                    <div className="flex items-center" style={{ position: 'relative', height: 40 }}>
-                                                        {visible.map((idx, pos) => {
-                                                            const isActive = idx === currentQuestionIndex;
-                                                            const size = isActive ? 44 : 32;
-                                                            const z = isActive ? 50 : 40 - pos; // active on top
-                                                            const overlap = 14; // how much each dot overlaps previous
-                                                            const leftOffset = pos * -overlap;
-
-                                                            return (
-                                                                <button
-                                                                    key={idx}
-                                                                    onClick={() => setCurrentQuestionIndex(idx)}
-                                                                    aria-label={`Go to question ${idx + 1}`}
-                                                                    className={`rounded-full flex items-center justify-center shadow-sm transition-all duration-150`} 
-                                                                    style={{
-                                                                        width: size,
-                                                                        height: size,
-                                                                        marginLeft: leftOffset,
-                                                                        zIndex: z,
-                                                                        background: isActive ? 'linear-gradient(180deg,#ffffff,#f8fbff)' : 'rgba(255,255,255,0.9)',
-                                                                        border: isActive ? '3px solid rgba(59,130,246,0.18)' : '1px solid rgba(255,255,255,0.6)',
-                                                                        boxShadow: isActive ? '0 6px 18px rgba(59,130,246,0.08)' : '0 4px 10px rgba(2,6,23,0.04)',
-                                                                        transform: isActive ? 'translateY(-2px) scale(1)' : 'scale(0.95)'
-                                                                    }}
-                                                                >
-                                                                    {isActive ? (
-                                                                        <span className="text-sm font-semibold text-blue-600">{idx + 1}</span>
-                                                                    ) : (
-                                                                        <span style={{ width: 8, height: 8, borderRadius: 9999, background: '#c7d2fe' }} aria-hidden />
-                                                                    )}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-
-                                                    {/* Right remaining indicator */}
-                                                    {remainingAfter > 0 && (
-                                                        <div className="flex items-center justify-center ml-3">
-                                                            <button
-                                                                onClick={() => setCurrentQuestionIndex(Math.min(total - 1, start + visible.length))}
-                                                                className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-white/95 text-[12px] text-slate-700 shadow-sm border border-white/30 hover:scale-105 transition-transform"
-                                                                aria-label="Next group"
-                                                            >
-                                                                +{remainingAfter}
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })()
-                                    }
+                                    {/* Right dot (next) */}
+                                    <button
+                                        onClick={() => { if (currentQuestionIndex < filteredAnswers.length - 1) setCurrentQuestionIndex(currentQuestionIndex + 1); }}
+                                        aria-label={currentQuestionIndex < filteredAnswers.length - 1 ? `Next question ${currentQuestionIndex + 2}` : 'No next question'}
+                                        className={`w-3 h-3 rounded-full transition-transform ${currentQuestionIndex < filteredAnswers.length - 1 ? 'bg-white/95 hover:scale-110 border border-white/30' : 'bg-white/60 opacity-40 cursor-default'}`}
+                                        disabled={currentQuestionIndex >= filteredAnswers.length - 1}
+                                    />
                                 </div>
                             </div>
                         </div>

@@ -1,4 +1,4 @@
-import{n as a,j as s,v as c}from"./main-Bj2UqfW3.js";/**
+import{D as a,j as s,O as c}from"./main-B75l45_m.js";/**
  * @license lucide-react v0.544.0 - ISC
  *
  * This source code is licensed under the ISC license.
@@ -18,4 +18,4 @@ import{n as a,j as s,v as c}from"./main-Bj2UqfW3.js";/**
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const y=[["line",{x1:"10",x2:"14",y1:"2",y2:"2",key:"14vaq8"}],["line",{x1:"12",x2:"15",y1:"14",y2:"11",key:"17fdiu"}],["circle",{cx:"12",cy:"14",r:"8",key:"1e1u0o"}]],m=a("timer",y);function g({borderWidth:n=1,duration:t=14,shineColor:e="#000000",className:i,style:r,...o}){return s.jsx("div",{style:{"--border-width":`${n}px`,"--duration":`${t}s`,backgroundImage:`radial-gradient(transparent,transparent, ${Array.isArray(e)?e.join(","):e},transparent,transparent)`,backgroundSize:"300% 300%",mask:"linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",WebkitMask:"linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",WebkitMaskComposite:"xor",maskComposite:"exclude",padding:"var(--border-width)",...r},className:c("pointer-events-none absolute inset-0 size-full rounded-[inherit] will-change-[background-position] motion-safe:animate-shine",i),...o})}export{f as C,u as G,h as M,g as S,m as T};
+ */const y=[["line",{x1:"10",x2:"14",y1:"2",y2:"2",key:"14vaq8"}],["line",{x1:"12",x2:"15",y1:"14",y2:"11",key:"17fdiu"}],["circle",{cx:"12",cy:"14",r:"8",key:"1e1u0o"}]],m=a("timer",y);function g({borderWidth:t=1,duration:n=14,shineColor:e="#000000",className:i,style:r,...o}){return s.jsx("div",{style:{"--border-width":`${t}px`,"--duration":`${n}s`,backgroundImage:`radial-gradient(transparent,transparent, ${Array.isArray(e)?e.join(","):e},transparent,transparent)`,backgroundSize:"300% 300%",mask:"linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",WebkitMask:"linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",WebkitMaskComposite:"xor",maskComposite:"exclude",padding:"var(--border-width)",...r},className:c("pointer-events-none absolute inset-0 size-full rounded-[inherit] will-change-[background-position] motion-safe:animate-shine",i),...o})}export{f as C,u as G,h as M,g as S,m as T};

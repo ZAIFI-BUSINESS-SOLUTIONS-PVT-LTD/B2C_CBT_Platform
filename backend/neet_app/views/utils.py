@@ -204,8 +204,15 @@ def clean_mathematical_text(text):
         # Handle molecular formulas with brackets like [Cu(NH3)4]2+ -> [Cu(NH₃)₄]²⁺
         text = re.sub(r'\](\d+)', lambda m: f"]{subscript_map.get(m.group(1), m.group(1))}", text)
         
-        # Clean up multiple spaces and whitespace
-        text = re.sub(r'\s+', ' ', text)
+        # Clean up whitespace while preserving intentional line breaks
+        # First, normalize line endings (CRLF -> LF)
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        # Collapse multiple consecutive blank lines to at most 2 newlines
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        # Collapse multiple spaces/tabs on the same line (but not newlines)
+        text = re.sub(r'[ \t]+', ' ', text)
+        # Remove trailing whitespace from each line
+        text = '\n'.join(line.rstrip() for line in text.split('\n'))
         text = text.strip()
         
         # Remove any remaining backslashes that aren't part of valid escape sequences
@@ -223,7 +230,7 @@ def clean_mathematical_text(text):
         return original_text
 
 
-def generate_questions_for_topics(selected_topics, question_count=None, exclude_question_ids=None, difficulty_distribution=None):
+def generate_questions_for_topics(selected_topics, question_count=None, exclude_question_ids=None, difficulty_distribution=None, exclude_image_questions=False):
     """
     Generate questions for the selected topics with cleaned mathematical expressions.
     Enhanced with fallback logic for topics without questions and question exclusion.
@@ -233,6 +240,7 @@ def generate_questions_for_topics(selected_topics, question_count=None, exclude_
         question_count: Maximum number of questions to return (optional)
         exclude_question_ids: Set/list of question IDs to exclude (for preventing repetition)
         difficulty_distribution: Override default difficulty distribution
+        exclude_image_questions: If True, exclude questions with images (for custom tests only)
     
     Returns:
         QuerySet of Question objects with cleaned text
@@ -281,10 +289,24 @@ def generate_questions_for_topics(selected_topics, question_count=None, exclude_
 
         # Get all questions for the selected topics, excluding recent ones
         questions = Question.objects.filter(topic_id__in=selected_topics)
+        
+        # For custom tests, exclude questions with images (all image fields must be null/blank)
+        if exclude_image_questions:
+            from django.db.models import Q
+            questions = questions.filter(
+                Q(question_image__isnull=True) | Q(question_image=''),
+                Q(option_a_image__isnull=True) | Q(option_a_image=''),
+                Q(option_b_image__isnull=True) | Q(option_b_image=''),
+                Q(option_c_image__isnull=True) | Q(option_c_image=''),
+                Q(option_d_image__isnull=True) | Q(option_d_image=''),
+                Q(explanation_image__isnull=True) | Q(explanation_image='')
+            )
+            logger.info(f"Excluding questions with images for custom test")
+        
         if exclude_question_ids:
             questions = questions.exclude(id__in=exclude_question_ids)
         
-        logger.info(f"Found {questions.count()} questions for topics {selected_topics} (excluded {len(exclude_question_ids)} recent questions)")
+        logger.info(f"Found {questions.count()} questions for topics {selected_topics} (excluded {len(exclude_question_ids)} recent questions, exclude_image_questions={exclude_image_questions})")
         
         # If no questions found for selected topics after exclusion, try fallback strategies
         if questions.count() == 0:
@@ -517,7 +539,7 @@ def generate_questions_for_topics(selected_topics, question_count=None, exclude_
         return Question.objects.none()
 
 
-def generate_random_questions_from_database(question_count, exclude_question_ids=None):
+def generate_random_questions_from_database(question_count, exclude_question_ids=None, exclude_image_questions=False):
     """
     Generate random questions directly from the entire database, bypassing topic selection.
     This is specifically for "Random Test" mode where we want a mix of questions from all subjects.
@@ -525,6 +547,7 @@ def generate_random_questions_from_database(question_count, exclude_question_ids
     Args:
         question_count: Number of questions to select
         exclude_question_ids: Set/list of question IDs to exclude (for preventing repetition)
+        exclude_image_questions: If True, exclude questions with images (for custom tests)
     
     Returns:
         QuerySet of Question objects with cleaned text
@@ -571,6 +594,20 @@ def generate_random_questions_from_database(question_count, exclude_question_ids
         
         # Get all questions from the entire database, excluding recent ones
         all_questions = Question.objects.all()
+        
+        # For custom tests (including random tests), exclude questions with images
+        if exclude_image_questions:
+            from django.db.models import Q
+            all_questions = all_questions.filter(
+                Q(question_image__isnull=True) | Q(question_image=''),
+                Q(option_a_image__isnull=True) | Q(option_a_image=''),
+                Q(option_b_image__isnull=True) | Q(option_b_image=''),
+                Q(option_c_image__isnull=True) | Q(option_c_image=''),
+                Q(option_d_image__isnull=True) | Q(option_d_image=''),
+                Q(explanation_image__isnull=True) | Q(explanation_image='')
+            )
+            logger.info(f"Excluding questions with images for random custom test")
+        
         if exclude_question_ids:
             all_questions = all_questions.exclude(id__in=exclude_question_ids)
         
@@ -1155,7 +1192,7 @@ def clean_existing_questions(request=None):
         return error_response
 
 
-def adaptive_generate_questions_for_topics(selected_topics, question_count, student_id, exclude_question_ids=None):
+def adaptive_generate_questions_for_topics(selected_topics, question_count, student_id, exclude_question_ids=None, exclude_image_questions=False):
     """
     Generate questions for topics using adaptive selection logic.
     
@@ -1168,6 +1205,7 @@ def adaptive_generate_questions_for_topics(selected_topics, question_count, stud
         question_count (int): Total number of questions to select
         student_id (str): Student ID to check answer history
         exclude_question_ids (set): Question IDs to exclude from selection
+        exclude_image_questions (bool): If True, exclude questions with images (for custom tests)
         
     Returns:
         QuerySet: Selected questions following adaptive logic
@@ -1191,6 +1229,19 @@ def adaptive_generate_questions_for_topics(selected_topics, question_count, stud
         all_questions = Question.objects.filter(topic_id__in=selected_topics)
     else:
         all_questions = Question.objects.all()
+    
+    # For custom tests, exclude questions with images (all image fields must be null/blank)
+    if exclude_image_questions:
+        from django.db.models import Q
+        all_questions = all_questions.filter(
+            Q(question_image__isnull=True) | Q(question_image=''),
+            Q(option_a_image__isnull=True) | Q(option_a_image=''),
+            Q(option_b_image__isnull=True) | Q(option_b_image=''),
+            Q(option_c_image__isnull=True) | Q(option_c_image=''),
+            Q(option_d_image__isnull=True) | Q(option_d_image=''),
+            Q(explanation_image__isnull=True) | Q(explanation_image='')
+        )
+        logger.info(f"Excluding questions with images for adaptive custom test")
     
     # Exclude questions that should not be selected
     if exclude_question_ids:
@@ -1404,7 +1455,7 @@ def adaptive_generate_questions_for_topics(selected_topics, question_count, stud
         return Question.objects.none()
 
 
-def adaptive_generate_random_questions_from_database(question_count, student_id, exclude_question_ids=None):
+def adaptive_generate_random_questions_from_database(question_count, student_id, exclude_question_ids=None, exclude_image_questions=False):
     """
     Generate random questions from entire database using adaptive selection logic.
     Similar to adaptive_generate_questions_for_topics but selects from all subjects.
@@ -1413,6 +1464,7 @@ def adaptive_generate_random_questions_from_database(question_count, student_id,
         question_count (int): Total number of questions to select
         student_id (str): Student ID to check answer history
         exclude_question_ids (set): Question IDs to exclude from selection
+        exclude_image_questions (bool): If True, exclude questions with images (for custom tests)
         
     Returns:
         QuerySet: Selected questions following adaptive logic
@@ -1424,5 +1476,6 @@ def adaptive_generate_random_questions_from_database(question_count, student_id,
         selected_topics=[],  # Empty list for all topics
         question_count=question_count,
         student_id=student_id,
-        exclude_question_ids=exclude_question_ids
+        exclude_question_ids=exclude_question_ids,
+        exclude_image_questions=exclude_image_questions
     )

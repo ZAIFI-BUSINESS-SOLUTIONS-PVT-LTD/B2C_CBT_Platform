@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 import { API_CONFIG } from '@/config/api';
 import { authenticatedFetch } from '@/lib/auth';
-import MobileDock from '@/components/mobile-dock';
 import HeaderDesktop from '@/components/header-desktop';
 
 interface PYQ {
@@ -304,9 +303,7 @@ export default function PYQsPage() {
       </div>
 
       {/* Mobile Dock */}
-      <div className="md:hidden">
-        <MobileDock />
-      </div>
+      {/* Removed MobileDock as it is not needed on this page */}
     </>
   );
 }

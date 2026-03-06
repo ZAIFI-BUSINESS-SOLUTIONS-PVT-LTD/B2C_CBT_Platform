@@ -62,16 +62,32 @@ export const refreshAccessToken = async (): Promise<string | null> => {
  
     if (response.ok) {
       const data = await response.json();
+      // FIX #1: Save new access token
       localStorage.setItem('accessToken', data.access);
+      
+      // FIX #1 (CRITICAL): Save rotated refresh token when backend returns it
+      // Backend has ROTATE_REFRESH_TOKENS=True, so it returns new refresh token
+      if (data.refresh) {
+        localStorage.setItem('refreshToken', data.refresh);
+        console.log('🔄 Refresh token rotated and saved');
+      }
+      
+      // Update cookie for TWA recovery
       document.cookie = `access=${data.access}; path=/; max-age=86400`;
       return data.access;
-    } else {
+    } else if (response.status === 401) {
+      // FIX #4: Only clear tokens on auth failure (401), not on network errors
+      console.warn('❌ Refresh token invalid or expired (401)');
       clearTokens();
+      return null;
+    } else {
+      // FIX #4: Preserve tokens on non-auth errors (network/5xx) to allow retry
+      console.error(`⚠️ Refresh failed with status ${response.status}, preserving tokens for retry`);
       return null;
     }
   } catch (error) {
-    console.error('Token refresh failed:', error);
-    clearTokens();
+    // FIX #4: Network errors should not clear tokens immediately
+    console.error('⚠️ Token refresh network error (preserving tokens):', error);
     return null;
   }
 };

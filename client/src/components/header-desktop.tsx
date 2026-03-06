@@ -182,6 +182,7 @@ export default function HeaderDesktop() {
         <>
             <header className={`flex items-center justify-end fixed top-0 ${leftClass} right-0 z-50 h-20 bg-white border-b transition-all duration-300`} role="banner">
                 <div className="flex items-center justify-end pr-3 space-x-3">
+                    {/*
                     <Button
                         variant="ghost"
                         size="icon"
@@ -191,6 +192,7 @@ export default function HeaderDesktop() {
                     >
                         <Crown className="h-5 w-5 text-amber-600" />
                     </Button>
+                    */}
                     <StudentProfile />
                 </div>
             </header>

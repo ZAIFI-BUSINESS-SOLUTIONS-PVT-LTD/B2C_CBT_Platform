@@ -14,7 +14,7 @@ import { getAvailablePlatformTests, startPlatformTest } from "@/config/api";
 import { API_CONFIG } from "@/config/api";
 import { authenticatedFetch } from "@/lib/auth";
 import { useAuth } from "@/contexts/AuthContext";
-import { AlertCircle, Star, Edit3, BookOpen } from "lucide-react";
+import { AlertCircle, Star, Edit3, BookOpen, Crown } from "lucide-react";
 import SubscriptionRequiredModal from "@/components/SubscriptionRequiredModal";
 import { APIError } from "@/lib/queryClient";
 
@@ -205,18 +205,15 @@ export default function Topics() {
             <img src="/NEET Bro.webp" alt="NEET Bro" className="h-[4.4rem] object-contain" />
           </div>
           <div className="flex items-center gap-3 -mt-2">
-            {/* Crown shortcut placed to the right of profile avatar */}
+            {/* 
             <button
               onClick={() => navigate('/payment')}
               aria-label="Go to Payment"
               className="h-8 w-8 rounded-full flex items-center justify-center bg-blue-600 border-2 border-blue-900 shadow-sm"
             >
-              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                <path d="M12 2 L21 8 L12 22 L3 8 Z" fill="#2f6bff" stroke="#ffffff" strokeWidth="1.1" />
-                <path d="M12 2 L21 8 L12 12 L3 8 Z" fill="#2F6BFF" opacity="0.22" />
-                <path d="M12 22 L12 12" stroke="#ffffff" strokeWidth="1.2" opacity="0.8" />
-              </svg>
+              <Crown className="h-5 w-5 text-white" />
             </button>
+            */}
             <StudentProfile avatarClassName="h-8 w-8" />
 
             

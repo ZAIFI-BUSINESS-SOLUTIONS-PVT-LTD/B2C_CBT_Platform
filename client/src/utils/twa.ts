@@ -64,29 +64,27 @@ export const registerPlayPurchaseCallback = (
 
 /**
  * Verify Play Store purchase with backend
+ * FIX #3: Now uses authenticatedFetch for automatic token refresh support
  * 
  * @param purchaseToken Google Play purchase token
  * @param productId Product ID (e.g., "basic-3m", "pro-3m")
- * @param accessToken JWT access token for authentication
  * @returns Verification response from backend
  */
 export const verifyPlayPurchase = async (
   purchaseToken: string,
-  productId: string,
-  accessToken: string
+  productId: string
 ): Promise<any> => {
   console.log('[verifyPlayPurchase] Sending to backend:', {
     purchaseToken: purchaseToken.substring(0, 30) + '...',
-    productId,
-    authHeader: `Bearer ${accessToken.substring(0, 20)}...`
+    productId
   });
 
-  const response = await fetch("/api/payments/play/verify-subscription/", {
+  // FIX #3: Import authenticatedFetch to enable auto-refresh on 401
+  const { authenticatedFetch } = await import('@/lib/auth');
+  const { API_BASE_URL } = await import('@/config/google-auth');
+
+  const response = await authenticatedFetch(`${API_BASE_URL}/payments/play/verify-subscription/`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
     body: JSON.stringify({
       purchaseToken,
       productId,

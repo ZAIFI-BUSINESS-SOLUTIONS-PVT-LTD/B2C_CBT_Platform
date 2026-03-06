@@ -86,16 +86,29 @@ def get_question_of_the_day(request):
     attempted_question_ids = set(test_answered_question_ids) | set(qod_question_ids)
     
     # Get questions not yet attempted
+    # Filter for non-image questions (all image fields must be null/blank)
     available_questions = Question.objects.exclude(
         id__in=attempted_question_ids
     ).filter(
-        institution__isnull=True  # Only global questions, not institution-specific
+        Q(institution__isnull=True) &  # Only global questions, not institution-specific
+        (Q(question_image__isnull=True) | Q(question_image='')) &
+        (Q(option_a_image__isnull=True) | Q(option_a_image='')) &
+        (Q(option_b_image__isnull=True) | Q(option_b_image='')) &
+        (Q(option_c_image__isnull=True) | Q(option_c_image='')) &
+        (Q(option_d_image__isnull=True) | Q(option_d_image='')) &
+        (Q(explanation_image__isnull=True) | Q(explanation_image=''))
     )
     
-    # Fallback: If all questions attempted, select from all questions
+    # Fallback: If all questions attempted, select from all non-image questions
     if not available_questions.exists():
         available_questions = Question.objects.filter(
-            institution__isnull=True
+            Q(institution__isnull=True) &
+            (Q(question_image__isnull=True) | Q(question_image='')) &
+            (Q(option_a_image__isnull=True) | Q(option_a_image='')) &
+            (Q(option_b_image__isnull=True) | Q(option_b_image='')) &
+            (Q(option_c_image__isnull=True) | Q(option_c_image='')) &
+            (Q(option_d_image__isnull=True) | Q(option_d_image='')) &
+            (Q(explanation_image__isnull=True) | Q(explanation_image=''))
         )
     
     # Select a random question and return it to the client without persisting

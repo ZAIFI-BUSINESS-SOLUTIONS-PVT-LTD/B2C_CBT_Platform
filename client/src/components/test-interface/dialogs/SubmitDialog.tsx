@@ -15,6 +15,7 @@ interface SubmitDialogProps {
   isOpen: boolean;
   answersCount: number;
   totalQuestions: number;
+  markedCount?: number;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -23,6 +24,7 @@ export function SubmitDialog({
   isOpen,
   answersCount,
   totalQuestions,
+  markedCount = 0,
   onConfirm,
   onCancel,
 }: SubmitDialogProps) {
@@ -68,8 +70,8 @@ export function SubmitDialog({
                     <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{Math.max(0, totalQuestions - answersCount)}</div>
                   </div>
                   <div className="min-w-0 text-center p-2 bg-white rounded-md border border-slate-200 shadow-sm">
-                    <div className="text-xs text-slate-500">Unanswered</div>
-                    <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{Math.max(0, totalQuestions - answersCount)}</div>
+                    <div className="text-xs text-slate-500">Marked</div>
+                    <div className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{markedCount}</div>
                   </div>
                 </div>
               </div>

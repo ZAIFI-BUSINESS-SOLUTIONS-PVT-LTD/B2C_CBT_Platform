@@ -95,6 +95,7 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 # For random tests, skip topic-based selection and directly select from entire database
                 from .utils import generate_random_questions_from_database
                 
+                # Note: random tests also exclude image questions (same as custom tests)
                 available_questions = generate_random_questions_from_database(
                     requested_question_count,
                     exclude_question_ids=recent_question_ids
@@ -112,10 +113,12 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 if adaptive_selection:
                     # For adaptive selection, we're more lenient - just check if any questions exist
                     from .utils import adaptive_generate_questions_for_topics
+                    # Custom tests exclude image questions
                     available_questions = generate_questions_for_topics(
                         selected_topics, 
                         None,  # Don't limit to get total available count
-                        exclude_question_ids=recent_question_ids
+                        exclude_question_ids=recent_question_ids,
+                        exclude_image_questions=True
                     )
                     available_count = available_questions.count()
                     
@@ -132,10 +135,12 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 else:
                     # For traditional selection, enforce strict availability
                     from .utils import generate_questions_for_topics
+                    # Custom tests exclude image questions
                     available_questions = generate_questions_for_topics(
                         selected_topics, 
                         None,  # Don't limit to get total available count
-                        exclude_question_ids=recent_question_ids
+                        exclude_question_ids=recent_question_ids,
+                        exclude_image_questions=True
                     )
                     available_count = available_questions.count()
                     
@@ -152,34 +157,41 @@ class TestSessionViewSet(viewsets.ModelViewSet):
             # Get the final questions with proper exclusion and count limit
             if test_type == 'random':
                 # For random tests, choose between adaptive and traditional selection
+                # Random tests also exclude image questions (same as custom tests)
                 if adaptive_selection:
                     from .utils import adaptive_generate_random_questions_from_database
                     selected_questions = adaptive_generate_random_questions_from_database(
                         session.question_count,
                         student_id,
-                        exclude_question_ids=recent_question_ids
+                        exclude_question_ids=recent_question_ids,
+                        exclude_image_questions=True
                     )
                 else:
                     from .utils import generate_random_questions_from_database
                     selected_questions = generate_random_questions_from_database(
                         session.question_count,
-                        exclude_question_ids=recent_question_ids
+                        exclude_question_ids=recent_question_ids,
+                        exclude_image_questions=True
                     )
             else:
                 # For topic-based tests, choose between adaptive and traditional selection
                 if adaptive_selection:
                     from .utils import adaptive_generate_questions_for_topics
+                    # Custom tests exclude image questions
                     selected_questions = adaptive_generate_questions_for_topics(
                         session.selected_topics, 
                         session.question_count,
                         student_id,
-                        exclude_question_ids=recent_question_ids
+                        exclude_question_ids=recent_question_ids,
+                        exclude_image_questions=True
                     )
                 else:
+                    # Custom tests exclude image questions
                     selected_questions = generate_questions_for_topics(
                         session.selected_topics, 
                         session.question_count,
-                        exclude_question_ids=recent_question_ids
+                        exclude_question_ids=recent_question_ids,
+                        exclude_image_questions=True
                     )
             
             # Update session with actual question count
@@ -281,7 +293,8 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 generated_questions = generate_questions_for_topics(
                     session.selected_topics,
                     session.question_count,
-                    exclude_question_ids=recent_question_ids
+                    exclude_question_ids=recent_question_ids,
+                    exclude_image_questions=session.is_custom_test()
                 )
 
                 # If none generated, try without exclusion as a fallback
@@ -289,7 +302,8 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                     generated_questions = generate_questions_for_topics(
                         session.selected_topics,
                         session.question_count,
-                        exclude_question_ids=None
+                        exclude_question_ids=None,
+                        exclude_image_questions=session.is_custom_test()
                     )
 
                 # Create TestAnswer records for generated questions
@@ -484,6 +498,8 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 'correctAnswer': question.correct_answer,
                 'isCorrect': is_correct,
                 'explanation': question.explanation,
+                # Include question image (nullable) for results display
+                'question_image': getattr(question, 'question_image', None),
                 # Include explanation image (nullable) for results display
                 'explanation_image': getattr(question, 'explanation_image', None),
                 'optionA': question.option_a,
@@ -726,25 +742,27 @@ class TestSessionViewSet(viewsets.ModelViewSet):
                 incorrect_answers_count += 1
 
             detailed_answers.append({
-                'question_id': question.id,
+                'questionId': question.id,
                 'question': question.question,
-                'selected_answer': answer.selected_answer,
-                'correct_answer': question.correct_answer,
-                'is_correct': is_correct,
+                'selectedAnswer': answer.selected_answer,
+                'correctAnswer': question.correct_answer,
+                'isCorrect': is_correct,
                 'explanation': question.explanation,
+                # Include question image (nullable)
+                'questionImage': getattr(question, 'question_image', None),
                 # Include explanation image (nullable)
-                'explanation_image': getattr(question, 'explanation_image', None),
-                'option_a': question.option_a,
-                'option_b': question.option_b,
-                'option_c': question.option_c,
-                'option_d': question.option_d,
+                'explanationImage': getattr(question, 'explanation_image', None),
+                'optionA': question.option_a,
+                'optionB': question.option_b,
+                'optionC': question.option_c,
+                'optionD': question.option_d,
                 # Include option images (nullable)
-                'option_a_image': getattr(question, 'option_a_image', None),
-                'option_b_image': getattr(question, 'option_b_image', None),
-                'option_c_image': getattr(question, 'option_c_image', None),
-                'option_d_image': getattr(question, 'option_d_image', None),
-                'marked_for_review': answer.marked_for_review,
-                'time_taken': answer.time_taken
+                'optionAImage': getattr(question, 'option_a_image', None),
+                'optionBImage': getattr(question, 'option_b_image', None),
+                'optionCImage': getattr(question, 'option_c_image', None),
+                'optionDImage': getattr(question, 'option_d_image', None),
+                'markedForReview': answer.marked_for_review,
+                'timeTaken': answer.time_taken
             })
 
             subject_name = question.topic.subject

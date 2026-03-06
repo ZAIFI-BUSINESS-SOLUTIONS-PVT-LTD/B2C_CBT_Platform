@@ -278,26 +278,10 @@ const PaymentButtons: React.FC = () => {
 
           console.log('[TWA] Purchase token received:', purchaseToken.substring(0, 20) + '...');
 
-          // Token stored as 'accessToken' in localStorage; also check 'access' cookie fallback
-          // set by auth.ts for TWA environments where localStorage may not persist.
-          const accessToken =
-            localStorage.getItem('accessToken') ||
-            document.cookie
-              .split('; ')
-              .find(row => row.startsWith('access='))
-              ?.split('=')[1];
-          if (!accessToken) {
-            toast({
-              title: 'Authentication Error',
-              description: 'Please log in again to complete the purchase.',
-              variant: 'destructive',
-            });
-            setLoading(null);
-            return;
-          }
-
+          // FIX #3: verifyPlayPurchase now uses authenticatedFetch internally
+          // which handles token retrieval and refresh automatically
           // Verify the purchase token with the Django backend
-          const result = await verifyPlayPurchase(purchaseToken, playSKU, accessToken);
+          const result = await verifyPlayPurchase(purchaseToken, playSKU);
           console.log('[TWA] Play purchase verified:', result);
 
           toast({

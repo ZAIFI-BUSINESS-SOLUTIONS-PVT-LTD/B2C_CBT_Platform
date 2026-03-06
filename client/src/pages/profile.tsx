@@ -237,7 +237,7 @@ export function StudentProfile() {
         return (
             <div 
                 className="min-h-screen w-full bg-cover bg-center bg-no-repeat relative"
-                style={{ backgroundImage: "url('/testpage-bg.webp')" }}
+                style={{ backgroundImage: "url('/testpage-bg.webp')", overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
             >
                 {/* overlay removed to restore background vibrancy */}
                 
@@ -287,7 +287,7 @@ export function StudentProfile() {
     return (
         <div 
             className="min-h-screen w-full bg-cover bg-center bg-no-repeat relative"
-            style={{ backgroundImage: "url('/testpage-bg.webp')" }}
+            style={{ backgroundImage: "url('/testpage-bg.webp')", overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
         >
         {/* overlay removed to restore background vibrancy */}
             
@@ -320,9 +320,7 @@ export function StudentProfile() {
                             <h2 className="text-2xl font-bold text-gray-900 mb-1">
                                 {getDisplayName(profile) || 'User'}
                             </h2>
-                            <p className="text-gray-700 text-sm">
-                                @{profile.studentId}
-                            </p>
+                            {/* Student ID removed as per request */}
                         </div>
 
                         {/* Menu Items */}
@@ -376,12 +374,12 @@ export function StudentProfile() {
             {/* Profile Edit Dialog */}
             <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
                 <DialogContent className="w-[calc(100%-3rem)] max-w-md rounded-2xl bg-white/90 backdrop-blur-sm border border-gray-200 shadow-xl overflow-hidden p-0">
-                    <div 
-                        className="max-h-[85vh] overflow-y-auto"
-                        style={{
-                          overscrollBehavior: 'auto',
-                          WebkitOverflowScrolling: 'touch'
-                        }}
+                                        <div 
+                                                className="max-h-[85vh] overflow-y-auto"
+                                                style={{
+                                                    overscrollBehavior: 'contain',
+                                                    WebkitOverflowScrolling: 'touch'
+                                                }}
                     >
                         <div className="p-6">
                             <DialogHeader className="mb-4">
@@ -418,12 +416,12 @@ export function StudentProfile() {
             {/* Delete Account Confirmation Dialog */}
             <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
                 <AlertDialogContent className="w-[calc(100%-3rem)] max-w-md rounded-2xl bg-white/95 backdrop-blur-sm border border-gray-200 shadow-xl overflow-hidden p-0">
-                    <div 
-                        className="max-h-[70vh] overflow-y-auto p-6"
-                        style={{
-                          overscrollBehavior: 'auto',
-                          WebkitOverflowScrolling: 'touch'
-                        }}
+                                        <div 
+                                                className="max-h-[70vh] overflow-y-auto p-6"
+                                                style={{
+                                                    overscrollBehavior: 'contain',
+                                                    WebkitOverflowScrolling: 'touch'
+                                                }}
                     >
                         <AlertDialogHeader>
                             <AlertDialogTitle className="text-gray-900">Delete Account</AlertDialogTitle>

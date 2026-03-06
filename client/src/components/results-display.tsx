@@ -498,7 +498,7 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
       <div 
         className="flex-1 overflow-y-auto pb-20 pt-2 px-4"
         style={{
-          overscrollBehavior: 'auto',
+          overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch'
         }}
       >
@@ -510,19 +510,23 @@ export function ResultsDisplay({ results, onReviewClick }: ResultsDisplayProps) 
             <div className="mb-3">
               <div className="text-sm font-semibold text-gray-700 mb-2">Subject-wise Breakdown</div>
               <div className="flex gap-2 flex-wrap">
-                {subjects.map((subject) => (
-                  <button
-                    key={subject}
-                    onClick={() => setSelectedSubject(subject)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                      selectedSubject === subject
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {subject}
-                  </button>
-                ))}
+                {subjects.map((subject) => {
+                  const label = subject === 'Overall' ? subject : String(subject).slice(0, 3).toLowerCase();
+                  return (
+                    <button
+                      key={subject}
+                      title={subject}
+                      onClick={() => setSelectedSubject(subject)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        selectedSubject === subject
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
