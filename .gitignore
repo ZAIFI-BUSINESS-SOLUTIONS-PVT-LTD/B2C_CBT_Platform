@@ -10,3 +10,6 @@ __pycache__/
 backend/neet_app/neet_docs/
 backend/credentials/play-service-account.json
 twa/
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
