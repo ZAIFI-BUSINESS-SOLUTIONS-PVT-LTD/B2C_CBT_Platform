@@ -4,11 +4,11 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "node init && vite",
+    "build": "node init && vite build",
     "preview": "vite preview",
     "check": "tsc",
-    "pwa:check": "node -e \"console.log('\\n📋 PWA Checklist:\\n'); const fs=require('fs'); const icons=['72','96','128','144','152','192','384','512']; icons.forEach(s=>{try{fs.accessSync('client/public/icons/icon-'+s+'.png');console.log('✅ icon-'+s+'.png')}catch{console.log('❌ icon-'+s+'.png - MISSING')}}); console.log('\\n👉 Generate icons: Open client/public/icons/generate-icons.html\\n')\"",
+    "pwa:check": "node -e \"console.log('\\n\ud83d\udccb PWA Checklist:\\n'); const fs=require('fs'); const icons=['72','96','128','144','152','192','384','512']; icons.forEach(s=>{try{fs.accessSync('client/public/icons/icon-'+s+'.png');console.log('\u2705 icon-'+s+'.png')}catch{console.log('\u274c icon-'+s+'.png - MISSING')}}); console.log('\\n\ud83d\udc49 Generate icons: Open client/public/icons/generate-icons.html\\n')\"",
     "pwa:verify": "node pwa-verify.js"
   },
   "dependencies": {
